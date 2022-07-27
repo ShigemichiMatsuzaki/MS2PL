@@ -9,191 +9,174 @@ import sys
 import traceback
 import argparse
 import datetime
+import collections
+from typing import Optional
+import math
 
-from nbformat import write
 import torch
-import torchvision
 from torch.utils.tensorboard import SummaryWriter
 from warmup_scheduler import GradualWarmupScheduler
+from tqdm import tqdm
 
 
 from utils.metrics import AverageMeter, MIOU
 from utils.visualization import add_images_to_tensorboard
 from utils.optim_opt import get_optimizer, get_scheduler
+from utils.model_io import import_model
+from options.train_options import PreTrainOptions
 
-DATASET_LIST = ["camvid", "cityscapes", "forest"]
+from utils.dataset_utils import import_dataset, DATASET_LIST
 
-
-def parse_arguments():
-    """Parse all the arguments provided from the CLI.
-
-    Returns:
-      A list of parsed arguments.
-    """
-    parser = argparse.ArgumentParser(description="Trainer of domain gap evaluator")
-
-    # Directory
-    parser.add_argument("--save-path", help="Save path (tensorboard etc.)")
-    # Dataset
-    parser.add_argument(
-        "--s1-name",
-        choices=DATASET_LIST,
-        default="camvid",
-        help="The dataset used as S1, the main source",
-    )
-
-    # GPU/CPU
-    parser.add_argument(
-        "--device",
-        type=str,
-        choices=["cuda", "cpu"],
-        default="cuda",
-        help="Batch size in training",
-    )
-
-    # DataLoader
-    parser.add_argument(
-        "--pin-memory",
-        action="store_true",
-        help="Whether to use 'pin_memory' in DataLoader",
-    )
-    parser.add_argument(
-        "--num-workers",
-        type=int,
-        default=8,
-        help="Number of workers used in DataLoader. Should be 4 times the number of GPUs?",
-    )
-
-    # Training conditions
-    parser.add_argument(
-        "--batch-size", type=int, default=16, help="Batch size in training"
-    )
-    parser.add_argument(
-        "--epochs", type=int, default=500, help="The number of training epochs"
-    )
-    # Loss
-    parser.add_argument(
-        "--weight-loss-ent", type=float, default=0.2, help="Weight on the entropy loss"
-    )
-
-    # Optimizer and scheduler
-    parser.add_argument(
-        "--optim", type=str, default="SGD", help="Optimizer. Default: SGD"
-    )
-    parser.add_argument("--lr", type=float, default=1e-4, help="Initial learning rate")
-    parser.add_argument("--momentum", type=float, default=0.9, help="Momentum for SGD")
-    parser.add_argument(
-        "--weight-decay",
-        type=float,
-        default=5e-4,
-        help="Weight decay by L2 normalization",
-    )
-
-    parser.add_argument(
-        "--scheduler",
-        type=str,
-        default="cyclic",
-        help="Type of the learning rate cheduler. Default: cyclic",
-    )
-    parser.add_argument(
-        "--lr-gamma",
-        action="store_true",
-        help="Whether to use learning rate warmup",
-    )
-    parser.add_argument(
-        "--use-lr-warmup",
-        action="store_true",
-        help="Whether to use learning rate warmup",
-    )
-
-    return parser.parse_args()
-
-
-def import_dataset(dataset_name, mode="train"):
-    """Import a designated dataset
-
-    Args:
-        dataset_name (string):
-            Name of the dataset to import
-
-    Returns:
-      A list of parsed arguments.
-    """
-    max_iter = 3000
-    if dataset_name == DATASET_LIST[0]:
-        from dataset.camvid import CamVidSegmentation, color_encoding
-
-        class_num = 13
-        class_wts = torch.ones(13)
-
-        dataset = CamVidSegmentation(
-            root="/tmp/dataset/CamVid", mode=mode, max_iter=max_iter
-        )
-    elif dataset_name == DATASET_LIST[1]:
-        from dataset.cityscapes import CityscapesSegmentation, color_encoding
-
-        dataset = CityscapesSegmentation(
-            root="/tmp/dataset/cityscapes", mode=mode, max_iter=max_iter
-        )
-        class_num = 19
-
-        class_wts = torch.ones(19)
-        class_wts[0] = 2.8149201869965
-        class_wts[1] = 6.9850029945374
-        class_wts[2] = 3.7890393733978
-        class_wts[3] = 9.9428062438965
-        class_wts[4] = 9.7702074050903
-        class_wts[5] = 9.5110931396484
-        class_wts[6] = 10.311357498169
-        class_wts[7] = 10.026463508606
-        class_wts[8] = 4.6323022842407
-        class_wts[9] = 9.5608062744141
-        class_wts[10] = 7.8698215484619
-        class_wts[11] = 9.5168733596802
-        class_wts[12] = 10.373730659485
-        class_wts[13] = 6.6616044044495
-        class_wts[14] = 10.260489463806
-        class_wts[15] = 10.287888526917
-        class_wts[16] = 10.289801597595
-        class_wts[17] = 10.405355453491
-        class_wts[18] = 10.138095855713
-    elif dataset_name == DATASET_LIST[2]:
-        from dataset.forest import FreiburgForestDataset, color_encoding
-
-        dataset = FreiburgForestDataset(
-            root="/tmp/dataset/freiburg_forest_annotated/", mode=mode, max_iter=max_iter
-        )
-        class_num = 5
-        class_wts = torch.ones(5)
-    else:
-        raise Exception
-
-    return dataset, class_num, color_encoding, class_wts
+# DATASET_LIST = ["camvid", "cityscapes", "forest"]
+#
+#
+# def import_dataset(
+#     dataset_name: torch.utils.data.Dataset,
+#     mode: str = "train",
+#     calc_class_wts: bool = False,
+# ):
+#     """Import a designated dataset
+#
+#     Parameters
+#     ----------
+#     dataset_name: `str`
+#         Name of the dataset to import
+#     mode: `str`
+#         Mode of the dataset. ['train', 'val', 'test']
+#     calc_class_wts: `bool`
+#         True to calculate class weights based on the frequency
+#
+#     Returns
+#     -------
+#     dataset: `torch.utils.data.Dataset`
+#         Imported dataset
+#     num_classes: `int`
+#         The number of classes in the imported dataset
+#     color_encoding: `int`
+#         Label color encoding of the imported dataset
+#     class_wts: `torch.Tensor`
+#         Class weights
+#     """
+#     max_iter = 3000
+#     class_wts = None
+#     if dataset_name == DATASET_LIST[0]:
+#         from dataset.camvid import CamVidSegmentation, color_encoding
+#
+#         num_classes = 13
+#
+#         dataset = CamVidSegmentation(
+#             root="/tmp/dataset/CamVid", mode=mode, max_iter=max_iter
+#         )
+#         dataset_label = CamVidSegmentation(
+#             root="/tmp/dataset/CamVid",
+#             mode=mode,
+#         )
+#     elif dataset_name == DATASET_LIST[1]:
+#         from dataset.cityscapes import CityscapesSegmentation, color_encoding
+#
+#         dataset = CityscapesSegmentation(
+#             root="/tmp/dataset/cityscapes", mode=mode, max_iter=max_iter
+#         )
+#         num_classes = 19
+#
+#         class_wts = torch.ones(19)
+#         class_wts[0] = 2.8149201869965
+#         class_wts[1] = 6.9850029945374
+#         class_wts[2] = 3.7890393733978
+#         class_wts[3] = 9.9428062438965
+#         class_wts[4] = 9.7702074050903
+#         class_wts[5] = 9.5110931396484
+#         class_wts[6] = 10.311357498169
+#         class_wts[7] = 10.026463508606
+#         class_wts[8] = 4.6323022842407
+#         class_wts[9] = 9.5608062744141
+#         class_wts[10] = 7.8698215484619
+#         class_wts[11] = 9.5168733596802
+#         class_wts[12] = 10.373730659485
+#         class_wts[13] = 6.6616044044495
+#         class_wts[14] = 10.260489463806
+#         class_wts[15] = 10.287888526917
+#         class_wts[16] = 10.289801597595
+#         class_wts[17] = 10.405355453491
+#         class_wts[18] = 10.138095855713
+#     elif dataset_name == DATASET_LIST[2]:
+#         from dataset.forest import FreiburgForestDataset, color_encoding
+#
+#         dataset = FreiburgForestDataset(
+#             root="/tmp/dataset/freiburg_forest_annotated/", mode=mode, max_iter=max_iter
+#         )
+#         dataset_label = FreiburgForestDataset(
+#             root="/tmp/dataset/freiburg_forest_annotated/",
+#             mode=mode,
+#         )
+#         num_classes = 5
+#     else:
+#         raise Exception
+#
+#     # Calculate class weight
+#     if calc_class_wts and (class_wts is None):
+#         print("Calculate class weights")
+#         class_wts = torch.zeros(num_classes).to("cuda")
+#         loader = torch.utils.data.DataLoader(
+#             dataset_label,
+#             batch_size=64,
+#             shuffle=False,
+#         )
+#         with tqdm(total=len(loader)) as pbar:
+#             for b in tqdm(loader):
+#                 label = b["label"].to("cuda")
+#                 for j in range(0, num_classes):
+#                     class_wts[j] += (label == j).sum()
+#
+#         class_wts /= class_wts.sum()  # normalized
+#         class_wts = 1 / (class_wts + 1e-10)
+#
+#     return dataset, num_classes, color_encoding, class_wts
 
 
 def train(
     args,
-    model,
-    s1_loader,
-    a1_loader,
-    optimizer,
-    class_weights=None,
-    weight_loss_ent=0.1,
-    writer=None,
-    color_encoding=None,
-    epoch=-1,
-    device="cuda",
-):
+    model: torch.Tensor,
+    s1_loader: torch.utils.data.DataLoader,
+    a1_loader: torch.utils.data.DataLoader,
+    optimizer: torch.optim.Optimizer,
+    class_weights: Optional[torch.Tensor] = None,
+    weight_loss_ent: float = 0.1,
+    writer: Optional[torch.utils.tensorboard.SummaryWriter] = None,
+    color_encoding: Optional[collections.OrderedDict] = None,
+    epoch: int = -1,
+    device: str = "cuda",
+) -> None:
     """Main training process
 
-    Args:
-        model:
+    Parameters
+    ----
+    args: `argparse.Namespace`
+        Arguments given in Argparse format
+    model: `torch.Tensor`
+        Model to train
+    s1_loader: `torch.utils.data.DataLoader`
+        Dataloader for the dataset to train classification
+    a1_loader: `torch.utils.data.DataLoader`
+        Dataloader for the dataset to train entropy maximization
+    optimizer: `torch.optim.Optimizer`
+        Optimizer
+    class_weights: `torch.Tensor`
+        Loss weights per class for classification
+    weight_loss_ent: `float`
+        Weight on the entropy loss
+    writer: `torch.utils.tensorboard.SummaryWriter`
+        SummaryWriter for TensorBoard
+    color_encoding: `OrderedDict`
+        Mapping from class labels to a corresponding color
+    epoch: `int`
+        Current epoch number
+    device: `str`
+        Device on which the optimization is carried out
 
-        s1_loader:
-
-        a1_loader:
-
-        device:
+    Returns
+    -------
+    `None`
 
     """
     # Set the model to 'train' mode
@@ -203,7 +186,7 @@ def train(
     class_weights = (
         class_weights.to(device)
         if class_weights is not None
-        else torch.ones(args.class_num).to(device)
+        else torch.ones(args.num_classes).to(device)
     )
     loss_cls_func = torch.nn.CrossEntropyLoss(
         weight=class_weights, reduction="mean", ignore_index=255
@@ -241,28 +224,37 @@ def train(
         output = model(image)
         output_main = output["out"]
         output_aux = output["aux"]
-        amax = output_main.argmax(dim=1)
+        output_total = output_main + 0.5 * output_aux
+        amax = output_total.argmax(dim=1)
+        amax_main = output_main.argmax(dim=1)
         amax_aux = output_aux.argmax(dim=1)
 
         # Calculate and sum up the loss
         loss_cls_acc_val = loss_cls_func(output_main, label) + 0.5 * loss_cls_func(
             output_aux, label
         )
+        # loss_cls_acc_val = loss_cls_func(output_total, label)
 
         batch_a = a1_loader_iter.next()
         image_a = batch_a["image"].to(device)
 
         # Get output and convert it to log probability
-        output_a = log_softmax(model(image_a)["out"])
+        output_a = model(image_a)
+        prob_a = log_softmax(output_a["out"])
+        prob_a_aux = log_softmax(output_a["aux"])
 
-        # Uniform distribution: the probability of each class is 1/class_num
+        # Uniform distribution: the probability of each class is 1/num_classes
         #  The number of classes is the 1st dim of the output
-        uni_dist = torch.ones_like(output_a).to(device) / output_a.size()[1]
+        uni_dist = torch.ones_like(prob_a).to(device) / prob_a.size()[1]
+        uni_dist_aux = torch.ones_like(prob_a_aux).to(device) / prob_a_aux.size()[1]
         # loss_val = loss_ent_func(output, uni_dist)
 
         # Calculate and sum up the loss
         # loss_val = weight_loss_ent * loss_val
-        loss_ent_acc_val = weight_loss_ent * loss_ent_func(output_a, uni_dist)
+        loss_ent_acc_val = weight_loss_ent * (
+            loss_ent_func(prob_a, uni_dist)
+            + 0.5 * loss_ent_func(prob_a_aux, uni_dist_aux)
+        )
 
         loss_val = loss_cls_acc_val + loss_ent_acc_val
 
@@ -292,57 +284,98 @@ def train(
                 epoch * len(s1_loader) + i,
             )
 
-        if i == 0:
-            add_images_to_tensorboard(writer, image_orig, epoch, "train/image")
-            add_images_to_tensorboard(
-                writer,
-                label,
-                epoch,
-                "train/label",
-                is_label=True,
-                color_encoding=color_encoding,
-            )
-            add_images_to_tensorboard(
-                writer,
-                amax,
-                epoch,
-                "train/pred",
-                is_label=True,
-                color_encoding=color_encoding,
-            )
-            add_images_to_tensorboard(
-                writer,
-                amax_aux,
-                epoch,
-                "train/pred_aux",
-                is_label=True,
-                color_encoding=color_encoding,
-            )
+            if i == 0:
+                add_images_to_tensorboard(writer, image_orig, epoch, "train/image")
+                add_images_to_tensorboard(
+                    writer,
+                    label,
+                    epoch,
+                    "train/label",
+                    is_label=True,
+                    color_encoding=color_encoding,
+                )
+                add_images_to_tensorboard(
+                    writer,
+                    amax,
+                    epoch,
+                    "train/pred",
+                    is_label=True,
+                    color_encoding=color_encoding,
+                )
+                add_images_to_tensorboard(
+                    writer,
+                    amax_main,
+                    epoch,
+                    "train/pred_main",
+                    is_label=True,
+                    color_encoding=color_encoding,
+                )
+
+                add_images_to_tensorboard(
+                    writer,
+                    amax_aux,
+                    epoch,
+                    "train/pred_aux",
+                    is_label=True,
+                    color_encoding=color_encoding,
+                )
 
 
-def val(model, val_loader, writer, color_encoding, epoch, num_classes, device="cuda"):
+def val(
+    args,
+    model: torch.Tensor,
+    s1_loader: torch.utils.data.DataLoader,
+    a1_loader: Optional[torch.utils.data.DataLoader] = None,
+    writer: Optional[torch.utils.tensorboard.SummaryWriter] = None,
+    color_encoding: Optional[collections.OrderedDict] = None,
+    epoch: int = -1,
+    weight_loss_ent: float = 0.1,
+    device: str = "cuda",
+):
     """Validation
 
-    Args:
-        model:
+    Parameters
+    ----------
+    model: `torch.Tensor`
+        Model to train
+    s1_loader: `torch.utils.data.DataLoader`
+        Dataloader for the dataset to train classification
+    a1_loader: `torch.utils.data.DataLoader`
+        Dataloader for the dataset to train entropy maximization
+    weight_loss_ent: `float`
+        Weight on the entropy loss
+    writer: `torch.utils.tensorboard.SummaryWriter`
+        SummaryWriter for TensorBoard
+    color_encoding: `OrderedDict`
+        Mapping from class labels to a corresponding color
+    epoch: `int`
+        Current epoch number
+    device: `str`
+        Device on which the optimization is carried out
 
-        s1_loader:
-
-        device:
+    Returns
+    -------
+    metrics: `dict`
+        A dictionary that stores metrics as follows:
+            "miou": Mean IoU
+            "cls_loss": Average classification loss (cross entropy)
+            "ent_loss": Average entropy loss (KLD with a uniform dist.)
     """
     # Set the model to 'eval' mode
     model.eval()
 
     # Loss function
     loss_cls_func = torch.nn.CrossEntropyLoss(reduction="mean", ignore_index=255)
+    loss_ent_func = torch.nn.KLDivLoss(reduction="mean")
+    log_softmax = torch.nn.LogSoftmax(dim=1)
 
     inter_meter = AverageMeter()
     union_meter = AverageMeter()
-    miou_class = MIOU(num_classes=num_classes)
+    miou_class = MIOU(num_classes=args.num_classes)
     # Classification for S1
-    total_loss = 0.0
+    class_total_loss = 0.0
     with torch.no_grad():
-        for i, batch in enumerate(val_loader):
+        for i, batch in enumerate(s1_loader):
             # Get input image and label batch
             image = batch["image"].to(device)
             image_orig = batch["image_orig"].to(device)
@@ -357,11 +390,12 @@ def val(model, val_loader, writer, color_encoding, epoch, num_classes, device="c
             loss_val = loss_cls_func(main_output, label) + 0.5 * loss_cls_func(
                 aux_output, label
             )
-            total_loss += loss_val.item()
+            class_total_loss += loss_val.item()
 
-            amax = main_output.argmax(dim=1)
+            amax_main = main_output.argmax(dim=1)
             amax_aux = aux_output.argmax(dim=1)
-            inter, union = miou_class.get_iou(amax.cpu(), label.cpu())
+            amax_total = (main_output + 0.5 * aux_output).argmax(dim=1)
+            inter, union = miou_class.get_iou(amax_total.cpu(), label.cpu())
 
             inter_meter.update(inter)
             union_meter.update(union)
@@ -370,7 +404,7 @@ def val(model, val_loader, writer, color_encoding, epoch, num_classes, device="c
 
             # print("==== Cls Loss: {} ====".format(loss_val.item()))
 
-            if i == 0:
+            if i == 0 and writer is not None and color_encoding is not None:
                 add_images_to_tensorboard(writer, image_orig, epoch, "val/image")
                 add_images_to_tensorboard(
                     writer,
@@ -382,12 +416,21 @@ def val(model, val_loader, writer, color_encoding, epoch, num_classes, device="c
                 )
                 add_images_to_tensorboard(
                     writer,
-                    amax,
+                    amax_total,
                     epoch,
                     "val/pred",
                     is_label=True,
                     color_encoding=color_encoding,
                 )
+                add_images_to_tensorboard(
+                    writer,
+                    amax_main,
+                    epoch,
+                    "val/pred_main",
+                    is_label=True,
+                    color_encoding=color_encoding,
+                )
+
                 add_images_to_tensorboard(
                     writer,
                     amax_aux,
@@ -397,20 +440,78 @@ def val(model, val_loader, writer, color_encoding, epoch, num_classes, device="c
                     color_encoding=color_encoding,
                 )
 
+        if a1_loader is not None:
+            ent_total_loss = 0.0
+            for i, batch in enumerate(a1_loader):
+                # Get input image and label batch
+                image = batch["image"].to(device)
+                image_orig = batch["image_orig"].to(device)
+                label = batch["label"].to(device)
+
+                # Get output
+                output = model(image)
+
+                main_output = log_softmax(output["out"])
+                aux_output = log_softmax(output["aux"])
+
+                uni_dist = (
+                    torch.ones_like(main_output).to(device) / main_output.size()[1]
+                )
+                uni_dist_aux = (
+                    torch.ones_like(aux_output).to(device) / aux_output.size()[1]
+                )
+
+                loss_val = loss_ent_func(main_output, uni_dist) + 0.5 * loss_ent_func(
+                    aux_output, uni_dist_aux
+                )
+                ent_total_loss += loss_val.item()
+
+                inter_meter.update(inter)
+                union_meter.update(union)
+
+                amax = (main_output + 0.5 * aux_output).argmax(dim=1)
+                # Calculate and sum up the loss
+
+                # print("==== Cls Loss: {} ====".format(loss_val.item()))
+
+                if i == 0:
+                    add_images_to_tensorboard(writer, image_orig, epoch, "val/a1_image")
+                    add_images_to_tensorboard(
+                        writer,
+                        label,
+                        epoch,
+                        "val/a1_label",
+                        is_label=True,
+                        color_encoding=color_encoding,
+                    )
+                    add_images_to_tensorboard(
+                        writer,
+                        amax,
+                        epoch,
+                        "val/a1_pred",
+                        is_label=True,
+                        color_encoding=color_encoding,
+                    )
+
     iou = inter_meter.sum / (union_meter.sum + 1e-10)
-
-    avg_loss = total_loss / len(val_loader)
+    class_avg_loss = class_total_loss / len(s1_loader)
     avg_iou = iou.mean()
+    ent_avg_loss = ent_total_loss / len(a1_loader) if a1_loader is not None else 0.0
 
-    writer.add_scalar("val/loss", avg_loss, epoch)
+    writer.add_scalar("val/class_avg_loss", class_avg_loss, epoch)
+    writer.add_scalar("val/ent_avg_loss", ent_avg_loss, epoch)
+    writer.add_scalar(
+        "val/total_avg_loss", class_avg_loss + weight_loss_ent * ent_avg_loss, epoch
+    )
     writer.add_scalar("val/miou", avg_iou, epoch)
 
-    return {"miou": avg_iou, "loss": avg_loss}
+    return {"miou": avg_iou, "cls_loss": class_avg_loss, "ent_loss": ent_avg_loss}
 
 
 def main():
     # Get arguments
-    args = parse_arguments()
+    # args = parse_arguments()
+    args = PreTrainOptions().parse()
     print(args)
 
     torch.autograd.set_detect_anomaly(True)
@@ -419,9 +520,11 @@ def main():
     # Import datasets (source S1, and the rest A1)
     #
     try:
-        dataset_s1, class_num, color_encoding, class_wts = import_dataset(args.s1_name)
+        dataset_s1, num_classes, color_encoding, class_wts = import_dataset(
+            args.s1_name, calc_class_wts=True
+        )
         dataset_s1_val, _, _, _ = import_dataset(args.s1_name, mode="val")
-        args.class_num = class_num
+        args.num_classes = num_classes
     except Exception as e:
         t, v, tb = sys.exc_info()
         print(traceback.format_exception(t, v, tb))
@@ -431,6 +534,7 @@ def main():
 
     # A1 is a set of datasets other than S1
     dataset_a1_list = []
+    dataset_a1_val_list = []
     for ds in DATASET_LIST:
         # If ds is the name of S1, skip importing
         if ds == args.s1_name:
@@ -439,6 +543,7 @@ def main():
         # Import
         try:
             dataset_a_tmp, _, _, _ = import_dataset(ds)
+            dataset_a_val_tmp, _, _, _ = import_dataset(ds, mode="val")
         except Exception as e:
             t, v, tb = sys.exc_info()
             print(traceback.format_exception(t, v, tb))
@@ -447,22 +552,23 @@ def main():
             sys.exit(1)
 
         dataset_a1_list.append(dataset_a_tmp)
+        dataset_a1_val_list.append(dataset_a_val_tmp)
 
     # Concatenate the A1 datasets to form a single dataset
     dataset_a1 = torch.utils.data.ConcatDataset(dataset_a1_list)
+    dataset_a1_val = torch.utils.data.ConcatDataset(dataset_a1_val_list)
     print(dataset_a1)
 
     #
     # Define a model
     #
-    #    model = torch.hub.load('pytorch/vision:v0.10.0', 'deeplabv3_resnet50', pretrained=False)
-    model = torchvision.models.segmentation.deeplabv3_resnet50(
-        pretrained=False,
+    model = import_model(
+        model_name=args.model,
+        num_classes=num_classes,
+        weights=args.resume_from if args.resume_from else None,
         aux_loss=True,
-        num_classes=class_num,
+        device=args.device,
     )
-    # Change the classification layer to match the category
-    # model.classifier[4] = torch.nn.Conv2d(256, class_num, 1)
 
     if args.device == "cuda":
         model = torch.nn.DataParallel(model)  # make parallel
@@ -471,6 +577,7 @@ def main():
 
     model.to(args.device)
     class_wts.to(args.device)
+    print(class_wts)
 
     #
     # Dataloader
@@ -481,6 +588,7 @@ def main():
         shuffle=True,
         pin_memory=args.pin_memory,
         num_workers=args.num_workers,
+        drop_last=True,
     )
     val_loader_s1 = torch.utils.data.DataLoader(
         dataset_s1_val,
@@ -494,6 +602,13 @@ def main():
         dataset_a1,
         batch_size=args.batch_size,
         shuffle=True,
+        pin_memory=args.pin_memory,
+        num_workers=args.num_workers,
+    )
+    val_loader_a1 = torch.utils.data.DataLoader(
+        dataset_a1_val,
+        batch_size=args.batch_size,
+        shuffle=False,
         pin_memory=args.pin_memory,
         num_workers=args.num_workers,
     )
@@ -532,7 +647,10 @@ def main():
     #
     # Training
     #
-    for ep in range(args.epochs):
+    current_miou = 0.0
+
+    current_ent_loss = math.inf
+    for ep in range(args.resume_epoch, args.epochs):
         train(
             args,
             model,
@@ -554,21 +672,31 @@ def main():
 
         writer.add_scalar("learning_rate", optimizer.param_groups[0]["lr"], ep)
 
-        current_miou = 0.0
         # Validate every 5 epochs
         torch.save(
             model.state_dict(),
-            os.path.join(save_path, "{}_ent_current.pth".format(args.s1_name)),
+            os.path.join(
+                save_path, "{}_{}_current.pth".format(args.model, args.s1_name)
+            ),
         )
+
+        if ep % 100 == 0 and ep != 0:
+            torch.save(
+                model.state_dict(),
+                os.path.join(
+                    save_path, "{}_{}_ep_{}.pth".format(args.model, args.s1_name, ep)
+                ),
+            )
 
         if ep % 5 == 0:
             metrics = val(
+                args,
                 model,
-                val_loader=val_loader_s1,
+                s1_loader=val_loader_s1,
+                a1_loader=val_loader_a1,
                 writer=writer,
                 color_encoding=color_encoding,
                 epoch=ep,
-                num_classes=class_num,
             )
 
             if current_miou < metrics["miou"]:
@@ -576,7 +704,19 @@ def main():
 
                 torch.save(
                     model.state_dict(),
-                    os.path.join(save_path, "{}_ent_best.pth".format(args.s1_name)),
+                    os.path.join(
+                        save_path, "{}_{}_best_iou.pth".format(args.model, args.s1_name)
+                    ),
+                )
+            if current_ent_loss > metrics["ent_loss"]:
+                current_ent_loss = metrics["ent_loss"]
+
+                torch.save(
+                    model.state_dict(),
+                    os.path.join(
+                        save_path,
+                        "{}_{}_best_ent_loss.pth".format(args.model, args.s1_name),
+                    ),
                 )
 
 

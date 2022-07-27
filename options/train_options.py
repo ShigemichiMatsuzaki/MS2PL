@@ -3,8 +3,22 @@ from .base_options import BaseOptions
 
 class TrainBaseOptions(BaseOptions):
     def initialize(self):
+        super().initialize()
+
         self.parser.add_argument(
-            "--epochs", type=int, default=500, help="The number of training epochs"
+            "--epochs", type=int, default=300, help="The number of training epochs"
+        )
+        self.parser.add_argument(
+            "--resume-from",
+            type=str,
+            default="",
+            help="Weights to resume the training from",
+        )
+        self.parser.add_argument(
+            "--resume-epoch",
+            type=int,
+            default=0,
+            help="Epoch number to resume the training from",
         )
         # Optimizer and scheduler
         self.parser.add_argument(
@@ -43,7 +57,7 @@ class TrainBaseOptions(BaseOptions):
 
 class PreTrainOptions(TrainBaseOptions):
     def initialize(self):
-        TrainBaseOptions.initialize(self)
+        super().initialize()
 
         # Dataset
         self.parser.add_argument(
@@ -64,4 +78,4 @@ class PreTrainOptions(TrainBaseOptions):
 
 class TrainOptions(TrainBaseOptions):
     def initialize(self):
-        TrainBaseOptions.initialize(self)
+        super().initialize()

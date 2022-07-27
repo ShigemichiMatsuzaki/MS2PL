@@ -1,11 +1,13 @@
 import torch
+
 from options.pseudo_label_options import PseudoLabelOptions
-from utils.pseudo_label_generator import generate_pseudo_label_multi_model
+from domain_gap_evaluator.domain_gap_evaluator import calculate_domain_gap
 from utils.model_io import import_model
 
 
 def main():
     args = PseudoLabelOptions().parse()
+    print(args)
 
     #
     # Load pre-trained models
@@ -44,33 +46,41 @@ def main():
     if args.target == "greenhouse":
         from dataset.greenhouse import GreenhouseRGBD, color_encoding
 
-        pseudo_dataset = GreenhouseRGBD(list_name=args.target_data_list, train=False)
-        pseudo_loader = torch.utils.data.DataLoader(
-            pseudo_dataset,
-            batch_size=args.batch_size,
-            shuffle=False,
-            pin_memory=args.pin_memory,
-            num_workers=args.num_workers,
+        target_dataset = GreenhouseRGBD(list_name=args.target_data_list, train=False)
+    elif args.target == "cityscapes":
+        from dataset.cityscapes import CityscapesSegmentation
+
+        target_dataset = CityscapesSegmentation(
+            root="/tmp/dataset/cityscapes", mode="val"
         )
-        num_classes = 3
+    elif args.target == "camvid":
+        from dataset.camvid import CamVidSegmentation, color_encoding
+
+        target_dataset = CamVidSegmentation(root="/tmp/dataset/CamVid", mode="val")
+    elif args.target == "forest":
+        from dataset.forest import FreiburgForestDataset, color_encoding
+
+        target_dataset = FreiburgForestDataset(
+            root="/tmp/dataset/freiburg_forest_annotated", mode="val"
+        )
+
     else:
         print("Target {} is not supported.".format(args.target))
         raise ValueError
 
-    #
-    # Generate pseudo-labels
-    #
-    class_weights = generate_pseudo_label_multi_model(
-        model_list=source_model_list,
-        source_dataset_name_list=source_dataset_name_list,
-        target_dataset_name="greenhouse",
-        data_loader=pseudo_loader,
-        num_classes=num_classes,
-        device=args.device,
-        save_path=args.save_path,
-        min_portion=args.superpixel_pseudo_min_portion,
-        ignore_index=args.ignore_index,
+    target_loader = torch.utils.data.DataLoader(
+        target_dataset,
+        batch_size=1,
+        shuffle=False,
+        pin_memory=args.pin_memory,
+        num_workers=args.num_workers,
     )
+
+    domain_gap_list = calculate_domain_gap(
+        source_model_list, target_loader, args.device
+    )["domain_gap_list"]
+
+    print(domain_gap_list)
 
 
 if __name__ == "__main__":
