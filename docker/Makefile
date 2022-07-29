@@ -60,3 +60,29 @@ generate-pseudo-labels:
 		--name $(CONTAINER_NAME)-generate-pseudo-labels \
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/generate_pseudo_labels.sh
+
+evaluate-domain-gap:
+	docker run -it \
+		--gpus="device=all" \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 10G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-evaluate-domain-gap \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/evaluate_domain_gap.sh
+
+evaluate-source-models:
+	docker run -it \
+		--gpus="device=all" \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 10G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-evaluate-source-models \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/evaluate_source_models.sh

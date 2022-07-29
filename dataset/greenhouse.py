@@ -221,10 +221,10 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
         )
 
         return {
-            "rgb": rgb_img,
-            "rgb_orig": rgb_img_orig,
-            "rgb_path": self.images[index],
-            "labels": label_img,
+            "image": rgb_img,
+            "image_orig": rgb_img_orig,
+            "image_path": self.images[index],
+            "label": label_img,
             "label_path": self.labels[index],
             "name": self.images[index].rsplit("/", 1)[1],
         }

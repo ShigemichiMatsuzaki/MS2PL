@@ -16,6 +16,11 @@ import skimage.segmentation
 
 import torch
 
+from domain_gap_evaluator.domain_gap_evaluator import calculate_domain_gap
+from dataset.camvid import id_camvid_to_greenhouse
+from dataset.cityscapes import id_cityscapes_to_greenhouse
+from dataset.forest import id_forest_to_greenhouse
+
 
 def propagate_max_label_in_sp(sp, num_classes, min_portion=0.5, ignore_index=4):
     """
@@ -104,41 +109,11 @@ def get_label_from_superpixel(
     return new_label_img
 
 
-def update_image_list(
-    tgt_train_lst, image_path_list, label_path_list, depth_path_list=None
-):
-    """Update the list of input data. NOT USED ANYMORE SOON DELETED
-
-    Parameters
-    ----------
-    tgt_train_lst  :
-    image_path_list  :
-    label_path_list :
-    depth_path_list:
-
-    """
-
-    with open(tgt_train_lst, "w") as f:
-        for idx in range(len(image_path_list)):
-            if depth_path_list:
-                f.write(
-                    "%s,%s,%s\n"
-                    % (image_path_list[idx], label_path_list[idx], depth_path_list[idx])
-                )
-            else:
-                f.write("%s,%s\n" % (image_path_list[idx], label_path_list[idx]))
-
-    return
-
-
 def get_output(
     model,
     image,
-    model_name="espdnetue",
     device="cuda",
     use_depth=False,
-    is_numpy=True,
-    merge_feature=True,
 ):
     """Get an output on the given input image from the given model
 
@@ -176,20 +151,6 @@ def get_output(
         pred = output2["out"]
         if "aux" in output2.keys():
             pred_aux = output2["aux"]
-    # elif isinstance(output2, dict):
-    #     pred = output2["main"]
-    #     pred_aux = output2["aux"]
-    #     if merge_feature:
-    #         feat = output2["feat"]
-    #     else:
-    #         feat = output2["main_feat"]
-    # elif model_name == "espdnetue":
-    #     pred = output2[0]
-    #     pred_aux = output2[1]
-    #     if merge_feature:
-    #         feat = output2[2]
-    #     else:
-    #         feat = output2[3]
 
     if pred_aux is not None:
         output2 = pred + 0.5 * pred_aux
@@ -304,7 +265,7 @@ def generate_pseudo_label(
     with torch.no_grad():
         with tqdm(total=len(testloader)) as pbar:
             for index, batch in enumerate(tqdm(testloader)):
-                image = batch["rgb"].to(device)
+                image = batch["image"].to(device)
                 name = batch["name"]
 
                 # Output: tensor, KLD: tensor, feature: tensor
@@ -432,7 +393,7 @@ def generate_pseudo_label_multi_model(
     with torch.no_grad():
         with tqdm(total=len(data_loader)) as pbar:
             for index, batch in enumerate(tqdm(data_loader)):
-                image = batch["rgb"]
+                image = batch["image"].to(device)
                 name = batch["name"]
 
                 output_list = []
@@ -591,11 +552,225 @@ def generate_soft_pseudo_label(
         with tqdm(total=len(testloader)) as pbar:
             for batch in tqdm(testloader):
                 if args.use_depth:
-                    image = batch["rgb"]
+                    image = batch["image"]
                     depth = batch["depth"]
                     name = batch["name"]
                 else:
-                    image = batch["rgb"]
+                    image = batch["image"]
+                    name = batch["name"]
+
+                # Output: tensor, KLD: tensor, feature: tensor
+                output_prob = get_output(model, image, is_numpy=False)
+
+                for i in range(output_prob.size(0)):
+                    # Save the probabilities as float16 for saving the storage
+                    output_prob_i = output_prob[i].squeeze().to("cpu").type(torch.half)
+
+                    file_name = name[i].split("/")[-1]
+                    image_name = file_name.rsplit(".", 1)[0]
+
+                    # Save the predicted images (+ colorred images for visualization)
+                    torch.save(output_prob_i, "%s/%s.pt" % (save_pred_path, image_name))
+
+                    label_path_list.append("%s/%s.pt" % (save_pred_path, image_name))
+
+        pbar.close()
+
+    return label_path_list
+
+
+def generate_pseudo_label_multi_model_domain_gap(
+    model_list: list,
+    source_dataset_name_list: list,
+    target_dataset_name: str,
+    data_loader: torch.util.data.DataLoader,
+    num_classes: int,
+    save_path: str,
+    device: str = "cuda",
+    is_per_pixel: bool = False,
+    ignore_index: int = 4,
+    softmax_normalize: bool = False,
+    class_weighting: str = "normal",
+) -> torch.Tensor:
+    """Generate multi-source pseudo-labels with domain gaps
+
+    Generate pseudo-labels from the outputs of multiple source models
+    considering relative domain gaps between each source and the target datasets
+    so that one having less domain gap contributes more on the resulting pseudo-labels.
+
+    Parameters
+    ----------
+    model_list: `list`
+        List of source models
+    source_dataset_name_list: `list`
+        List of source dataset names
+    target_dataset_name: `str`
+        Name of the target dataset
+    data_loader: `torch.util.data.DataLoader`
+        Target DataLoader
+    num_classes: `int`
+        Number of target classes
+    device: `str`
+        Device on which the computation is done
+    is_per_pixel: `bool`
+        True if the domain gap values are computed and
+        considered per pixel.
+        Otherwise, per image.
+    ignore_index: `int`,
+        Label to be ignored in the target classes
+    softmax_normalize: `bool`
+        When calculating the importance weights based on the domain gap,
+        if `True`, normalize the gap values by softmax,
+        which emphasizes the difference of the values.
+        Otherwise, normalize them by the sum.
+    class_weighting: `str`
+        Type of the class weights.
+        "normal": More weight on less frequent class
+        "inverse": Opposite as "normal"
+
+    Returns
+    -------
+    class_wts: `torch.Tensor`
+        Class weights of the resulting pseudo-labels
+    """
+
+    for m in model_list:
+        m.eval()
+        m.to(device)
+
+    if target_dataset_name == "greenhouse":
+        from dataset.greenhouse import color_palette
+    else:
+        print("Target {} is not supported.".format(target_dataset_name))
+        raise ValueError
+
+    ## evaluation process
+    class_array = np.zeros(num_classes)
+
+    # Domain gap. Less value means closer -> More importance.
+    domain_gap_list = calculate_domain_gap(model_list, data_loader, device)[
+        "domain_gap_list"
+    ]
+
+    # Calculate weights based on the domain gaps
+    domain_gap_weight = torch.Tensor(domain_gap_list).to(device)
+    if softmax_normalize:
+        domain_gap_weight = torch.nn.Softmax2d()(domain_gap_weight)
+    else:
+        domain_gap_weight /= domain_gap_weight.sum()
+
+    # Calculate the inverse values of the domain gap
+    domain_gap_weight = 1 / (domain_gap_weight + 1e-10)
+
+    with torch.no_grad():
+        with tqdm(total=len(data_loader)) as pbar:
+            for index, batch in enumerate(tqdm(data_loader)):
+                image = batch["image"]
+                name = batch["name"]
+
+                output_list = []
+                for m, os_data in zip(model_list, source_dataset_name_list):
+                    # Output: Numpy, KLD: Numpy
+                    output = get_output(m, image, is_numpy=False)
+
+                    # Extract the maximum value for each target class
+                    output_target = torch.zeros(
+                        (output.size(0), num_classes, output.size(2), output.size(3))
+                    )
+
+                    for i in range(num_classes):
+                        if os_data == "camvid":
+                            label_conversion = id_camvid_to_greenhouse
+                        elif os_data == "cityscapes":
+                            label_conversion = id_cityscapes_to_greenhouse
+                        elif os_data == "forest":
+                            label_conversion = id_forest_to_greenhouse
+                        else:
+                            raise ValueError
+
+                        indices = torch.where(label_conversion == i)
+                        output_target[i] = output[:, indices, :, :].max(dim=1)
+
+                # for i in range(output_prob.size(0)):
+                #     # Save the probabilities as float16 for saving the storage
+                #     output_prob_i = output_prob[i].squeeze().to("cpu").type(torch.half)
+
+                #     file_name = name[i].split("/")[-1]
+                #     image_name = file_name.rsplit(".", 1)[0]
+
+                #     # Save the predicted images (+ colorred images for visualization)
+                #     torch.save(output_prob_i, "%s/%s.pt" % (save_pred_path, image_name))
+
+                #     label_path_list.append("%s/%s.pt" % (save_pred_path, image_name))
+
+        pbar.close()
+
+    #    update_image_list(tgt_train_lst, image_path_list, label_path_list, depth_path_list)
+
+    if class_weighting == "normal":
+        class_array /= class_array.sum()  # normalized
+        class_wts = 1 / (class_array + 1e-10)
+    else:
+        class_wts = np.ones(num_classes) / num_classes
+
+    print("class_weights : {}".format(class_wts))
+    class_wts = torch.from_numpy(class_wts).float().to(device)
+
+    return class_wts
+
+
+def generate_soft_pseudo_label(
+    model, testloader, device, save_path, round_idx, args, logger
+):
+    """Generate soft pseudo-labels (probability values)
+
+    Parameters
+    ----------
+    model :
+
+    testloader :
+
+    device :
+
+    save_path :
+
+    round_idx :
+
+    args :
+
+    logger :
+
+
+    Returns
+    --------
+    label_path_list :
+
+    """
+    ## model for evaluation
+    model.eval()
+    #
+    model.to(device)
+
+    ## evaluation process
+    logger.info(
+        "###### Start evaluating target domain train set in round {}! ######".format(
+            round_idx
+        )
+    )
+    save_pred_path = os.path.join(save_path, "soft_pseudo_label")
+    if not os.path.exists(save_pred_path):
+        os.makedirs(save_pred_path)
+
+    label_path_list = []
+    with torch.no_grad():
+        with tqdm(total=len(testloader)) as pbar:
+            for batch in tqdm(testloader):
+                if args.use_depth:
+                    image = batch["image"]
+                    depth = batch["depth"]
+                    name = batch["name"]
+                else:
+                    image = batch["image"]
                     name = batch["name"]
 
                 # Output: tensor, KLD: tensor, feature: tensor

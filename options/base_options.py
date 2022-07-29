@@ -22,6 +22,13 @@ class BaseOptions:
             default="cuda",
             help="Batch size in training",
         )
+        self.parser.add_argument(
+            "--model",
+            type=str,
+            choices=["deeplabv3_mobilenet_v3_large", "deeplabv3_resnet50"],
+            default="deeplabv3_resnet50",
+            help="Model",
+        )
 
         # DataLoader
         self.parser.add_argument(
