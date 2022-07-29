@@ -3,10 +3,10 @@ proposed by Liu et al. in "Who is closer: A computational method for domain gap 
 https://www.sciencedirect.com/science/article/pii/S0031320321004738?via%3Dihub
 """
 from collections import OrderedDict
-from re import I
 import torch
 import numpy as np
 from tqdm import tqdm
+from typing import Union
 
 
 def get_output(
@@ -88,7 +88,7 @@ def calc_entropy(pred: torch.Tensor, is_prob: bool = False, reduction: str = "me
 
 def calc_norm_ent(
     model: torch.Tensor,
-    target: torch.utils.data.DataLoader | torch.Tensor,
+    target: Union[torch.utils.data.DataLoader, torch.Tensor],
     device: str = "cuda",
 ) -> dict:
     """Calculate domain gap for one source
@@ -169,7 +169,7 @@ def calc_norm_ent(
 
 def calculate_domain_gap(
     model_list: list,
-    target: torch.utils.data.DataLoader | torch.Tensor,
+    target: Union[torch.utils.data.DataLoader, torch.Tensor],
     device: str = "cuda",
 ) -> dict:
     """Evaluate domain gap values for the given models and the target dataset / image

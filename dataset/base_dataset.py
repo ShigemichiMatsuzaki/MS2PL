@@ -44,7 +44,7 @@ class BaseDataset(data.Dataset):
                 [
                     # A.Resize(width=480, height=256),
                     # A.RandomCrop(width=480, height=256),
-                    A.RandomResizedCrop(width=480, height=256),
+                    A.RandomResizedCrop(width=480, height=256, scale=(0.7, 1.0)),
                     A.HorizontalFlip(p=0.5),
                     A.GaussNoise(p=0.2),
                     A.GaussianBlur(p=0.2),

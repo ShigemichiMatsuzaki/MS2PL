@@ -14,7 +14,8 @@
 # New (7/26)
 camvid_weight="/tmp/runs/domain_gap/camvid/20220725-034846/deeplabv3_mobilenet_v3_large_camvid_best_ent_loss.pth"
 cityscapes_weight="/tmp/runs/domain_gap/cityscapes/20220723-154300/deeplabv3_mobilenet_v3_large_cityscapes_best_ent_loss.pth"
-forest_weight="/tmp/runs/domain_gap/forest/20220722-155508/deeplabv3_mobilenet_v3_large_forest_best_ent_loss.pth"
+# forest_weight="/tmp/runs/domain_gap/forest/20220722-155508/deeplabv3_mobilenet_v3_large_forest_best_ent_loss.pth"
+forest_weight="/tmp/runs/domain_gap/forest/20220727-220126/deeplabv3_mobilenet_v3_large_forest_best_ent_loss.pth"
 #camvid_model="deeplabv3_resnet50"
 #cityscapes_model="deeplabv3_resnet50"
 #forest_model="deeplabv3_resnet50"
@@ -24,7 +25,7 @@ forest_model="deeplabv3_mobilenet_v3_large"
 
 python evaluate_domain_gap.py \
     --device cuda \
-    --target cityscapes \
+    --target forest \
     --target-data-list ./dataset/data_list/val_greenhouse_a.lst \
     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
     --source-dataset-names camvid,cityscapes,forest \
