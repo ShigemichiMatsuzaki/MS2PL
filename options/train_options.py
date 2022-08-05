@@ -79,3 +79,36 @@ class PreTrainOptions(TrainBaseOptions):
 class TrainOptions(TrainBaseOptions):
     def initialize(self):
         super().initialize()
+
+        self.parser.add_argument(
+            "--target",
+            type=str,
+            default="greenhouse",
+            help="Target dataset",
+        )
+
+        self.parser.add_argument(
+            "--is-hard",
+            action="store_true",
+            help="If set, use hard pseudo-labels.",
+        )
+
+        # Loss
+        self.parser.add_argument(
+            "--weight-loss-ent",
+            type=float,
+            default=0.2,
+            help="Weight on the entropy loss",
+        )
+        self.parser.add_argument(
+            "--use-label-ent-weight",
+            action="store_true",
+            help="True to use inverse label entropy as loss weights",
+        )
+
+        self.parser.add_argument(
+            "--label-update-epoch",
+            type=int,
+            default=15,
+            help="Epoch at which the pseudo-labels are updated",
+        )

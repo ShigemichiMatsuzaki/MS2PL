@@ -119,7 +119,7 @@ def import_dataset(
     else:
         raise Exception
 
-    if calc_class_wts:
+    if calc_class_wts and dataset_name != DATASET_LIST[1]:
         class_wts = calculate_class_weights(
             dataset_label, num_classes=num_classes, batch_size=64, is_inverse=False
         )

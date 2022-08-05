@@ -1,0 +1,11 @@
+python train_pseudo.py \
+    --device cuda \
+    --model deeplabv3_mobilenet_v3_large \
+    --target greenhouse \
+    --batch-size 64 \
+    --epoch 50 \
+    --lr 0.0009 \
+    --label-update-epoch 10 \
+    --save-path /tmp/runs/domain_gap/ \
+    --scheduler cyclic \
+    --ignore-index 3 

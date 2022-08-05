@@ -7,6 +7,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 import math
+from typing import Optional
 
 
 class SoftArgMax(nn.Module):
@@ -42,22 +43,30 @@ class SoftArgMax(nn.Module):
 class UncertaintyWeightedSegmentationLoss(nn.Module):
     def __init__(
         self,
-        num_classes,
-        class_weights=None,
-        ignore_idx=None,
-        ignore_index=None,
-        device="cuda",
-        temperature=1.0,
-        reduction="mean",
+        num_classes: int,
+        class_wts: Optional[torch.Tensor] = None,
+        ignore_index: int = None,
+        device: str = "cuda",
+        temperature: float = 1.0,
+        reduction: str = "mean",
     ):
+        """Cross entropy loss with weights
+
+        Parameters
+        ----------
+        num_classes: `int`
+            Number of classes
+        class_wts: ``
+        """
+
         super(UncertaintyWeightedSegmentationLoss, self).__init__()
         self.num_classes = num_classes
-        self.class_weights = (
-            class_weights
-            if class_weights is not None
-            else torch.ones(self.num_classes).to(device)
+        self.class_wts = (
+            class_wts if class_wts is not None else torch.ones(self.num_classes)
         )
-        self.ignore_index = ignore_index if ignore_index is not None else ignore_idx
+
+        self.class_wts.to(device)
+        self.ignore_index = ignore_index
 
         self.T = temperature
 
@@ -67,29 +76,50 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
 
         self.reduction = reduction
 
-    def forward(self, pred, target, u_weight, epsilon=1e-12):
-        torch.autograd.set_detect_anomaly(True)
-        # Calculate softmax probability
-        batch_size = pred.size()[0]
-        H = pred.size()[2]
-        W = pred.size()[3]
+    def forward(
+        self,
+        pred: torch.Tensor,
+        target: torch.Tensor,
+        u_weight: torch.Tensor,
+        epsilon: float = 1e-12,
+        is_hard: bool = True,
+    ) -> torch.Tensor:
+        """Forward calculation
 
-        # Standard cross entropy
-        ce = F.cross_entropy(
-            pred / self.T,
-            target,
-            weight=self.class_weights,
-            ignore_index=self.ignore_index,
-            reduction="none",
-        )
+        Parameters
+        ----------
+
+        Returns
+        -------
+
+        """
+        torch.autograd.set_detect_anomaly(True)
+
+        if is_hard:
+            seg_loss = F.cross_entropy(
+                pred / self.T,
+                target,
+                weight=self.class_wts,
+                ignore_index=self.ignore_index,
+                reduction="none",
+            )
+        else:
+            # Standard cross entropy
+            pred_prob = F.log_softmax(pred / self.T, dim=1)
+            seg_loss = F.kl_div(
+                pred_prob, torch.log(target), log_target=True, reduction="none"
+            ).sum(dim=1)
 
         # Rectify the loss with the uncertainty weights
-        rect_ce = ce * torch.exp(-u_weight)
+        rect_ce = seg_loss * torch.exp(-u_weight)
+
+        if is_hard and not self.reduction == "none":
+            rect_ce = rect_ce[target != self.ignore_index]
 
         if self.reduction == "mean":
-            return rect_ce[target != self.ignore_index].mean()
+            return rect_ce.mean()
         elif self.reduction == "sum":
-            return rect_ce[target != self.ignore_index].sum()
+            return rect_ce.sum()
         elif self.reduction == "none":  # if reduction=='none' or any other
             return rect_ce
         else:
@@ -127,10 +157,6 @@ class DistillationSegmentationLoss(nn.Module):
     def forward(self, pred, target, epsilon=1e-12):
         torch.autograd.set_detect_anomaly(True)
         # Calculate softmax probability
-        batch_size = pred.size()[0]
-        H = pred.size()[2]
-        W = pred.size()[3]
-
         pred = pred / self.T
         target = target / self.T
 

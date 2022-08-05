@@ -15,6 +15,7 @@ import skimage.util
 import skimage.segmentation
 
 import torch
+import torch.nn.functional as F
 
 from domain_gap_evaluator.domain_gap_evaluator import calculate_domain_gap
 from dataset.camvid import id_camvid_to_greenhouse
@@ -188,128 +189,64 @@ def merge_outputs(amax_output_list, ignore_index=4):
 
 
 def generate_pseudo_label(
-    model,
-    testloader,
-    device,
-    save_path,
-    round_idx,
     args,
-    logger,
-    ignore_index=4,
-    use_trav_mask=False,
-    prototypes=None,
+    model: torch.nn.Module,
+    testloader: torch.utils.data.DataLoader,
+    save_path: str,
     proto_rect_thresh=0.9,
     min_portion=-1.0,
     label_conversion=None,
-    use_gpu=False,
-    model_ema=None,
 ):
     """Generate pseudo-labels using a pre-trained model
 
     Parameters
     ----------
-    model :
-
-    testloader :
-
-    device :
-
-    save_path :
-
-    round_idx :
-
-    args :
-
-    logger :
-
-    ignore_index : int
-
-    use_trav_mask :
-
-    prototypes :
-
-    proto_rect_thresh : float
-
-    label_conversion : List
-
-    model_ema:
-
+    args:
+        Args
+    model: `torch.nn.Module`
+        Current model
+    testloader: `torch.utils.data.DataLoader`
+        Dataloader
+    save_path: `str`
+        Directory name to save the labels
+    proto_rect_thresh: `float`
+        Confidence threshold for pseudo-label generation
+    min_portion: `float`
+        Minimum portion of the same lable in a superpixel to be propagated
+    label_conversion: `list`
+        Label conversion
 
     Returns
     --------
-    tgt_train_lst :
-
-    class_weights :
-
-    label_path_list :
-
+    class_weights: `torch.Tensor`
+        Calculated class weights
+    label_path_list: `list`
+        List of the generated pseudo-labels
     """
     ## model for evaluation
     model.eval()
-    #
-    model.to(device)
-
-    save_pred_path = os.path.join(save_path, "pred")
-    tgt_train_lst = os.path.join(save_path, "tgt_train.lst")
+    model.to(args.device)
 
     ## evaluation process
-    logger.info(
-        "###### Start evaluating target domain train set in round {}! ######".format(
-            round_idx
-        )
-    )
-    image_path_list = []
     label_path_list = []
-    depth_path_list = []
-    class_array = np.zeros(args.classes)
+    class_array = np.zeros(args.num_classes)
     with torch.no_grad():
         with tqdm(total=len(testloader)) as pbar:
             for index, batch in enumerate(tqdm(testloader)):
-                image = batch["image"].to(device)
+                image = batch["image"].to(args.device)
                 name = batch["name"]
 
                 # Output: tensor, KLD: tensor, feature: tensor
-                output_prob = get_output(model, image, is_numpy=False)
+                output_prob = get_output(model, image)
                 max_output, argmax_output = torch.max(output_prob, dim=1)
 
-                #
-                # If the prototypes are given, apply filtering of the labels
-                #
-                if prototypes is not None:
-                    if model_ema is not None:
-                        model_ema.eval()
-                        model_ema.to()
-                        _, _, feature = model_ema(image)
-
-                    # Class-wise weights based on the distance to the prototype of each class
-                    weights = prototypes.get_prototype_weight(feature).to(device)
-
-                    # Rectified output probability
-                    rectified_prob = weights * output_prob
-                    # Normalize the rectified values as probabilities
-                    rectified_prob = rectified_prob / rectified_prob.sum(
-                        1, keepdim=True
-                    )
-                    # Predicted label map after rectification
-                    max_output, argmax_output = rectified_prob.max(1, keepdim=True)
-
-                    print("prob after")
-                    print(rectified_prob[0])
-
                 # Filter out the pixels with a confidence below the threshold
-                argmax_output[max_output < proto_rect_thresh] = ignore_index - 1
+                argmax_output[max_output < proto_rect_thresh] = args.ignore_index
 
                 # Convert the label space from the source to the target
                 if label_conversion is not None:
-                    label_conversion = torch.tensor(label_conversion).to(device)
+                    label_conversion = torch.tensor(label_conversion).to(args.device)
                     argmax_output = label_conversion[argmax_output]
-
-                #                output = output.transpose(1,2,0)
-                #                amax_output = argmax_output[0].cpu().numpy().transpose(1, 2, 0)
-                if use_trav_mask:
-                    # If the class is plant (1) and the pixel is traversable (1),
-                    #  change the class to 'traversable plant' (0)
-                    argmax_output[(argmax_output == 1) & (mask == 255)] = 0
 
                 for i in range(argmax_output.size(0)):
                     amax_output = argmax_output[i].squeeze().cpu().numpy()
@@ -327,11 +264,9 @@ def generate_pseudo_label(
                             min_portion=min_portion,
                         )
 
-                    for j in range(0, args.classes):
+                    for j in range(0, args.num_classes):
                         class_array[j] += (amax_output == j).sum()
 
-                    amax_output += 1
-                    path_name = name[i]
                     file_name = name[i].split("/")[-1]
                     image_name = file_name.rsplit(".", 1)[0]
 
@@ -339,42 +274,31 @@ def generate_pseudo_label(
                     # trainIDs/vis seg maps
                     amax_output = Image.fromarray(amax_output.astype(np.uint8))
                     # Save the predicted images (+ colorred images for visualization)
-                    amax_output.save("%s/%s.png" % (save_pred_path, image_name))
+                    path = "{}/{}.png".format(save_path, image_name)
+                    amax_output.save(path)
 
-                    image_path_list.append(path_name)
-                    label_path_list.append("%s/%s.png" % (save_pred_path, image_name))
-                    if args.use_depth:
-                        depth_path_list.append(path_name.replace("color", "depth"))
+                    label_path_list.append(path)
 
-        pbar.close()
+    class_array /= class_array.sum()  # normalized
+    class_wts = 1 / (class_array + 1e-10)
 
-    #    update_image_list(tgt_train_lst, image_path_list, label_path_list, depth_path_list)
+    print("class_weights : {}".format(class_wts))
+    class_wts = torch.from_numpy(class_wts).float().to(args.device)
 
-    if args.class_weighting == "normal":
-        class_array /= class_array.sum()  # normalized
-        class_weights = 1 / (class_array + 1e-10)
-    #        if args.dataset == 'greenhouse' and not args.use_traversable:
-    #            class_weights[0] = 0.0
-    else:
-        class_weights = np.ones(args.classes)
-
-    print("class_weights : {}".format(class_weights))
-    class_weights = torch.from_numpy(class_weights).float().to(device)
-
-    return tgt_train_lst, class_weights, label_path_list
+    return class_wts, label_path_list
 
 
 def generate_pseudo_label_multi_model(
-    model_list,
-    source_dataset_name_list,
-    target_dataset_name,
-    data_loader,
-    num_classes,
-    device,
-    save_path,
-    min_portion=0.5,
-    ignore_index=4,
-    class_weighting="normal",
+    model_list: list,
+    source_dataset_name_list: list,
+    target_dataset_name: str,
+    data_loader: torch.utils.data.DataLoader,
+    num_classes: int,
+    save_path: str,
+    device: str = "cuda",
+    min_portion: float = 0.5,
+    ignore_index: int = 4,
+    class_weighting: str = "normal",
 ):
     """Create the model and start the evaluation process."""
 
@@ -399,7 +323,7 @@ def generate_pseudo_label_multi_model(
                 output_list = []
                 for m, os_data in zip(model_list, source_dataset_name_list):
                     # Output: Numpy, KLD: Numpy
-                    output = get_output(m, image, is_numpy=False)
+                    output = get_output(m, image)
                     amax_output = output.argmax(dim=1)
 
                     # Visualize pseudo labels
@@ -423,30 +347,6 @@ def generate_pseudo_label_multi_model(
                         amax_output = label_conversion[
                             amax_output
                         ]  # Torch.cuda or numpy
-
-                    elif target_dataset_name == "forest":
-                        from dataset.camvid import (
-                            id_camvid_to_forest,
-                        )
-                        from data_loader.segmentation.freiburg_forest import (
-                            id_cityscapes_to_forest,
-                        )
-
-                        # save visualized seg maps & predication prob map
-                        if os_data == "camvid":
-                            from data_loader.segmentation.camvid import (
-                                color_encoding as class_encoding_tmp,
-                            )
-
-                        elif os_data == "cityscapes":
-                            from data_loader.segmentation.cityscapes import (
-                                color_encoding as class_encoding_tmp,
-                            )
-
-                        if os_data == "camvid":
-                            amax_output = id_camvid_to_forest[amax_output]
-                        elif os_data == "cityscapes":
-                            amax_output = id_cityscapes_to_forest[amax_output]
 
                     output_list.append(amax_output)
 
@@ -485,8 +385,6 @@ def generate_pseudo_label_multi_model(
                     # label.save("%s/%s.png" % (save_pred_path, image_name))
                     label.save(os.path.join(save_path, filename))
 
-        pbar.close()
-
     #    update_image_list(tgt_train_lst, image_path_list, label_path_list, depth_path_list)
 
     if class_weighting == "normal":
@@ -505,85 +403,11 @@ def generate_pseudo_label_multi_model(
     return class_weights
 
 
-def generate_soft_pseudo_label(
-    model, testloader, device, save_path, round_idx, args, logger
-):
-    """Generate soft pseudo-labels (probability values)
-
-    Parameters
-    ----------
-    model :
-
-    testloader :
-
-    device :
-
-    save_path :
-
-    round_idx :
-
-    args :
-
-    logger :
-
-
-    Returns
-    --------
-    label_path_list :
-
-    """
-    ## model for evaluation
-    model.eval()
-    #
-    model.to(device)
-
-    ## evaluation process
-    logger.info(
-        "###### Start evaluating target domain train set in round {}! ######".format(
-            round_idx
-        )
-    )
-    save_pred_path = os.path.join(save_path, "soft_pseudo_label")
-    if not os.path.exists(save_pred_path):
-        os.makedirs(save_pred_path)
-
-    label_path_list = []
-    with torch.no_grad():
-        with tqdm(total=len(testloader)) as pbar:
-            for batch in tqdm(testloader):
-                if args.use_depth:
-                    image = batch["image"]
-                    depth = batch["depth"]
-                    name = batch["name"]
-                else:
-                    image = batch["image"]
-                    name = batch["name"]
-
-                # Output: tensor, KLD: tensor, feature: tensor
-                output_prob = get_output(model, image, is_numpy=False)
-
-                for i in range(output_prob.size(0)):
-                    # Save the probabilities as float16 for saving the storage
-                    output_prob_i = output_prob[i].squeeze().to("cpu").type(torch.half)
-
-                    file_name = name[i].split("/")[-1]
-                    image_name = file_name.rsplit(".", 1)[0]
-
-                    # Save the predicted images (+ colorred images for visualization)
-                    torch.save(output_prob_i, "%s/%s.pt" % (save_pred_path, image_name))
-
-                    label_path_list.append("%s/%s.pt" % (save_pred_path, image_name))
-
-        pbar.close()
-
-    return label_path_list
-
-
 def generate_pseudo_label_multi_model_domain_gap(
     model_list: list,
     source_dataset_name_list: list,
     target_dataset_name: str,
-    data_loader: torch.util.data.DataLoader,
+    data_loader: torch.utils.data.DataLoader,
     num_classes: int,
     save_path: str,
     device: str = "cuda",
@@ -606,7 +430,7 @@ def generate_pseudo_label_multi_model_domain_gap(
         List of source dataset names
     target_dataset_name: `str`
         Name of the target dataset
-    data_loader: `torch.util.data.DataLoader`
+    data_loader: `torch.utils.data.DataLoader`
         Target DataLoader
     num_classes: `int`
         Number of target classes
@@ -661,6 +485,7 @@ def generate_pseudo_label_multi_model_domain_gap(
 
     # Calculate the inverse values of the domain gap
     domain_gap_weight = 1 / (domain_gap_weight + 1e-10)
+    domain_gap_weight.to(device)
 
     with torch.no_grad():
         with tqdm(total=len(data_loader)) as pbar:
@@ -669,43 +494,58 @@ def generate_pseudo_label_multi_model_domain_gap(
                 name = batch["name"]
 
                 output_list = []
+                output_total = 0
+                ds_index = 0
                 for m, os_data in zip(model_list, source_dataset_name_list):
                     # Output: Numpy, KLD: Numpy
-                    output = get_output(m, image, is_numpy=False)
+                    output = get_output(m, image)
 
                     # Extract the maximum value for each target class
                     output_target = torch.zeros(
                         (output.size(0), num_classes, output.size(2), output.size(3))
-                    )
+                    ).to(device)
+
+                    if os_data == "camvid":
+                        label_conversion = id_camvid_to_greenhouse
+                    elif os_data == "cityscapes":
+                        label_conversion = id_cityscapes_to_greenhouse
+                    elif os_data == "forest":
+                        label_conversion = id_forest_to_greenhouse
+                    else:
+                        raise ValueError
+
+                    label_conversion = torch.Tensor(label_conversion).to(device)
 
                     for i in range(num_classes):
-                        if os_data == "camvid":
-                            label_conversion = id_camvid_to_greenhouse
-                        elif os_data == "cityscapes":
-                            label_conversion = id_cityscapes_to_greenhouse
-                        elif os_data == "forest":
-                            label_conversion = id_forest_to_greenhouse
-                        else:
-                            raise ValueError
+                        indices = torch.where(label_conversion == i)[0]
+                        output_target[:, i] = output[:, indices].max(dim=1)[0]
 
-                        indices = torch.where(label_conversion == i)
-                        output_target[i] = output[:, indices, :, :].max(dim=1)
+                    output_target = F.normalize(output_target, p=1)
 
-                # for i in range(output_prob.size(0)):
-                #     # Save the probabilities as float16 for saving the storage
-                #     output_prob_i = output_prob[i].squeeze().to("cpu").type(torch.half)
+                    output_list.append(output_target)
 
-                #     file_name = name[i].split("/")[-1]
-                #     image_name = file_name.rsplit(".", 1)[0]
+                    output_total += output_target * domain_gap_weight[ds_index]
+                    ds_index += 1
 
-                #     # Save the predicted images (+ colorred images for visualization)
-                #     torch.save(output_prob_i, "%s/%s.pt" % (save_pred_path, image_name))
+                output_total = F.normalize(output_total, p=1)
 
-                #     label_path_list.append("%s/%s.pt" % (save_pred_path, image_name))
+                label = output_total.argmax(dim=1)
+                for j in range(0, num_classes):
+                    class_array[j] += (label == j).sum()
 
-        pbar.close()
+                # Save soft pseudo-labels
+                for i in range(output_total.size(0)):
+                    # Save the probabilities as float16 for saving the storage
+                    output_prob_i = output_total[i].squeeze().to("cpu").type(torch.half)
 
-    #    update_image_list(tgt_train_lst, image_path_list, label_path_list, depth_path_list)
+                    file_name = name[i].split("/")[-1]
+                    image_name = file_name.rsplit(".", 1)[0]
+
+                    # Save the predicted images (+ colorred images for visualization)
+                    torch.save(
+                        output_prob_i,
+                        os.path.join(save_path, "{}.pt".format(image_name)),
+                    )
 
     if class_weighting == "normal":
         class_array /= class_array.sum()  # normalized
@@ -714,84 +554,5 @@ def generate_pseudo_label_multi_model_domain_gap(
         class_wts = np.ones(num_classes) / num_classes
 
     print("class_weights : {}".format(class_wts))
-    class_wts = torch.from_numpy(class_wts).float().to(device)
 
     return class_wts
-
-
-def generate_soft_pseudo_label(
-    model, testloader, device, save_path, round_idx, args, logger
-):
-    """Generate soft pseudo-labels (probability values)
-
-    Parameters
-    ----------
-    model :
-
-    testloader :
-
-    device :
-
-    save_path :
-
-    round_idx :
-
-    args :
-
-    logger :
-
-
-    Returns
-    --------
-    label_path_list :
-
-    """
-    ## model for evaluation
-    model.eval()
-    #
-    model.to(device)
-
-    ## evaluation process
-    logger.info(
-        "###### Start evaluating target domain train set in round {}! ######".format(
-            round_idx
-        )
-    )
-    save_pred_path = os.path.join(save_path, "soft_pseudo_label")
-    if not os.path.exists(save_pred_path):
-        os.makedirs(save_pred_path)
-
-    label_path_list = []
-    with torch.no_grad():
-        with tqdm(total=len(testloader)) as pbar:
-            for batch in tqdm(testloader):
-                if args.use_depth:
-                    image = batch["image"]
-                    depth = batch["depth"]
-                    name = batch["name"]
-                else:
-                    image = batch["image"]
-                    name = batch["name"]
-
-                # Output: tensor, KLD: tensor, feature: tensor
-                output_prob = get_output(model, image, is_numpy=False)
-
-                for i in range(output_prob.size(0)):
-                    # Save the probabilities as float16 for saving the storage
-                    output_prob_i = output_prob[i].squeeze().to("cpu").type(torch.half)
-
-                    file_name = name[i].split("/")[-1]
-                    image_name = file_name.rsplit(".", 1)[0]
-
-                    # Save the predicted images (+ colorred images for visualization)
-                    torch.save(output_prob_i, "%s/%s.pt" % (save_pred_path, image_name))
-
-                    label_path_list.append("%s/%s.pt" % (save_pred_path, image_name))
-
-        pbar.close()
-
-    return label_path_list
-
-
-if __name__ == "__main__":
-    pass

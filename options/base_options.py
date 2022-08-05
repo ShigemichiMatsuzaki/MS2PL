@@ -56,6 +56,15 @@ class BaseOptions:
             help="Label to ignore in training",
         )
 
+        # Seed
+        self.parser.add_argument(
+            "--rand-seed",
+            type=int,
+            default=0,
+            help="Seed of the random value generators",
+        )
+
+
         self.initialized = True
 
     def parse(self):

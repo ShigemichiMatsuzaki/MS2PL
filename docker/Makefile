@@ -48,6 +48,20 @@ train-forest:
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/train_forest.sh
 
+train-greenhouse-pseudo-hard:
+	docker run -it \
+		--gpus="device=all" \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-greenhouse-pseudo-hard \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/train_greenhouse_hard_pseudo.sh
+
+
 generate-pseudo-labels:
 	docker run -it \
 		--gpus="device=all" \

@@ -521,7 +521,7 @@ def main():
     #
     try:
         dataset_s1, num_classes, color_encoding, class_wts = import_dataset(
-            args.s1_name, calc_class_wts=True
+            args.s1_name, mode="train"
         )
         dataset_s1_val, _, _, _ = import_dataset(args.s1_name, mode="val")
         args.num_classes = num_classes

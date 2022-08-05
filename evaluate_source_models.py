@@ -34,14 +34,16 @@ def main():
             from dataset.camvid import id_camvid_to_greenhouse as label_conversion
         elif os_d == "cityscapes":
             os_seg_classes = 19
-            from dataset.cityscapes import id_cityscapes_to_greenhouse as label_conversion
+            from dataset.cityscapes import (
+                id_cityscapes_to_greenhouse as label_conversion,
+            )
         elif os_d == "forest" or os_d == "greenhouse":
             os_seg_classes = 5
             from dataset.forest import id_forest_to_greenhouse as label_conversion
         else:
             print("{} is not supported.".format(os_d))
             raise ValueError
-        
+
         label_conversions.append(label_conversion)
 
         os_model = import_model(
@@ -57,7 +59,9 @@ def main():
     if args.target == "greenhouse":
         from dataset.greenhouse import GreenhouseRGBD, color_palette
 
-        target_dataset = GreenhouseRGBD(list_name=args.target_data_list, train=False)
+        target_dataset = GreenhouseRGBD(
+            list_name=args.target_data_list, mode="val", load_labels=False
+        )
     elif args.target == "cityscapes":
         from dataset.cityscapes import CityscapesSegmentation
 
@@ -102,13 +106,17 @@ def main():
                     amax = label_conversions[j][amax]
 
                     # File name ('xxx.png')
-                    filename = name[0].split("/")[-1].replace('.png', '')
+                    filename = name[0].split("/")[-1].replace(".png", "")
                     label = Image.fromarray(amax.astype(np.uint8)).convert("P")
                     label.putpalette(color_palette)
                     # Save the predicted images (+ colorred images for visualization)
                     # label.save("%s/%s.png" % (save_pred_path, image_name))
-                    label.save(os.path.join(args.save_path, filename + '_' + source_dataset_name_list[j] + '.png'))
-
+                    label.save(
+                        os.path.join(
+                            args.save_path,
+                            filename + "_" + source_dataset_name_list[j] + ".png",
+                        )
+                    )
 
 
 if __name__ == "__main__":
