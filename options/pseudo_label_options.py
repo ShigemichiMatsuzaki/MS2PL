@@ -1,4 +1,5 @@
 from .base_options import BaseOptions
+from distutils.util import strtobool
 
 
 class PseudoLabelOptions(BaseOptions):
@@ -36,17 +37,20 @@ class PseudoLabelOptions(BaseOptions):
         # Pseudo-label parameters
         self.parser.add_argument(
             "--is-hard",
-            action="store_true",
-            help="If set, generate hard pseudo-labels.",
+            default=False,
+            type=strtobool,
+            help="If True, generate hard pseudo-labels.",
         )
         self.parser.add_argument(
             "--is-softmax-normalize",
-            action="store_true",
+            type=strtobool,
+            default=False,
             help="If set, normalize the domain gaps using softmax. Otherwise by the sum",
         )
         self.parser.add_argument(
             "--is-per-pixel",
-            action="store_true",
+            type=strtobool,
+            default=False,
             help="If set, consider the domain gap per pixel. Otherwise, per image",
         )
 

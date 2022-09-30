@@ -1,6 +1,8 @@
+import os
 import torch
 from options.pseudo_label_options import PseudoLabelOptions
 from utils.pseudo_label_generator import generate_pseudo_label_multi_model
+from utils.pseudo_label_generator import generate_pseudo_label_multi_model_domain_gap
 from utils.model_io import import_model
 
 
@@ -19,6 +21,7 @@ def main():
     )
 
     source_model_list = []
+    dg_model_list = []
     for os_m, os_w, os_d in zip(
         source_model_name_list, source_weight_name_list, source_dataset_name_list
     ):
@@ -39,12 +42,24 @@ def main():
             aux_loss=True,
             device=args.device,
         )
+        os_model_dg = import_model(
+            model_name=os_m,
+            num_classes=os_seg_classes,
+            weights=os_w.replace("best_iou", "best_ent_loss"),
+            aux_loss=True,
+            device=args.device,
+        )
+
+        # Model to evaluate domain gap
         source_model_list.append(os_model)
+        dg_model_list.append(os_model_dg)
 
     if args.target == "greenhouse":
         from dataset.greenhouse import GreenhouseRGBD, color_encoding
 
-        pseudo_dataset = GreenhouseRGBD(list_name=args.target_data_list, train=False)
+        pseudo_dataset = GreenhouseRGBD(
+            list_name=args.target_data_list, mode="val", load_labels=False
+        )
         pseudo_loader = torch.utils.data.DataLoader(
             pseudo_dataset,
             batch_size=args.batch_size,
@@ -60,17 +75,34 @@ def main():
     #
     # Generate pseudo-labels
     #
-    class_weights = generate_pseudo_label_multi_model(
-        model_list=source_model_list,
-        source_dataset_name_list=source_dataset_name_list,
-        target_dataset_name="greenhouse",
-        data_loader=pseudo_loader,
-        num_classes=num_classes,
-        device=args.device,
-        save_path=args.save_path,
-        min_portion=args.superpixel_pseudo_min_portion,
-        ignore_index=args.ignore_index,
-    )
+    if args.is_hard:
+        class_wts = generate_pseudo_label_multi_model(
+            model_list=source_model_list,
+            source_dataset_name_list=source_dataset_name_list,
+            target_dataset_name="greenhouse",
+            data_loader=pseudo_loader,
+            num_classes=num_classes,
+            device=args.device,
+            save_path=args.save_path,
+            min_portion=args.superpixel_pseudo_min_portion,
+            ignore_index=args.ignore_index,
+        )
+    else:
+        class_wts = generate_pseudo_label_multi_model_domain_gap(
+            model_list=source_model_list,
+            dg_model_list=dg_model_list,
+            source_dataset_name_list=source_dataset_name_list,
+            target_dataset_name="greenhouse",
+            data_loader=pseudo_loader,
+            num_classes=num_classes,
+            save_path=args.save_path,
+            device=args.device,
+            ignore_index=args.ignore_index,
+        )
+
+    # class_wts = torch.Tensor(class_wts)
+    filename = "class_weights_{}.pt".format("hard" if args.is_hard else "soft")
+    torch.save(class_wts, os.path.join(args.save_path, filename))
 
 
 if __name__ == "__main__":

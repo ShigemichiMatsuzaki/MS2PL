@@ -46,7 +46,9 @@ def main():
     if args.target == "greenhouse":
         from dataset.greenhouse import GreenhouseRGBD, color_encoding
 
-        target_dataset = GreenhouseRGBD(list_name=args.target_data_list, train=False)
+        target_dataset = GreenhouseRGBD(
+            list_name=args.target_data_list, mode="val", load_labels=False
+        )
     elif args.target == "cityscapes":
         from dataset.cityscapes import CityscapesSegmentation
 

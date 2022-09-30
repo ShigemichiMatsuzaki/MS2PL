@@ -9,6 +9,20 @@ RUNS_ROOT=/data/aisl/matsuzaki/runs
 build:
 	docker build -t $(IMAGE_NAME):$(VERSION) .
 
+bash:
+	docker run -it \
+		--gpus="device=all" \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 10G \
+		--name $(CONTAINER_NAME)-bash \
+		$(IMAGE_NAME):$(VERSION) \
+		bash 
+
+
+
 train-camvid:
 	docker run -it \
 		--gpus="device=all" \
@@ -47,6 +61,33 @@ train-forest:
 		--name $(CONTAINER_NAME)-forest \
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/train_forest.sh
+
+train-greenhouse-pseudo-hard:
+	docker run -it \
+		--gpus="device=all" \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-greenhouse-pseudo-hard \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/train_greenhouse_hard_pseudo.sh
+
+train-greenhouse-pseudo-soft:
+	docker run -it \
+		--gpus="device=all" \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-greenhouse-pseudo-soft \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/train_greenhouse_soft_pseudo.sh
+
 
 generate-pseudo-labels:
 	docker run -it \
