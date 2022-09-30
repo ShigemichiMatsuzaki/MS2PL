@@ -9,3 +9,7 @@ RUN pip3 install mmsegmentation
 # Training utilities
 RUN pip3 install timm optuna albumentations pytorch-lightning
 RUN pip3 install git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git
+
+# Add path of edgenets to PYTHONPATH so that the models can be successfully imported
+# I believe there should be a better way
+ENV PYTHONPATH /root/training/models/edgenets:${PYTHONPATH}
