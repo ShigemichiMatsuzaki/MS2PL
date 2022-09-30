@@ -405,6 +405,7 @@ def generate_pseudo_label_multi_model(
 
 def generate_pseudo_label_multi_model_domain_gap(
     model_list: list,
+    dg_model_list: list,
     source_dataset_name_list: list,
     target_dataset_name: str,
     data_loader: torch.utils.data.DataLoader,
@@ -425,7 +426,9 @@ def generate_pseudo_label_multi_model_domain_gap(
     Parameters
     ----------
     model_list: `list`
-        List of source models
+        List of source models to generate predicted labels
+    dg_model_list: `list`
+        List of source models to evaluate domain gaps
     source_dataset_name_list: `list`
         List of source dataset names
     target_dataset_name: `str`
@@ -472,9 +475,11 @@ def generate_pseudo_label_multi_model_domain_gap(
     class_array = np.zeros(num_classes)
 
     # Domain gap. Less value means closer -> More importance.
-    domain_gap_list = calculate_domain_gap(model_list, data_loader, device)[
+    domain_gap_list = calculate_domain_gap(dg_model_list, data_loader, device)[
         "domain_gap_list"
     ]
+
+    del dg_model_list
 
     # Calculate weights based on the domain gaps
     domain_gap_weight = torch.Tensor(domain_gap_list).to(device)
@@ -486,6 +491,8 @@ def generate_pseudo_label_multi_model_domain_gap(
     # Calculate the inverse values of the domain gap
     domain_gap_weight = 1 / (domain_gap_weight + 1e-10)
     domain_gap_weight.to(device)
+
+    print(domain_gap_weight)
 
     with torch.no_grad():
         with tqdm(total=len(data_loader)) as pbar:
@@ -554,5 +561,6 @@ def generate_pseudo_label_multi_model_domain_gap(
         class_wts = np.ones(num_classes) / num_classes
 
     print("class_weights : {}".format(class_wts))
+    class_wts = torch.from_numpy(class_wts).float().to(device)
 
     return class_wts

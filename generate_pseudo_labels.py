@@ -21,6 +21,7 @@ def main():
     )
 
     source_model_list = []
+    dg_model_list = []
     for os_m, os_w, os_d in zip(
         source_model_name_list, source_weight_name_list, source_dataset_name_list
     ):
@@ -41,7 +42,17 @@ def main():
             aux_loss=True,
             device=args.device,
         )
+        os_model_dg = import_model(
+            model_name=os_m,
+            num_classes=os_seg_classes,
+            weights=os_w.replace("best_iou", "best_ent_loss"),
+            aux_loss=True,
+            device=args.device,
+        )
+
+        # Model to evaluate domain gap
         source_model_list.append(os_model)
+        dg_model_list.append(os_model_dg)
 
     if args.target == "greenhouse":
         from dataset.greenhouse import GreenhouseRGBD, color_encoding
@@ -79,6 +90,7 @@ def main():
     else:
         class_wts = generate_pseudo_label_multi_model_domain_gap(
             model_list=source_model_list,
+            dg_model_list=dg_model_list,
             source_dataset_name_list=source_dataset_name_list,
             target_dataset_name="greenhouse",
             data_loader=pseudo_loader,
@@ -89,7 +101,8 @@ def main():
         )
 
     # class_wts = torch.Tensor(class_wts)
-    torch.save(class_wts, os.path.join(args.save_path, "class_weights.pt"))
+    filename = "class_weights_{}.pt".format("hard" if args.is_hard else "soft")
+    torch.save(class_wts, os.path.join(args.save_path, filename))
 
 
 if __name__ == "__main__":

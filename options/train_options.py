@@ -1,4 +1,5 @@
 from .base_options import BaseOptions
+from distutils.util import strtobool
 
 
 class TrainBaseOptions(BaseOptions):
@@ -45,12 +46,14 @@ class TrainBaseOptions(BaseOptions):
         )
         self.parser.add_argument(
             "--lr-gamma",
-            action="store_true",
+            type=strtobool,
+            default=False,
             help="Whether to use learning rate warmup",
         )
         self.parser.add_argument(
             "--use-lr-warmup",
-            action="store_true",
+            type=strtobool,
+            default=False,
             help="Whether to use learning rate warmup",
         )
 
@@ -89,8 +92,9 @@ class TrainOptions(TrainBaseOptions):
 
         self.parser.add_argument(
             "--is-hard",
-            action="store_true",
-            help="If set, use hard pseudo-labels.",
+            type=strtobool,
+            default=False,
+            help="If True, generate hard pseudo-labels.",
         )
 
         # Loss
@@ -102,13 +106,33 @@ class TrainOptions(TrainBaseOptions):
         )
         self.parser.add_argument(
             "--use-label-ent-weight",
-            action="store_true",
+            type=strtobool,
+            default=True,
+            help="True to use inverse label entropy as loss weights",
+        )
+        self.parser.add_argument(
+            "--label-weight-temperature",
+            type=float,
+            default=1.0,
             help="True to use inverse label entropy as loss weights",
         )
 
+        # Pseudo-label update
         self.parser.add_argument(
             "--label-update-epoch",
             type=int,
             default=15,
             help="Epoch at which the pseudo-labels are updated",
+        )
+        self.parser.add_argument(
+            "--conf-thresh",
+            type=float,
+            default=0.9,
+            help="Threshold of confidence to be selected as a pseudo-label",
+        )
+        self.parser.add_argument(
+            "--sp-label-min-portion",
+            type=float,
+            default=0.7,
+            help="Threshold of portion of labels of a certain class that dominates a superpixel to be propagated within the entire superpixel",
         )

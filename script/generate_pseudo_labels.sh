@@ -10,10 +10,10 @@ cityscapes_weight="/tmp/runs/domain_gap/cityscapes/20220723-154300/deeplabv3_mob
 # forest_weight="/tmp/runs/domain_gap/forest/20220722-155508/deeplabv3_mobilenet_v3_large_forest_best_ent_loss.pth"
 forest_weight="/tmp/runs/domain_gap/forest/20220728-160250/deeplabv3_mobilenet_v3_large_forest_best_iou.pth"
 
-# camvid_weight="/tmp/runs/domain_gap/camvid/20220725-034846/deeplabv3_mobilenet_v3_large_camvid_best_iou.pth"
+camvid_weight="/tmp/runs/domain_gap/camvid/20220725-034846/deeplabv3_mobilenet_v3_large_camvid_best_iou.pth"
 # cityscapes_weight="/tmp/runs/domain_gap/cityscapes/20220723-154300/deeplabv3_mobilenet_v3_large_cityscapes_best_iou.pth"
 # forest_weight="/tmp/runs/domain_gap/forest/20220728-160250/deeplabv3_mobilenet_v3_large_forest_best_iou.pth"
-camvid_weight="/tmp/runs/domain_gap/camvid/20220801-042638/deeplabv3_mobilenet_v3_large_camvid_best_iou.pth"
+# camvid_weight="/tmp/runs/domain_gap/camvid/20220801-042638/deeplabv3_mobilenet_v3_large_camvid_best_iou.pth"
 cityscapes_weight="/tmp/runs/domain_gap/cityscapes/20220801-233634/deeplabv3_mobilenet_v3_large_cityscapes_best_iou.pth"
 forest_weight="/tmp/runs/domain_gap/forest/20220728-160250/deeplabv3_mobilenet_v3_large_forest_best_iou.pth"
 
@@ -31,4 +31,7 @@ python generate_pseudo_labels.py \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
     --batch-size 64 \
+    --is-hard true \
+    --is-softmax-normalize false \
+    --superpixel-pseudo-min-portion 0.7 \
     --save-path ./pseudo_labels/mobilenet/

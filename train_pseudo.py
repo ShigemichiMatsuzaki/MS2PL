@@ -118,9 +118,18 @@ def train_pseudo(
         kld_loss_value = kld_loss(output_aux_prob, output_main_prob).sum(dim=1)
 
         # Label entropy
-        label_ent = torch.sum(-label * torch.log(label), dim=1) / torch.log(
-            args.num_classes
-        )
+        if not args.is_hard and args.use_label_ent_weight:
+            label_ent = torch.sum(-label * torch.log(label), dim=1) / np.log(
+                args.num_classes
+            )
+
+            u_weight = (
+                kld_loss_value.detach()
+                + label_ent.detach() * args.label_weight_temperature
+            )
+            # print(kld_loss_value.mean(), label_ent.mean())
+        else:
+            u_weight = kld_loss_value.detach()
 
         # if args.is_hard:
         #     seg_loss_value = seg_loss(output_total, label, kld_loss_value.detach())
@@ -129,7 +138,7 @@ def train_pseudo(
         seg_loss_value = seg_loss(
             output_total,
             label,
-            u_weight=kld_loss_value.detach() * (1 - label_ent.detach()),
+            u_weight=u_weight,
             is_hard=args.is_hard,
         )
 
@@ -202,7 +211,8 @@ def train_pseudo(
                 )
 
                 kld = (
-                    -kld_loss_value / torch.max(kld_loss_value).item() + 1
+                    torch.exp(-kld_loss_value)
+                    # -kld_loss_value / torch.max(kld_loss_value).item() + 1
                 )  # * 255# Scale to [0, 255]
                 kld = torch.reshape(kld, (kld.size(0), 1, kld.size(1), kld.size(2)))
                 add_images_to_tensorboard(
@@ -211,6 +221,27 @@ def train_pseudo(
                     epoch,
                     "train/kld",
                 )
+
+                if not args.is_hard and args.use_label_ent_weight:
+                    pixelwise_weight = (
+                        torch.exp(-u_weight)
+                        # -u_weight / torch.max(u_weight).item() + 1
+                    )  # * 255# Scale to [0, 255]
+                    pixelwise_weight = torch.reshape(
+                        pixelwise_weight,
+                        (
+                            pixelwise_weight.size(0),
+                            1,
+                            pixelwise_weight.size(1),
+                            pixelwise_weight.size(2),
+                        ),
+                    )
+                    add_images_to_tensorboard(
+                        writer,
+                        pixelwise_weight,
+                        epoch,
+                        "train/pixelwise_weight",
+                    )
 
 
 def val(
@@ -387,8 +418,8 @@ def main():
         )
         class_wts = torch.load("./pseudo_labels/mobilenet/class_weights.pt")
         print(class_wts)
-        class_wts = torch.Tensor(class_wts)
-        class_wts.to(args.device)
+        # class_wts = torch.Tensor(class_wts)
+        # class_wts.to(args.device)
         # dataset_s1, num_classes, color_encoding, class_wts = import_dataset(
         #     args.s1_name, calc_class_wts=True
         # )
@@ -534,14 +565,15 @@ def main():
         # After the update, usual hard label training is done
         if ep == args.label_update_epoch:
             args.is_hard = True
+            args.use_label_ent_weight = False
 
             class_wts, label_path_list = generate_pseudo_label(
                 args,
                 model=model,
                 testloader=pseudo_loader,
                 save_path=pseudo_save_path,
-                proto_rect_thresh=0.5,
-                min_portion=0.7,
+                proto_rect_thresh=args.conf_thresh,
+                min_portion=args.sp_label_min_portion,
             )
             class_wts.to(args.device)
 

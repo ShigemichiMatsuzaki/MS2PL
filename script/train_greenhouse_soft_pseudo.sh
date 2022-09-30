@@ -8,6 +8,8 @@ python train_pseudo.py \
     --label-update-epoch 10 \
     --save-path /tmp/runs/domain_gap/ \
     --scheduler cyclic \
-    --is-hard true \
-    --conf-thresh 0.9 \
+    --is-hard false \
+    --conf-thresh 0.5 \
+    --use-label-ent-weight true \
+    --label-weight-temperature 2.0 \
     --ignore-index 3 
