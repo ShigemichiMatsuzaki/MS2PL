@@ -1,0 +1,3 @@
+[submodule "models/edgenets"]
+	path = models/edgenets
+	url = git@github.com:ShigemichiMatsuzaki/EdgeNets.git
