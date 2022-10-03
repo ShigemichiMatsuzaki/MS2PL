@@ -25,7 +25,7 @@ class BaseOptions:
         self.parser.add_argument(
             "--model",
             type=str,
-            choices=["deeplabv3_mobilenet_v3_large", "deeplabv3_resnet50"],
+            choices=["deeplabv3_mobilenet_v3_large", "deeplabv3_resnet50", "espnetv2"],
             default="deeplabv3_resnet50",
             help="Model",
         )
@@ -63,7 +63,6 @@ class BaseOptions:
             default=0,
             help="Seed of the random value generators",
         )
-
 
         self.initialized = True
 

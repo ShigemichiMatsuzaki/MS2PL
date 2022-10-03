@@ -21,6 +21,16 @@ bash:
 		$(IMAGE_NAME):$(VERSION) \
 		bash 
 
+eval-model:
+	docker run -it \
+		--gpus="device=all" \
+		-v ${PWD}/../:/root/training/ \
+		--rm \
+		--shm-size 10G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-eval-model \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/eval_model.sh
 
 
 train-camvid:
