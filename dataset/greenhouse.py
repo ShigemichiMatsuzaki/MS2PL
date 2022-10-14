@@ -33,7 +33,7 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
     def __init__(
         self,
         list_name,
-        root=None,
+        label_root="",
         mode="train",
         size=(256, 480),
         rough_plant=True,
@@ -73,10 +73,7 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
         """
         self.mode = mode
         self.rough_plant = rough_plant
-        if root is not None:
-            data_file = os.path.join(root, list_name)
-        else:
-            data_file = list_name
+        data_file = list_name
 
         self.is_hard_label = is_hard_label
         self.load_labels = load_labels
@@ -107,7 +104,12 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
                 #
                 # Segmentation label
                 #
-                label_img_loc = line_split[1].rstrip()
+                if label_root:
+                    label_img_loc = os.path.join(
+                        label_root, line_split[1].rstrip())
+                else:
+                    label_img_loc = line_split[1].rstrip()
+
                 # Verify the existence of the file
                 if (
                     self.load_labels
@@ -203,7 +205,7 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
         #
         # Segmentation label
         #
-        if self.labels[index] != "" and self.load_labels:
+        if self.load_labels and self.labels[index]:
             if self.is_hard_label:
                 label_img = Image.open(self.labels[index])
 
@@ -242,9 +244,11 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
         rgb_cv_img = np.array(rgb_img)
         label_cv_img = np.array(label_img)
         if self.mode == "train":
-            transformed = self.train_transforms(image=rgb_cv_img, mask=label_cv_img)
+            transformed = self.train_transforms(
+                image=rgb_cv_img, mask=label_cv_img)
         else:
-            transformed = self.val_transforms(image=rgb_cv_img, mask=label_cv_img)
+            transformed = self.val_transforms(
+                image=rgb_cv_img, mask=label_cv_img)
 
         rgb_img_orig = F.to_tensor(transformed["image"])
         label_img = torch.LongTensor(transformed["mask"].astype(np.int64))
@@ -268,7 +272,7 @@ class GreenhouseRGBDSoftLabel(torch.utils.data.Dataset):
     def __init__(
         self,
         list_name,
-        root=None,
+        label_root="",
         mode="train",
         size=(256, 480),
     ):
@@ -288,10 +292,7 @@ class GreenhouseRGBDSoftLabel(torch.utils.data.Dataset):
         size: `list`
             Image size to which the image is resized
         """
-        if root is not None:
-            data_file = os.path.join(root, list_name)
-        else:
-            data_file = list_name
+        data_file = list_name
 
         self.mode = mode
 
@@ -320,7 +321,12 @@ class GreenhouseRGBDSoftLabel(torch.utils.data.Dataset):
                 #
                 # Segmentation label
                 #
-                label_img_loc = line_split[1].rstrip()
+                if label_root:
+                    label_img_loc = os.path.join(
+                        label_root, line_split[1].rstrip())
+                else:
+                    label_img_loc = line_split[1].rstrip()
+
                 label_img_loc = label_img_loc.replace("png", "pt")
                 # Verify the existence of the file
                 if label_img_loc != "" and not os.path.isfile(label_img_loc):
@@ -413,9 +419,11 @@ class GreenhouseRGBDSoftLabel(torch.utils.data.Dataset):
         label_cv_img = label.numpy().transpose(1, 2, 0)
         # print(rgb_cv_img.shape, label_cv_img.shape)
         if self.mode == "train":
-            transformed = self.train_transforms(image=rgb_cv_img, mask=label_cv_img)
+            transformed = self.train_transforms(
+                image=rgb_cv_img, mask=label_cv_img)
         else:
-            transformed = self.val_transforms(image=rgb_cv_img, mask=label_cv_img)
+            transformed = self.val_transforms(
+                image=rgb_cv_img, mask=label_cv_img)
 
         rgb_img_orig = F.to_tensor(transformed["image"])
         label_img = F.to_tensor(transformed["mask"])

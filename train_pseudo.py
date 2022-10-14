@@ -173,7 +173,8 @@ def train_pseudo(
             )
 
             if i == 0:
-                add_images_to_tensorboard(writer, image_orig, epoch, "train/image")
+                add_images_to_tensorboard(
+                    writer, image_orig, epoch, "train/image")
                 if not args.is_hard:
                     label = torch.argmax(label, dim=1)
                 add_images_to_tensorboard(
@@ -214,7 +215,8 @@ def train_pseudo(
                     torch.exp(-kld_loss_value)
                     # -kld_loss_value / torch.max(kld_loss_value).item() + 1
                 )  # * 255# Scale to [0, 255]
-                kld = torch.reshape(kld, (kld.size(0), 1, kld.size(1), kld.size(2)))
+                kld = torch.reshape(
+                    kld, (kld.size(0), 1, kld.size(1), kld.size(2)))
                 add_images_to_tensorboard(
                     writer,
                     kld,
@@ -323,7 +325,8 @@ def val(
 
             # Calculate and sum up the loss
             if i == 0 and writer is not None and color_encoding is not None:
-                add_images_to_tensorboard(writer, image_orig, epoch, "val/image")
+                add_images_to_tensorboard(
+                    writer, image_orig, epoch, "val/image")
                 add_images_to_tensorboard(
                     writer,
                     label,
@@ -386,7 +389,7 @@ def main():
     torch.autograd.set_detect_anomaly(True)
 
     #
-    # Import datasets (source S1, and the rest A1)
+    # Import datasets
     #
     try:
         from dataset.greenhouse import GreenhouseRGBD, color_encoding
@@ -394,6 +397,7 @@ def main():
         if args.is_hard:
             dataset_train = GreenhouseRGBD(
                 list_name="dataset/data_list/train_greenhouse_a.lst",
+                label_root=args.pseudo_label_dir,
                 mode="train",
                 is_hard_label=args.is_hard,
             )
@@ -402,13 +406,16 @@ def main():
 
             dataset_train = GreenhouseRGBDSoftLabel(
                 list_name="dataset/data_list/train_greenhouse_a.lst",
+                label_root=args.pseudo_label_dir,
                 mode="train",
             )
 
         dataset_pseudo = GreenhouseRGBD(
             list_name="dataset/data_list/train_greenhouse_a.lst",
+            label_root=args.pseudo_label_dir,
             mode="val",
             is_hard_label=True,
+            load_labels=False,
         )
         dataset_val = GreenhouseRGBD(
             list_name="dataset/data_list/val_greenhouse_a.lst",
@@ -416,14 +423,7 @@ def main():
             is_hard_label=True,
             is_old_label=True,
         )
-        class_wts = torch.load("./pseudo_labels/mobilenet/class_weights.pt")
-        print(class_wts)
-        # class_wts = torch.Tensor(class_wts)
-        # class_wts.to(args.device)
-        # dataset_s1, num_classes, color_encoding, class_wts = import_dataset(
-        #     args.s1_name, calc_class_wts=True
-        # )
-        # dataset_s1_val, _, _, _ = import_dataset(args.s1_name, mode="val")
+
         args.num_classes = 3
 
     except Exception as e:
@@ -431,6 +431,15 @@ def main():
         print(traceback.format_exception(t, v, tb))
         print(traceback.format_tb(e.__traceback__))
         print("Dataset '{}' not found".format(args.target))
+        sys.exit(1)
+
+    try:
+        class_wts = torch.load(os.path.join(
+            args.pseudo_label_dir, "class_weights.pt"))
+        print(class_wts)
+    except Exception as e:
+        print("Class weight '{}' not found".format(os.path.join(
+            args.class_weight_dir, "class_weights.pt")))
         sys.exit(1)
 
     #
@@ -441,6 +450,7 @@ def main():
         num_classes=args.num_classes,
         weights=args.resume_from if args.resume_from else None,
         aux_loss=True,
+        pretrained=False,
         device=args.device,
     )
 
@@ -451,7 +461,6 @@ def main():
 
     model.to(args.device)
     class_wts.to(args.device)
-    print(class_wts)
 
     #
     # Dataloader
@@ -525,7 +534,8 @@ def main():
     #
     now = datetime.datetime.now() + datetime.timedelta(hours=9)
     condition = "pseudo_" + ("hard" if args.is_hard else "soft")
-    save_path = os.path.join(args.save_path, condition, now.strftime("%Y%m%d-%H%M%S"))
+    save_path = os.path.join(args.save_path, condition,
+                             now.strftime("%Y%m%d-%H%M%S"))
     pseudo_save_path = os.path.join(save_path, "pseudo_labels")
     # If the directory not found, create it
     if not os.path.isdir(save_path):
@@ -583,6 +593,7 @@ def main():
                 list_name="dataset/data_list/train_greenhouse_a.lst",
                 mode="train",
                 is_hard_label=args.is_hard,
+                load_labels=False,
             )
             train_loader = torch.utils.data.DataLoader(
                 dataset_train,
@@ -601,7 +612,8 @@ def main():
         torch.save(
             model.state_dict(),
             os.path.join(
-                save_path, "pseudo_{}_{}_current.pth".format(args.model, args.target)
+                save_path, "pseudo_{}_{}_current.pth".format(
+                    args.model, args.target)
             ),
         )
 
@@ -610,7 +622,8 @@ def main():
                 model.state_dict(),
                 os.path.join(
                     save_path,
-                    "pseudo_{}_{}_ep_{}.pth".format(args.model, args.target, ep),
+                    "pseudo_{}_{}_ep_{}.pth".format(
+                        args.model, args.target, ep),
                 ),
             )
 
@@ -631,7 +644,8 @@ def main():
                     model.state_dict(),
                     os.path.join(
                         save_path,
-                        "pseudo_{}_{}_best_iou.pth".format(args.model, args.target),
+                        "pseudo_{}_{}_best_iou.pth".format(
+                            args.model, args.target),
                     ),
                 )
 

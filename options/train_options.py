@@ -136,3 +136,9 @@ class TrainOptions(TrainBaseOptions):
             default=0.7,
             help="Threshold of portion of labels of a certain class that dominates a superpixel to be propagated within the entire superpixel",
         )
+        self.parser.add_argument(
+            "--pseudo-label-dir",
+            type=str,
+            default="",
+            help="Path to the directory where the pre-trained class weight file is",
+        )

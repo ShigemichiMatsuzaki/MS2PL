@@ -532,7 +532,7 @@ def main():
     #
     now = datetime.datetime.now() + datetime.timedelta(hours=9)
     save_path = os.path.join(
-        args.save_path, args.s1_name, now.strftime("%Y%m%d-%H%M%S")
+        args.save_path, args.s1_name, args.model, now.strftime("%Y%m%d-%H%M%S")
     )
     # If the directory not found, create it
     if not os.path.isdir(save_path):
