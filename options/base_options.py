@@ -25,7 +25,12 @@ class BaseOptions:
         self.parser.add_argument(
             "--model",
             type=str,
-            choices=["deeplabv3_mobilenet_v3_large", "deeplabv3_resnet50", "espnetv2"],
+            choices=[
+                "deeplabv3_mobilenet_v3_large",
+                "deeplabv3_resnet50",
+                "espnetv2",
+                "unet",
+            ],
             default="deeplabv3_resnet50",
             help="Model",
         )
