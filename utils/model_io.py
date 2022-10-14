@@ -74,6 +74,10 @@ def import_model(
         )
     elif model_name == "espnetv2":
         model = import_espnetv2(num_classes=num_classes)
+    elif model_name == "unet":
+        from models.unet.unet import UNet
+
+        model = UNet(num_classes=num_classes)
     else:
         print("Model {} is not supported.".format(model_name))
         raise ValueError
