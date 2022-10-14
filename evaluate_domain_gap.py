@@ -58,7 +58,8 @@ def main():
     elif args.target == "camvid":
         from dataset.camvid import CamVidSegmentation, color_encoding
 
-        target_dataset = CamVidSegmentation(root="/tmp/dataset/CamVid", mode="val")
+        target_dataset = CamVidSegmentation(
+            root="/tmp/dataset/CamVid", mode="val")
     elif args.target == "forest":
         from dataset.forest import FreiburgForestDataset, color_encoding
 
