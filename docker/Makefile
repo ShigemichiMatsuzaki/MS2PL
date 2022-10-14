@@ -32,7 +32,6 @@ eval-model:
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/eval_model.sh
 
-
 train-camvid:
 	docker run -it \
 		--gpus="device=all" \
@@ -40,7 +39,7 @@ train-camvid:
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
 		--rm \
-		--shm-size 10G \
+		--shm-size 20G \
 		--workdir /root/training/ \
 		--name $(CONTAINER_NAME)-camvid \
 		$(IMAGE_NAME):$(VERSION) \
@@ -53,7 +52,7 @@ train-cityscapes:
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
 		--rm \
-		--shm-size 15G \
+		--shm-size 20G \
 		--workdir /root/training/ \
 		--name $(CONTAINER_NAME)-cityscapes \
 		$(IMAGE_NAME):$(VERSION) \
@@ -66,7 +65,7 @@ train-forest:
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
 		--rm \
-		--shm-size 10G \
+		--shm-size 20G \
 		--workdir /root/training/ \
 		--name $(CONTAINER_NAME)-forest \
 		$(IMAGE_NAME):$(VERSION) \
@@ -97,7 +96,6 @@ train-greenhouse-pseudo-soft:
 		--name $(CONTAINER_NAME)-greenhouse-pseudo-soft \
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/train_greenhouse_soft_pseudo.sh
-
 
 generate-pseudo-labels:
 	docker run -it \

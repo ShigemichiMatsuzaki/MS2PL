@@ -15,4 +15,5 @@ RUN pip3 install -U \
     optuna \
     albumentations \
     pytorch-lightning \
-    fvcore
+    fvcore \
+    torch-tb-profiler
