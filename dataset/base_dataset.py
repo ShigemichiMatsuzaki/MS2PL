@@ -15,6 +15,9 @@ class BaseDataset(data.Dataset):
         root,
         mode="train",
         ignore_idx=255,
+        scale=(0.5, 2.0),
+        height=256,
+        width=480,
         transform=None,
         label_conversion=False,
         max_iter=None,
@@ -38,27 +41,33 @@ class BaseDataset(data.Dataset):
         self.label_conversion = label_conversion
         self.label_conversion_map = None
         # self.transform = transform
+
         # Declare an augmentation pipeline
-        self.transform = (
-            A.Compose(
-                [
-                    # A.Resize(width=480, height=256),
-                    # A.RandomCrop(width=480, height=256),
-                    A.RandomResizedCrop(width=480, height=256, scale=(0.7, 1.0)),
-                    A.HorizontalFlip(p=0.5),
-                    A.GaussNoise(p=0.2),
-                    A.GaussianBlur(p=0.2),
-                    A.RGBShift(p=0.2),
-                    A.RandomBrightnessContrast(p=0.2),
-                ]
+        if transform is not None:
+            self.transform = transform
+        else:
+            self.transform = (
+                A.Compose(
+                    [
+                        # A.Resize(width=480, height=256),
+                        # A.RandomCrop(width=480, height=256),
+                        A.RandomResizedCrop(
+                            width=width, height=height, scale=scale),
+                        A.HorizontalFlip(p=0.5),
+                        A.GaussNoise(p=0.2),
+                        A.GaussianBlur(p=0.2),
+                        A.RGBShift(p=0.5),
+                        A.RandomBrightnessContrast(p=0.2),
+                        A.ChannelShuffle(p=0.1),
+                    ]
+                )
+                if self.mode == "train"
+                else A.Compose(
+                    [
+                        A.Resize(width=width, height=height),
+                    ]
+                )
             )
-            if self.mode == "train"
-            else A.Compose(
-                [
-                    A.Resize(width=480, height=256),
-                ]
-            )
-        )
 
         self.max_iter = max_iter
         # self.label_preprocess = None
@@ -66,11 +75,7 @@ class BaseDataset(data.Dataset):
         self.images = []
         self.labels = []
 
-        self.initialize()
-
-        if self.max_iter is not None:
-            self.images *= self.max_iter // len(self.images)
-            self.labels *= self.max_iter // len(self.labels)
+        # self.initialize()
 
     def initialize(self):
         raise NotImplementedError

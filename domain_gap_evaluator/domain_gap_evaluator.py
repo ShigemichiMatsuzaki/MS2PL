@@ -37,7 +37,7 @@ def get_output(
     """
     output = model(image.to(device))
 
-    if isinstance(output, OrderedDict):
+    if isinstance(output, OrderedDict) or isinstance(output, dict):
         if "aux" in output.keys():
             pred = output["out"] + aux_weight * output["aux"]
         else:

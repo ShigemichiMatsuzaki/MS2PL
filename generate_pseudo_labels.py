@@ -72,6 +72,9 @@ def main():
         print("Target {} is not supported.".format(args.target))
         raise ValueError
 
+    if not os.path.isdir(args.save_path):
+        os.makedirs(args.save_path)
+
     #
     # Generate pseudo-labels
     #

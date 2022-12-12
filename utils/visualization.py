@@ -134,3 +134,24 @@ def add_images_to_tensorboard(
         images_grid = torchvision.utils.make_grid(images_grid).numpy()
 
     writer.add_image(data_tag, images_grid, i_iter)
+
+
+def color_encoding_dict_to_palette(color_encoding: OrderedDict) -> list:
+    """Convert color_encoding to color palette
+
+    Parameters
+    ----------
+    color_encoding: `OrderedDict`
+        Color encoding in `OrderedDict` type
+
+    Returns
+    -------
+    color_palette: `list`
+        Color palette in `list` type
+    """
+    color_palette = []
+    for v in color_encoding.values():
+        for i in v:
+            color_palette.append(i)
+
+    return color_palette

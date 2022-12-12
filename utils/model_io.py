@@ -1,3 +1,4 @@
+import os
 import torch
 import torchvision
 from typing import Optional
@@ -48,6 +49,28 @@ def import_espnetv2(num_classes: int) -> torch.nn.Module:
         classes=num_classes,
     )
 
+    # Load ImageNet pretrained encoder
+    weights = "/root/training/models/edgenets/model/classification/model_zoo/espnetv2/espnetv2_s_2.0_imagenet_224x224.pth"
+
+    if os.path.isfile(weights):
+        num_gpus = torch.cuda.device_count()
+        device = "cuda" if num_gpus >= 1 else "cpu"
+        pretrained_dict = torch.load(
+            weights, map_location=torch.device(device))
+    else:
+        print("Weight file {} is not found".format(weights))
+        raise FileNotFoundError
+
+    basenet_dict = model.base_net.state_dict()
+    overlap_dict = {k: v for k, v in pretrained_dict.items()
+                    if k in basenet_dict}
+    if len(overlap_dict) == 0:
+        print("No overlapping elements")
+        raise ValueError
+
+    basenet_dict.update(overlap_dict)
+    model.base_net.load_state_dict(basenet_dict)
+
     return model
 
 
@@ -60,7 +83,14 @@ def import_model(
     device: Optional[str] = "cuda",
 ) -> torch.nn.Module:
     # Import model
-    if model_name == "deeplabv3_resnet50":
+    if model_name == "deeplabv3_resnet101":
+        model = torchvision.models.segmentation.deeplabv3_resnet101(
+            pretrained=pretrained,
+            aux_loss=aux_loss,
+            num_classes=num_classes,
+        )
+
+    elif model_name == "deeplabv3_resnet50":
         model = torchvision.models.segmentation.deeplabv3_resnet50(
             pretrained=pretrained,
             aux_loss=aux_loss,
@@ -74,6 +104,10 @@ def import_model(
         )
     elif model_name == "espnetv2":
         model = import_espnetv2(num_classes=num_classes)
+    elif model_name == "unet":
+        from models.unet.unet import UNet
+
+        model = UNet(num_classes=num_classes)
     else:
         print("Model {} is not supported.".format(model_name))
         raise ValueError
@@ -81,9 +115,39 @@ def import_model(
     if weights is not None:
         print("Weight file : {}".format(weights))
         state_dict = torch.load(weights)
-        overlap_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+        model_dict = model.state_dict()
+        # print(state_dict.keys())
+        # print(model_dict.keys())
+        overlap_dict = {
+            k.replace("module.", ""): v
+            for k, v in state_dict.items()
+            if k.replace("module.", "") in model_dict
+            and model_dict[k.replace("module.", "")].size() == v.size()
+        }
 
-        model.load_state_dict(overlap_dict)
+        # overlap_dict = {
+        #     k: v
+        #     for k, v in state_dict.items()
+        #     if k in model_dict and model_dict[k].size() == v.size()
+        # }
+        # print(overlap_dict.keys())
+
+        # Just for debugging
+        non_overlap_dict = {
+            k.replace("module.", ""): v
+            for k, v in state_dict.items()
+            if not (
+                k.replace("module.", "") in model_dict
+                and model_dict[k.replace("module.", "")].size() == v.size()
+            )
+            and "depth" not in k
+        }
+
+        # print(state_dict["module.bu_dec_l4.merge_layer.3.weight"].size())
+        # print(model_dict["bu_dec_l4.merge_layer.3.weight"].size())
+
+        model_dict.update(overlap_dict)
+        model.load_state_dict(model_dict)
 
     model.to(device)
 

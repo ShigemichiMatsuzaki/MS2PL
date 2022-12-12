@@ -21,6 +21,11 @@ class TrainBaseOptions(BaseOptions):
             default=0,
             help="Epoch number to resume the training from",
         )
+        self.parser.add_argument("--train-image-size-h", type=int, default=256)
+        self.parser.add_argument("--train-image-size-w", type=int, default=480)
+        self.parser.add_argument("--val-image-size-h", type=int, default=256)
+        self.parser.add_argument("--val-image-size-w", type=int, default=480)
+
         # Optimizer and scheduler
         self.parser.add_argument(
             "--optim", type=str, default="SGD", help="Optimizer. Default: SGD"
@@ -41,7 +46,7 @@ class TrainBaseOptions(BaseOptions):
         self.parser.add_argument(
             "--scheduler",
             type=str,
-            default="cyclic",
+            default="polynomial",
             help="Type of the learning rate cheduler. Default: cyclic",
         )
         self.parser.add_argument(
@@ -55,6 +60,14 @@ class TrainBaseOptions(BaseOptions):
             type=strtobool,
             default=False,
             help="Whether to use learning rate warmup",
+        )
+
+        self.parser.add_argument(
+            "--class-wts-type",
+            type=str,
+            default="normal",
+            choices=["normal", "inverse", "uniform"],
+            help="True to set more weight to more frequent classes",
         )
 
 
@@ -135,4 +148,10 @@ class TrainOptions(TrainBaseOptions):
             type=float,
             default=0.7,
             help="Threshold of portion of labels of a certain class that dominates a superpixel to be propagated within the entire superpixel",
+        )
+        self.parser.add_argument(
+            "--pseudo-label-dir",
+            type=str,
+            default="",
+            help="Path to the directory where the pre-trained class weight file is",
         )

@@ -3,6 +3,14 @@ from xml.dom.minidom import Attr
 import torch
 
 
+class ConstantLR:
+    def __init__(self):
+        pass
+
+    def step(self):
+        pass
+
+
 def get_optimizer(args, model: torch.Tensor) -> torch.optim.Optimizer:
     """Get optimizer
 
@@ -21,13 +29,33 @@ def get_optimizer(args, model: torch.Tensor) -> torch.optim.Optimizer:
     """
     if args.optim == "Adam":
         optimizer = torch.optim.Adam(
-            model.parameters(),
+            # model.parameters(),
+            [
+                {
+                    "params": get_decoder_weights(model, args.model),
+                    "lr": args.lr,
+                },
+                {
+                    "params": get_encoder_weights(model, args.model),
+                    "lr": args.lr / 10.0,
+                },
+            ],
             lr=args.lr,
             weight_decay=args.weight_decay,
         )
     elif args.optim == "SGD":
         optimizer = torch.optim.SGD(
-            model.parameters(),
+            # model.parameters(),
+            [
+                {
+                    "params": get_decoder_weights(model, args.model),
+                    "lr": args.lr,
+                },
+                {
+                    "params": get_encoder_weights(model, args.model),
+                    "lr": args.lr / 10.0,
+                },
+            ],
             lr=args.lr,
             momentum=args.momentum,
             weight_decay=args.weight_decay,
@@ -71,7 +99,10 @@ def get_scheduler(
         scheduler = torch.optim.lr_scheduler.ExponentialLR(
             optimizer, gamma=args.lr_gamma
         )
-        pass
+    elif args.scheduler == "polynomial":
+        scheduler = torch.optim.lr_scheduler.PolynomialLR(
+            optimizer, total_iters=args.epochs, power=0.9, last_epoch=-1, verbose=False
+        )
     elif args.scheduler == "cyclic":
         scheduler = torch.optim.lr_scheduler.CyclicLR(
             optimizer,
@@ -80,7 +111,10 @@ def get_scheduler(
             mode="triangular",
             step_size_up=5,
             step_size_down=10,
+            cycle_momentum=(args.optim == "SGD"),
         )
+    elif args.scheduler == "constant":
+        scheduler = ConstantLR()
     # elif args.scheduler == "linear":
     #     schedule = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.5, total_iters=4)
     else:
@@ -92,3 +126,44 @@ def get_scheduler(
         raise ValueError
 
     return scheduler
+
+
+def get_encoder_weights(model: torch.nn.Module, model_name: str):
+    """ """
+    b = []
+    if "deeplab" in model_name:
+        b.append(model.backbone)
+        for i in range(len(b)):
+            for j in b[i].modules():
+                jj = 0
+                for k in j.parameters():
+                    jj += 1
+                    if k.requires_grad:
+                        yield k
+    elif model_name == "espnetv2":
+        for w in model.get_basenet_params():
+            yield w
+    else:
+        raise ValueError
+
+
+def get_decoder_weights(model: torch.nn.Module, model_name: str):
+    """ """
+    if "deeplab" in model_name:
+        b = []
+        b.append(model.classifier)
+        if model.aux_classifier is not None:
+            b.append(model.aux_classifier)
+
+        for i in range(len(b)):
+            for j in b[i].modules():
+                jj = 0
+                for k in j.parameters():
+                    jj += 1
+                    if k.requires_grad:
+                        yield k
+    elif model_name == "espnetv2":
+        for w in model.get_segment_params():
+            yield w
+    else:
+        raise ValueError

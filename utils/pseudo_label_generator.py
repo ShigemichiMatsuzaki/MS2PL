@@ -4,6 +4,7 @@ __maintainer__ = "ShigemichiMatsuzaki"
 # ============================================
 
 import os
+from typing import Optional
 from tqdm import tqdm
 import numpy as np
 from collections import OrderedDict
@@ -148,7 +149,7 @@ def get_output(
 
     pred_aux = None
     # Calculate the output from the two classification layers
-    if isinstance(output2, OrderedDict):
+    if isinstance(output2, OrderedDict) or isinstance(output2, dict):
         pred = output2["out"]
         if "aux" in output2.keys():
             pred_aux = output2["aux"]
@@ -193,9 +194,9 @@ def generate_pseudo_label(
     model: torch.nn.Module,
     testloader: torch.utils.data.DataLoader,
     save_path: str,
-    proto_rect_thresh=0.9,
-    min_portion=-1.0,
-    label_conversion=None,
+    proto_rect_thresh: float = 0.9,
+    min_portion: float = -1.0,
+    label_conversion: Optional[np.ndarray] = None,
 ):
     """Generate pseudo-labels using a pre-trained model
 
@@ -213,7 +214,7 @@ def generate_pseudo_label(
         Confidence threshold for pseudo-label generation
     min_portion: `float`
         Minimum portion of the same lable in a superpixel to be propagated
-    label_conversion: `list`
+    label_conversion: `numpy.ndarray`
         Label conversion
 
     Returns
@@ -223,11 +224,11 @@ def generate_pseudo_label(
     label_path_list: `list`
         List of the generated pseudo-labels
     """
-    ## model for evaluation
+    # model for evaluation
     model.eval()
     model.to(args.device)
 
-    ## evaluation process
+    # evaluation process
     label_path_list = []
     class_array = np.zeros(args.num_classes)
     with torch.no_grad():
@@ -241,11 +242,13 @@ def generate_pseudo_label(
                 max_output, argmax_output = torch.max(output_prob, dim=1)
 
                 # Filter out the pixels with a confidence below the threshold
-                argmax_output[max_output < proto_rect_thresh] = args.ignore_index
+                argmax_output[max_output <
+                              proto_rect_thresh] = args.ignore_index
 
                 # Convert the label space from the source to the target
                 if label_conversion is not None:
-                    label_conversion = torch.tensor(label_conversion).to(args.device)
+                    label_conversion = torch.tensor(
+                        label_conversion).to(args.device)
                     argmax_output = label_conversion[argmax_output]
 
                 for i in range(argmax_output.size(0)):
@@ -254,7 +257,8 @@ def generate_pseudo_label(
                     if min_portion >= 0:
                         # Convert PIL image to Numpy
                         rgb_img_np = (
-                            image[i].to("cpu").detach().numpy().transpose(1, 2, 0)
+                            image[i].to("cpu").detach(
+                            ).numpy().transpose(1, 2, 0)
                         )
 
                         amax_output = get_label_from_superpixel(
@@ -312,7 +316,7 @@ def generate_pseudo_label_multi_model(
         print("Target {} is not supported.".format(target_dataset_name))
         raise ValueError
 
-    ## evaluation process
+    # evaluation process
     class_array = np.zeros(num_classes)
     with torch.no_grad():
         with tqdm(total=len(data_loader)) as pbar:
@@ -342,7 +346,8 @@ def generate_pseudo_label_multi_model(
                                 id_forest_to_greenhouse as label_conversion,
                             )
 
-                        label_conversion = torch.tensor(label_conversion).to(device)
+                        label_conversion = torch.tensor(
+                            label_conversion).to(device)
 
                         amax_output = label_conversion[
                             amax_output
@@ -361,7 +366,8 @@ def generate_pseudo_label_multi_model(
                     if min_portion >= 0:
                         # Convert PIL image to Numpy
                         rgb_img_np = (
-                            image[i].to("cpu").detach().numpy().transpose(1, 2, 0)
+                            image[i].to("cpu").detach(
+                            ).numpy().transpose(1, 2, 0)
                         )
 
                         label = get_label_from_superpixel(
@@ -379,7 +385,8 @@ def generate_pseudo_label_multi_model(
 
                     # File name ('xxx.png')
                     filename = name[i].split("/")[-1]
-                    label = Image.fromarray(label.astype(np.uint8)).convert("P")
+                    label = Image.fromarray(
+                        label.astype(np.uint8)).convert("P")
                     label.putpalette(color_palette)
                     # Save the predicted images (+ colorred images for visualization)
                     # label.save("%s/%s.png" % (save_pred_path, image_name))
@@ -415,6 +422,7 @@ def generate_pseudo_label_multi_model_domain_gap(
     is_per_pixel: bool = False,
     ignore_index: int = 4,
     softmax_normalize: bool = False,
+    label_normalize: str = "softmax",
     class_weighting: str = "normal",
 ) -> torch.Tensor:
     """Generate multi-source pseudo-labels with domain gaps
@@ -450,6 +458,10 @@ def generate_pseudo_label_multi_model_domain_gap(
         if `True`, normalize the gap values by softmax,
         which emphasizes the difference of the values.
         Otherwise, normalize them by the sum.
+    label_normalize: `str`
+        Normalization method of the soft labels.
+        [`L1`, `softmax`]
+        Default: L1 (normalize by the sum)
     class_weighting: `str`
         Type of the class weights.
         "normal": More weight on less frequent class
@@ -471,7 +483,7 @@ def generate_pseudo_label_multi_model_domain_gap(
         print("Target {} is not supported.".format(target_dataset_name))
         raise ValueError
 
-    ## evaluation process
+    # evaluation process
     class_array = np.zeros(num_classes)
 
     # Domain gap. Less value means closer -> More importance.
@@ -509,7 +521,8 @@ def generate_pseudo_label_multi_model_domain_gap(
 
                     # Extract the maximum value for each target class
                     output_target = torch.zeros(
-                        (output.size(0), num_classes, output.size(2), output.size(3))
+                        (output.size(0), num_classes,
+                         output.size(2), output.size(3))
                     ).to(device)
 
                     if os_data == "camvid":
@@ -521,7 +534,8 @@ def generate_pseudo_label_multi_model_domain_gap(
                     else:
                         raise ValueError
 
-                    label_conversion = torch.Tensor(label_conversion).to(device)
+                    label_conversion = torch.Tensor(
+                        label_conversion).to(device)
 
                     for i in range(num_classes):
                         indices = torch.where(label_conversion == i)[0]
@@ -534,7 +548,17 @@ def generate_pseudo_label_multi_model_domain_gap(
                     output_total += output_target * domain_gap_weight[ds_index]
                     ds_index += 1
 
-                output_total = F.normalize(output_total, p=1)
+                if label_normalize == "L1":
+                    output_total = F.normalize(output_total, p=1)
+                elif label_normalize == "softmax":
+                    output_total = F.softmax(output_total, dim=1)
+                else:
+                    print(
+                        "Label normalization type {} is not supported.".format(
+                            label_normalize
+                        )
+                    )
+                    raise ValueError
 
                 label = output_total.argmax(dim=1)
                 for j in range(0, num_classes):
@@ -543,7 +567,8 @@ def generate_pseudo_label_multi_model_domain_gap(
                 # Save soft pseudo-labels
                 for i in range(output_total.size(0)):
                     # Save the probabilities as float16 for saving the storage
-                    output_prob_i = output_total[i].squeeze().to("cpu").type(torch.half)
+                    output_prob_i = output_total[i].squeeze().to(
+                        "cpu").type(torch.half)
 
                     file_name = name[i].split("/")[-1]
                     image_name = file_name.rsplit(".", 1)[0]
@@ -553,6 +578,7 @@ def generate_pseudo_label_multi_model_domain_gap(
                         output_prob_i,
                         os.path.join(save_path, "{}.pt".format(image_name)),
                     )
+                    
 
     if class_weighting == "normal":
         class_array /= class_array.sum()  # normalized
