@@ -65,6 +65,45 @@ id_camvid_to_greenhouse = np.array(
 
 
 class CamVidSegmentation(BaseDataset):
+    def __init__(
+        self,
+        root,
+        mode="train",
+        ignore_idx=255,
+        scale=(0.5, 2.0),
+        height=512,
+        width=1024,
+        transform=None,
+        label_conversion=False,
+        max_iter=None,
+    ):
+        super().__init__(
+            root,
+            mode=mode,
+            ignore_idx=ignore_idx,
+            scale=scale,
+            height=height,
+            width=width,
+            transform=transform,
+            label_conversion=label_conversion,
+            max_iter=max_iter
+        )
+
+        if self.mode not in ["train", "val", "test"]:
+            print("Invalid dataset mode : {}".format(self.mode))
+            raise ValueError
+
+        data_train_image_dir = os.path.join(self.root, self.mode)
+        data_train_label_dir = os.path.join(self.root, self.mode + "annot")
+        self.images += sorted(glob.glob(os.path.join(data_train_image_dir, "*.png")))
+        self.labels += sorted(glob.glob(os.path.join(data_train_label_dir, "*.png")))
+
+        self.label_conversion_map = id_camvid_to_greenhouse
+        self.size = (height, width)
+
+        if self.max_iter is not None:
+            self.images *= self.max_iter // len(self.images)
+            self.labels *= self.max_iter // len(self.labels)
     #    def __init__(
     #        self,
     #        root,

@@ -1,7 +1,8 @@
 NAME=domain-gap-eval
 IMAGE_NAME=nvcr.io/nvidia/pytorch
 CONTAINER_NAME=domain-gap-eval
-VERSION=21.09-py3
+# VERSION=21.09-py3
+VERSION=22.11-py3
 GPU_ID=1
 DATASET_ROOT=/data/aisl/matsuzaki/dataset
 RUNS_ROOT=/data/aisl/matsuzaki/runs
@@ -43,7 +44,7 @@ train-camvid:
 		--workdir /root/training/ \
 		--name $(CONTAINER_NAME)-camvid \
 		$(IMAGE_NAME):$(VERSION) \
-		bash script/train_camvid.sh
+		bash script/pretrain.sh camvid
 
 train-cityscapes:
 	docker run -it \
@@ -56,7 +57,33 @@ train-cityscapes:
 		--workdir /root/training/ \
 		--name $(CONTAINER_NAME)-cityscapes \
 		$(IMAGE_NAME):$(VERSION) \
-		bash script/train_cityscapes.sh
+		bash script/pretrain.sh cityscapes
+
+train-cityscapes-highres:
+	docker run -it \
+		--gpus="device=all" \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 20G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-cityscapes-highres \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/pretrain_highres.sh cityscapes
+
+train-gta5-highres:
+	docker run -it \
+		--gpus="device=all" \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 20G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-gta5-highres \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/pretrain_highres.sh gta5
 
 train-forest:
 	docker run -it \
@@ -69,7 +96,7 @@ train-forest:
 		--workdir /root/training/ \
 		--name $(CONTAINER_NAME)-forest \
 		$(IMAGE_NAME):$(VERSION) \
-		bash script/train_forest.sh
+		bash script/pretrain.sh forest
 
 train-greenhouse-pseudo-hard:
 	docker run -it \

@@ -41,6 +41,44 @@ color_palette = [170, 170, 170, 0, 255, 0, 102, 102, 51, 0, 120, 255, 0, 0, 0]
 
 
 class FreiburgForestDataset(BaseDataset):
+    def __init__(
+        self,
+        root,
+        mode="train",
+        ignore_idx=255,
+        scale=(0.5, 2.0),
+        height=512,
+        width=1024,
+        transform=None,
+        label_conversion=False,
+        max_iter=None,
+    ):
+        super().__init__(
+            root,
+            mode=mode,
+            ignore_idx=ignore_idx,
+            scale=scale,
+            height=height,
+            width=width,
+            transform=transform,
+            label_conversion=label_conversion,
+            max_iter=max_iter
+        )
+
+        if self.mode == "val":
+            self.mode = "test"
+        elif self.mode not in ["train", "test"]:
+            print("Invalid dataset mode : {}".format(self.mode))
+            raise ValueError
+
+        data_dir = os.path.join(self.root, self.mode)
+
+        self.images = sorted(glob.glob(os.path.join(data_dir, "rgb/*.jpg")))
+        self.labels = sorted(
+            glob.glob(os.path.join(data_dir, "GT_color/*.png")))
+        self.size = (height, width)
+        self.label_conversion_map = id_forest_to_greenhouse
+
     def initialize(self):
         if self.mode == "val":
             self.mode = "test"
@@ -51,7 +89,8 @@ class FreiburgForestDataset(BaseDataset):
         data_dir = os.path.join(self.root, self.mode)
 
         self.images = sorted(glob.glob(os.path.join(data_dir, "rgb/*.jpg")))
-        self.labels = sorted(glob.glob(os.path.join(data_dir, "GT_color/*.png")))
+        self.labels = sorted(
+            glob.glob(os.path.join(data_dir, "GT_color/*.png")))
         self.size = (256, 480)
         self.label_conversion_map = id_forest_to_greenhouse
 
@@ -76,7 +115,8 @@ class FreiburgForestDataset(BaseDataset):
         else:
             label_img_color_np = np.array(label, np.uint8)
 
-        label_img_id_np = np.zeros((label_img_color_np.shape[:2]), dtype=np.uint8)
+        label_img_id_np = np.zeros(
+            (label_img_color_np.shape[:2]), dtype=np.uint8)
         for color in color_to_id:
             label_img_id_np[(label_img_color_np == color).all(axis=2)] = color_to_id[
                 color

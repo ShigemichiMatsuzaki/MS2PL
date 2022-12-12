@@ -18,6 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 from warmup_scheduler import GradualWarmupScheduler
 from tqdm import tqdm
 
+import albumentations as A
 
 from utils.metrics import AverageMeter, MIOU
 from utils.visualization import add_images_to_tensorboard
@@ -83,7 +84,9 @@ def train(
         else torch.ones(args.num_classes).to(device)
     )
     loss_cls_func = torch.nn.CrossEntropyLoss(
-        weight=class_weights, reduction="mean", ignore_index=255
+        weight=class_weights,
+        reduction="mean",
+        ignore_index=args.ignore_index,
     )
 
     # Entropy is equivalent to KLD between output and a uniform distribution
@@ -129,28 +132,30 @@ def train(
         )
         # loss_cls_acc_val = loss_cls_func(output_total, label)
 
-        batch_a = a1_loader_iter.next()
-        image_a = batch_a["image"].to(device)
+        if weight_loss_ent > 0.0:
+            batch_a = a1_loader_iter.next()
+            image_a = batch_a["image"].to(device)
 
-        # Get output and convert it to log probability
-        output_a = model(image_a)
-        prob_a = log_softmax(output_a["out"])
-        prob_a_aux = log_softmax(output_a["aux"])
+            # Get output and convert it to log probability
+            output_a = model(image_a)
+            prob_a = log_softmax(output_a["out"])
+            prob_a_aux = log_softmax(output_a["aux"])
 
-        # Uniform distribution: the probability of each class is 1/num_classes
-        #  The number of classes is the 1st dim of the output
-        uni_dist = torch.ones_like(prob_a).to(device) / prob_a.size()[1]
-        uni_dist_aux = torch.ones_like(prob_a_aux).to(device) / prob_a_aux.size()[1]
-        # loss_val = loss_ent_func(output, uni_dist)
+            # Uniform distribution: the probability of each class is 1/num_classes
+            #  The number of classes is the 1st dim of the output
+            uni_dist = torch.ones_like(prob_a).to(device) / prob_a.size()[1]
+            uni_dist_aux = torch.ones_like(prob_a_aux).to(device) / prob_a_aux.size()[1]
+            # loss_val = loss_ent_func(output, uni_dist)
 
-        # Calculate and sum up the loss
-        # loss_val = weight_loss_ent * loss_val
-        loss_ent_acc_val = weight_loss_ent * (
-            loss_ent_func(prob_a, uni_dist)
-            + 0.5 * loss_ent_func(prob_a_aux, uni_dist_aux)
-        )
-
-        loss_val = loss_cls_acc_val + loss_ent_acc_val
+            # Calculate and sum up the loss
+            # loss_val = weight_loss_ent * loss_val
+            loss_ent_acc_val = weight_loss_ent * (
+                loss_ent_func(prob_a, uni_dist)
+                + 0.5 * loss_ent_func(prob_a_aux, uni_dist_aux)
+            )
+            loss_val = loss_cls_acc_val + loss_ent_acc_val
+        else:
+            loss_val = loss_cls_acc_val
 
         loss_val.backward()
         optimizer.step()
@@ -162,7 +167,7 @@ def train(
                 i + 1,
                 len(s1_loader),
                 loss_cls_acc_val.item(),
-                loss_ent_acc_val.item(),
+                loss_ent_acc_val.item() if weight_loss_ent > 0 else 0.0,
             )
         )
         if writer is not None:
@@ -170,11 +175,15 @@ def train(
                 "train/cls_loss", loss_cls_acc_val.item(), epoch * len(s1_loader) + i
             )
             writer.add_scalar(
-                "train/ent_loss", loss_ent_acc_val.item(), epoch * len(s1_loader) + i
+                "train/ent_loss",
+                loss_ent_acc_val.item() if weight_loss_ent > 0 else 0.0,
+                epoch * len(s1_loader) + i,
             )
             writer.add_scalar(
                 "train/total_loss",
-                loss_cls_acc_val.item() + loss_ent_acc_val.item(),
+                (loss_cls_acc_val.item() + loss_ent_acc_val.item())
+                if weight_loss_ent > 0
+                else loss_cls_acc_val.item(),
                 epoch * len(s1_loader) + i,
             )
 
@@ -259,7 +268,9 @@ def val(
     model.eval()
 
     # Loss function
-    loss_cls_func = torch.nn.CrossEntropyLoss(reduction="mean", ignore_index=255)
+    loss_cls_func = torch.nn.CrossEntropyLoss(
+        reduction="mean", ignore_index=args.ignore_index
+    )
     loss_ent_func = torch.nn.KLDivLoss(reduction="mean")
     log_softmax = torch.nn.LogSoftmax(dim=1)
 
@@ -413,13 +424,36 @@ def main():
     #
     # Import datasets (source S1, and the rest A1)
     #
+    transform = A.Compose(
+        [
+            # A.Resize(width=480, height=256),
+            # A.RandomCrop(width=480, height=256),
+            A.RandomResizedCrop(
+                width=args.train_image_size_w,
+                height=args.train_image_size_h,
+                scale=(0.5, 2.0),
+            ),
+            A.HorizontalFlip(p=0.5),
+        ]
+    )
+    max_iter = 3000 if args.weight_loss_ent > 0 else None
     try:
         dataset_s1, num_classes, color_encoding, class_wts = import_dataset(
             args.s1_name,
             mode="train",
-            calc_class_wts=True,
+            calc_class_wts=(args.class_wts_type != "uniform"),
+            is_class_wts_inverse=(args.class_wts_type == "inverse"),
+            height=args.train_image_size_h,
+            width=args.train_image_size_w,
+            transform=transform,
+            max_iter=max_iter,
         )
-        dataset_s1_val, _, _, _ = import_dataset(args.s1_name, mode="val")
+        dataset_s1_val, _, _, _ = import_dataset(
+            args.s1_name,
+            mode="val",
+            height=args.val_image_size_h,
+            width=args.val_image_size_w,
+        )
         args.num_classes = num_classes
     except Exception as e:
         t, v, tb = sys.exc_info()
@@ -431,15 +465,25 @@ def main():
     # A1 is a set of datasets other than S1
     dataset_a1_list = []
     dataset_a1_val_list = []
-    for ds in DATASET_LIST:
+
+    for ds in DATASET_LIST[:3]:
         # If ds is the name of S1, skip importing
         if ds == args.s1_name:
             continue
 
         # Import
         try:
-            dataset_a_tmp, _, _, _ = import_dataset(ds)
-            dataset_a_val_tmp, _, _, _ = import_dataset(ds, mode="val")
+            dataset_a_tmp, _, _, _ = import_dataset(
+                ds, height=args.train_image_size_h, width=args.train_image_size_w
+            )
+            dataset_a_val_tmp, _, _, _ = import_dataset(
+                ds,
+                mode="val",
+                height=args.val_image_size_h,
+                width=args.val_image_size_w,
+                transform=transform,
+                max_iter=max_iter,
+            )
         except Exception as e:
             t, v, tb = sys.exc_info()
             print(traceback.format_exception(t, v, tb))
@@ -456,28 +500,9 @@ def main():
     print(dataset_a1)
 
     #
-    # Define a model
-    #
-    model = import_model(
-        model_name=args.model,
-        num_classes=num_classes,
-        weights=args.resume_from if args.resume_from else None,
-        aux_loss=True,
-        device=args.device,
-    )
-
-    if args.device == "cuda":
-        model = torch.nn.DataParallel(model)  # make parallel
-        torch.backends.cudnn.enabled = True
-        torch.backends.cudnn.benchmark = True
-
-    model.to(args.device)
-    class_wts.to(args.device)
-    print(class_wts)
-
-    #
     # Dataloader
     #
+    print("dataset size: {}".format(len(dataset_s1)))
     train_loader_s1 = torch.utils.data.DataLoader(
         dataset_s1,
         batch_size=args.batch_size,
@@ -500,6 +525,7 @@ def main():
         shuffle=True,
         pin_memory=args.pin_memory,
         num_workers=args.num_workers,
+        drop_last=True,
     )
     val_loader_a1 = torch.utils.data.DataLoader(
         dataset_a1_val,
@@ -508,6 +534,21 @@ def main():
         pin_memory=args.pin_memory,
         num_workers=args.num_workers,
     )
+
+    #
+    # Define a model
+    #
+    model = import_model(
+        model_name=args.model,
+        num_classes=num_classes,
+        weights=args.resume_from if args.resume_from else None,
+        aux_loss=True,
+        device=args.device,
+    )
+
+    model.to(args.device)
+    class_wts.to(args.device)
+    print(class_wts)
 
     #
     # Optimizer: Updates
@@ -524,8 +565,13 @@ def main():
     scheduler = get_scheduler(args, optimizer)
     if args.use_lr_warmup:
         scheduler = GradualWarmupScheduler(
-            optimizer, multiplier=1, total_epoch=5, after_scheduler=scheduler
+            optimizer, multiplier=1, total_epoch=10, after_scheduler=scheduler
         )
+
+    if args.device == "cuda":
+        model = torch.nn.DataParallel(model)  # make parallel
+        torch.backends.cudnn.enabled = True
+        torch.backends.cudnn.benchmark = True
 
     #
     # Tensorboard writer
@@ -547,35 +593,6 @@ def main():
 
     current_ent_loss = math.inf
     for ep in range(args.resume_epoch, args.epochs):
-        train(
-            args,
-            model,
-            train_loader_s1,
-            train_loader_a1,
-            optimizer,
-            class_weights=class_wts,
-            weight_loss_ent=args.weight_loss_ent,
-            writer=writer,
-            color_encoding=color_encoding,
-            epoch=ep,
-            device=args.device,
-        )
-
-        if args.use_lr_warmup:
-            scheduler.step(ep)
-        else:
-            scheduler.step()
-
-        writer.add_scalar("learning_rate", optimizer.param_groups[0]["lr"], ep)
-
-        # Validate every 5 epochs
-        torch.save(
-            model.state_dict(),
-            os.path.join(
-                save_path, "{}_{}_current.pth".format(args.model, args.s1_name)
-            ),
-        )
-
         if ep % 100 == 0 and ep != 0:
             torch.save(
                 model.state_dict(),
@@ -614,6 +631,35 @@ def main():
                         "{}_{}_best_ent_loss.pth".format(args.model, args.s1_name),
                     ),
                 )
+
+        train(
+            args,
+            model,
+            train_loader_s1,
+            train_loader_a1,
+            optimizer,
+            class_weights=class_wts,
+            weight_loss_ent=args.weight_loss_ent,
+            writer=writer,
+            color_encoding=color_encoding,
+            epoch=ep,
+            device=args.device,
+        )
+
+        if args.use_lr_warmup:
+            scheduler.step(ep)
+        else:
+            scheduler.step()
+
+        writer.add_scalar("learning_rate", optimizer.param_groups[0]["lr"], ep)
+
+        # Validate every 5 epochs
+        torch.save(
+            model.state_dict(),
+            os.path.join(
+                save_path, "{}_{}_current.pth".format(args.model, args.s1_name)
+            ),
+        )
 
 
 if __name__ == "__main__":

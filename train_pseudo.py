@@ -4,6 +4,7 @@ __maintainer__ = "ShigemichiMatsuzaki"
 # ============================================
 
 import os
+import shutil
 import sys
 import traceback
 import datetime
@@ -400,6 +401,7 @@ def main():
                 label_root=args.pseudo_label_dir,
                 mode="train",
                 is_hard_label=args.is_hard,
+                is_old_label=args.is_old_label,
             )
         else:
             from dataset.greenhouse import GreenhouseRGBDSoftLabel, color_encoding
@@ -433,34 +435,31 @@ def main():
         print("Dataset '{}' not found".format(args.target))
         sys.exit(1)
 
-    try:
-        class_wts = torch.load(os.path.join(
-            args.pseudo_label_dir, "class_weights.pt"))
-        print(class_wts)
-    except Exception as e:
-        print("Class weight '{}' not found".format(os.path.join(
-            args.class_weight_dir, "class_weights.pt")))
-        sys.exit(1)
-
-    #
-    # Define a model
-    #
-    model = import_model(
-        model_name=args.model,
-        num_classes=args.num_classes,
-        weights=args.resume_from if args.resume_from else None,
-        aux_loss=True,
-        pretrained=False,
-        device=args.device,
-    )
-
-    if args.device == "cuda":
-        model = torch.nn.DataParallel(model)  # make parallel
-        torch.backends.cudnn.enabled = True
-        torch.backends.cudnn.benchmark = True
-
-    model.to(args.device)
-    class_wts.to(args.device)
+    if args.class_wts_type == "normal" or args.class_wts_type == "inverse":
+        try:
+            class_wts = torch.load(
+                os.path.join(
+                    args.pseudo_label_dir,
+                    "class_weights_" +
+                    ("hard" if args.is_hard else "soft") + ".pt",
+                )
+            )
+        except Exception as e:
+            print(
+                "Class weight '{}' not found".format(
+                    os.path.join(
+                        args.pseudo_label_dir,
+                        "class_weights_" +
+                        ("hard" if args.is_hard else "soft") + ".pt",
+                    )
+                )
+            )
+            sys.exit(1)
+    elif args.class_wts_type == "uniform":
+        class_wts = torch.ones(args.num_classes).to(args.device)
+    else:
+        print("Class weight type {} is not supported.".format(args.class_wts_type))
+        raise ValueError
 
     #
     # Dataloader
@@ -489,6 +488,18 @@ def main():
     )
 
     #
+    # Define a model
+    #
+    model = import_model(
+        model_name=args.model,
+        num_classes=args.num_classes,
+        weights=args.resume_from if args.resume_from else None,
+        aux_loss=True,
+        pretrained=False,
+        device=args.device,
+    )
+
+    #
     # Optimizer: Updates
     #
     # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -503,20 +514,18 @@ def main():
             optimizer, multiplier=1, total_epoch=5, after_scheduler=scheduler
         )
 
+    if args.device == "cuda":
+        model = torch.nn.DataParallel(model)  # make parallel
+        torch.backends.cudnn.enabled = True
+        torch.backends.cudnn.benchmark = True
+
+    model.to(args.device)
+    class_wts.to(args.device)
+    print(class_wts)
+
     #
     # Loss
     #
-    # if args.is_hard:
-    #    seg_loss = UncertaintyWeightedSegmentationLoss(
-    #        args.num_classes,
-    #        class_wts=class_wts,
-    #        ignore_index=args.ignore_index,
-    #        device=args.device,
-    #        temperature=1,
-    #        reduction="mean",
-    #    )
-    # else:
-    #    seg_loss = torch.nn.KLDivLoss(reduction="none", log_target=True)
     seg_loss = UncertaintyWeightedSegmentationLoss(
         args.num_classes,
         class_wts=class_wts,
@@ -526,7 +535,8 @@ def main():
         reduction="mean",
     )
 
-    # For estimating pixel-wise uncertainty (KLD between main and aux branches)
+    # For estimating pixel-wise uncertainty
+    # (KLD between main and aux branches)
     kld_loss = torch.nn.KLDivLoss(reduction="none", log_target=True)
 
     #
@@ -534,8 +544,9 @@ def main():
     #
     now = datetime.datetime.now() + datetime.timedelta(hours=9)
     condition = "pseudo_" + ("hard" if args.is_hard else "soft")
-    save_path = os.path.join(args.save_path, condition,
-                             now.strftime("%Y%m%d-%H%M%S"))
+    save_path = os.path.join(
+        args.save_path, condition, args.model, now.strftime("%Y%m%d-%H%M%S")
+    )
     pseudo_save_path = os.path.join(save_path, "pseudo_labels")
     # If the directory not found, create it
     if not os.path.isdir(save_path):
@@ -550,6 +561,38 @@ def main():
     current_miou = 0.0
 
     for ep in range(args.resume_epoch, args.epochs):
+        if ep % 100 == 0 and ep != 0:
+            torch.save(
+                model.state_dict(),
+                os.path.join(
+                    save_path,
+                    "pseudo_{}_{}_ep_{}.pth".format(
+                        args.model, args.target, ep),
+                ),
+            )
+
+        if ep % 5 == 0:
+            metrics = val(
+                args,
+                model,
+                s1_loader=val_loader,
+                writer=writer,
+                color_encoding=color_encoding,
+                epoch=ep,
+            )
+
+            if current_miou < metrics["miou"]:
+                current_miou = metrics["miou"]
+
+                torch.save(
+                    model.state_dict(),
+                    os.path.join(
+                        save_path,
+                        "pseudo_{}_{}_best_iou.pth".format(
+                            args.model, args.target),
+                    ),
+                )
+
         train_pseudo(
             args,
             model,
@@ -595,6 +638,9 @@ def main():
                 is_hard_label=args.is_hard,
                 load_labels=False,
             )
+
+            dataset_train.set_label_list(label_path_list)
+
             train_loader = torch.utils.data.DataLoader(
                 dataset_train,
                 batch_size=args.batch_size,
@@ -603,8 +649,6 @@ def main():
                 num_workers=args.num_workers,
                 drop_last=True,
             )
-
-            dataset_train.set_label_list(label_path_list)
 
         writer.add_scalar("learning_rate", optimizer.param_groups[0]["lr"], ep)
 
@@ -617,37 +661,8 @@ def main():
             ),
         )
 
-        if ep % 100 == 0 and ep != 0:
-            torch.save(
-                model.state_dict(),
-                os.path.join(
-                    save_path,
-                    "pseudo_{}_{}_ep_{}.pth".format(
-                        args.model, args.target, ep),
-                ),
-            )
-
-        if ep % 5 == 0:
-            metrics = val(
-                args,
-                model,
-                s1_loader=val_loader,
-                writer=writer,
-                color_encoding=color_encoding,
-                epoch=ep,
-            )
-
-            if current_miou < metrics["miou"]:
-                current_miou = metrics["miou"]
-
-                torch.save(
-                    model.state_dict(),
-                    os.path.join(
-                        save_path,
-                        "pseudo_{}_{}_best_iou.pth".format(
-                            args.model, args.target),
-                    ),
-                )
+    # Remove the pseudo-labels generated during the training
+    shutil.rmtree(pseudo_save_path)
 
 
 if __name__ == "__main__":

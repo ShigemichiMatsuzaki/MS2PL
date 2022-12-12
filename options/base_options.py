@@ -1,4 +1,5 @@
 import argparse
+from distutils.util import strtobool
 
 
 class BaseOptions:
@@ -12,7 +13,8 @@ class BaseOptions:
 
     def initialize(self):
         # Directory
-        self.parser.add_argument("--save-path", help="Save path (tensorboard etc.)")
+        self.parser.add_argument(
+            "--save-path", help="Save path (tensorboard etc.)")
 
         # GPU/CPU
         self.parser.add_argument(
@@ -28,6 +30,7 @@ class BaseOptions:
             choices=[
                 "deeplabv3_mobilenet_v3_large",
                 "deeplabv3_resnet50",
+                "deeplabv3_resnet101",
                 "espnetv2",
                 "unet",
             ],
@@ -67,6 +70,12 @@ class BaseOptions:
             type=int,
             default=0,
             help="Seed of the random value generators",
+        )
+
+        self.parser.add_argument(
+            "--is-old-label",
+            type=strtobool,
+            default=False,
         )
 
         self.initialized = True

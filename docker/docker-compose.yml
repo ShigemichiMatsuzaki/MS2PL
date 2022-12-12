@@ -3,7 +3,7 @@ version: "2.3"
 services:
   tensorboard:
     container_name: tensorboard-domain-gap
-    image: nvcr.io/nvidia/pytorch:21.09-py3
+    image: nvcr.io/nvidia/pytorch:22.11-py3
     entrypoint: tensorboard --logdir /tmp/runs
     build: .
     ports:
@@ -11,6 +11,3 @@ services:
     mem_limit: 15g
     volumes:
       - /data/aisl/matsuzaki/runs/domain_gap/:/tmp/runs/
-      #$      - /data/aisl/matsuzaki/runs/uest/trav/:/tmp/runs/
-
-      #  train-camvid:

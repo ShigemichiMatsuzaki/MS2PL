@@ -422,6 +422,7 @@ def generate_pseudo_label_multi_model_domain_gap(
     is_per_pixel: bool = False,
     ignore_index: int = 4,
     softmax_normalize: bool = False,
+    label_normalize: str = "softmax",
     class_weighting: str = "normal",
 ) -> torch.Tensor:
     """Generate multi-source pseudo-labels with domain gaps
@@ -457,6 +458,10 @@ def generate_pseudo_label_multi_model_domain_gap(
         if `True`, normalize the gap values by softmax,
         which emphasizes the difference of the values.
         Otherwise, normalize them by the sum.
+    label_normalize: `str`
+        Normalization method of the soft labels.
+        [`L1`, `softmax`]
+        Default: L1 (normalize by the sum)
     class_weighting: `str`
         Type of the class weights.
         "normal": More weight on less frequent class
@@ -543,7 +548,17 @@ def generate_pseudo_label_multi_model_domain_gap(
                     output_total += output_target * domain_gap_weight[ds_index]
                     ds_index += 1
 
-                output_total = F.normalize(output_total, p=1)
+                if label_normalize == "L1":
+                    output_total = F.normalize(output_total, p=1)
+                elif label_normalize == "softmax":
+                    output_total = F.softmax(output_total, dim=1)
+                else:
+                    print(
+                        "Label normalization type {} is not supported.".format(
+                            label_normalize
+                        )
+                    )
+                    raise ValueError
 
                 label = output_total.argmax(dim=1)
                 for j in range(0, num_classes):
@@ -563,6 +578,7 @@ def generate_pseudo_label_multi_model_domain_gap(
                         output_prob_i,
                         os.path.join(save_path, "{}.pt".format(image_name)),
                     )
+                    
 
     if class_weighting == "normal":
         class_array /= class_array.sum()  # normalized

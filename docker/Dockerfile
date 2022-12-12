@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:21.09-py3
+FROM nvcr.io/nvidia/pytorch:22.11-py3
 
 # Add path of edgenets to PYTHONPATH so that the models can be successfully imported
 # I believe there should be a better way

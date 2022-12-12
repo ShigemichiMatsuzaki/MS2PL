@@ -86,59 +86,59 @@ id_cityscapes_to_greenhouse = np.array(
 
 
 class CityscapesSegmentation(BaseDataset):
-    #    def __init__(
-    #        self,
-    #        root,
-    #        mode="train",
-    #        scale=(0.5, 2.0),
-    #        size=(1024, 512),
-    #        ignore_idx=255,
-    #        coarse=False,
-    #        normalize=True,
-    #        label_conversion=False,
-    #    ):
-    #
-    #        if mode not in ["train", "val", "test"]:
-    #            print("Invalid dataset mode : {}".format(mode))
-    #            raise ValueError
-    #
-    #        self.mode = mode
-    #        self.normalize = normalize
-    #        self.annot_type = "gtCoarse" if coarse else "gtFine"
-    #        self.images = []
-    #        self.labels = []
-    #        self.label_conversion = label_conversion
-    #
-    #        image_dir = os.path.join(root, "leftImg8bit")
-    #        label_dir = os.path.join(root, self.annot_type)
-    #        data_train_image_dir = os.path.join(image_dir, self.mode)
-    #        data_train_label_dir = os.path.join(label_dir, self.mode)
-    #        self.images += sorted(glob.glob(os.path.join(data_train_image_dir, "*/*.png")))
-    #        self.labels += sorted(
-    #            glob.glob(os.path.join(data_train_label_dir, "*/*labelTrainIds.png"))
-    #        )
-    #
-    #        if self.mode == "train" and self.annot_type == "gtCoarse":
-    #            data_train_image_dir = os.path.join(image_dir, "train_extra")
-    #            data_train_label_dir = os.path.join(label_dir, "train_extra")
-    #            self.images += sorted(
-    #                glob.glob(os.path.join(data_train_image_dir, "*/*.png"))
-    #            )
-    #            self.labels += sorted(
-    #                glob.glob(os.path.join(data_train_label_dir, "*/*labelTrainIds.png"))
-    #            )
-    #
-    #        if isinstance(size, tuple):
-    #            self.size = size
-    #        else:
-    #            self.size = (size, size)
-    #
-    #        if isinstance(scale, tuple):
-    #            self.scale = scale
-    #        else:
-    #            self.scale = (scale, scale)
-    #
-    #        self.ignore_idx = ignore_idx
+    def __init__(
+        self,
+        root,
+        mode="train",
+        ignore_idx=255,
+        scale=(0.5, 2.0),
+        height=512,
+        width=1024,
+        transform=None,
+        label_conversion=False,
+        max_iter=None,
+        coarse=False,
+    ):
+        super().__init__(
+            root,
+            mode=mode,
+            ignore_idx=ignore_idx,
+            scale=scale,
+            height=height,
+            width=width,
+            transform=transform,
+            label_conversion=label_conversion,
+            max_iter=max_iter,
+        )
+
+        self.annot_type = "gtCoarse" if coarse else "gtFine"
+
+        image_dir = os.path.join(self.root, "leftImg8bit")
+        # label_dir = os.path.join(self.root, self.annot_type)
+        label_dir = os.path.join(self.root, self.annot_type)
+        data_train_image_dir = os.path.join(image_dir, self.mode)
+        data_train_label_dir = os.path.join(label_dir, self.mode)
+        self.images += sorted(glob.glob(os.path.join(data_train_image_dir, "*/*.png")))
+        self.labels += sorted(
+            glob.glob(os.path.join(data_train_label_dir, "*/*labelTrainIds.png"))
+        )
+
+        if self.mode == "train" and self.annot_type == "gtCoarse":
+            data_train_image_dir = os.path.join(image_dir, "train_extra")
+            data_train_label_dir = os.path.join(label_dir, "train_extra")
+            self.images += sorted(
+                glob.glob(os.path.join(data_train_image_dir, "*/*.png"))
+            )
+            self.labels += sorted(
+                glob.glob(os.path.join(data_train_label_dir, "*/*labelTrainIds.png"))
+            )
+
+        self.label_conversion_map = id_cityscapes_to_greenhouse
+        self.size = (height, width)
+
+        if self.max_iter is not None:
+            self.images *= self.max_iter // len(self.images)
+            self.labels *= self.max_iter // len(self.labels)
 
     def initialize(self):
         self.annot_type = "gtFine"

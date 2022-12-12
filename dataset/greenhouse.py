@@ -105,8 +105,7 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
                 # Segmentation label
                 #
                 if label_root:
-                    label_img_loc = os.path.join(
-                        label_root, line_split[1].rstrip())
+                    label_img_loc = os.path.join(label_root, line_split[1].rstrip())
                 else:
                     label_img_loc = line_split[1].rstrip()
 
@@ -205,7 +204,7 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
         #
         # Segmentation label
         #
-        if self.load_labels and self.labels[index]:
+        if self.labels and self.labels[index]:
             if self.is_hard_label:
                 label_img = Image.open(self.labels[index])
 
@@ -223,6 +222,7 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
 
                 label_img = label_img.resize(rgb_img.size, Image.NEAREST)
             else:
+                label_img = Image.new("L", rgb_img.size)
                 pass
         else:
             label_img = Image.new("L", rgb_img.size)
@@ -244,11 +244,9 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
         rgb_cv_img = np.array(rgb_img)
         label_cv_img = np.array(label_img)
         if self.mode == "train":
-            transformed = self.train_transforms(
-                image=rgb_cv_img, mask=label_cv_img)
+            transformed = self.train_transforms(image=rgb_cv_img, mask=label_cv_img)
         else:
-            transformed = self.val_transforms(
-                image=rgb_cv_img, mask=label_cv_img)
+            transformed = self.val_transforms(image=rgb_cv_img, mask=label_cv_img)
 
         rgb_img_orig = F.to_tensor(transformed["image"])
         label_img = torch.LongTensor(transformed["mask"].astype(np.int64))
@@ -322,8 +320,7 @@ class GreenhouseRGBDSoftLabel(torch.utils.data.Dataset):
                 # Segmentation label
                 #
                 if label_root:
-                    label_img_loc = os.path.join(
-                        label_root, line_split[1].rstrip())
+                    label_img_loc = os.path.join(label_root, line_split[1].rstrip())
                 else:
                     label_img_loc = line_split[1].rstrip()
 
@@ -419,11 +416,9 @@ class GreenhouseRGBDSoftLabel(torch.utils.data.Dataset):
         label_cv_img = label.numpy().transpose(1, 2, 0)
         # print(rgb_cv_img.shape, label_cv_img.shape)
         if self.mode == "train":
-            transformed = self.train_transforms(
-                image=rgb_cv_img, mask=label_cv_img)
+            transformed = self.train_transforms(image=rgb_cv_img, mask=label_cv_img)
         else:
-            transformed = self.val_transforms(
-                image=rgb_cv_img, mask=label_cv_img)
+            transformed = self.val_transforms(image=rgb_cv_img, mask=label_cv_img)
 
         rgb_img_orig = F.to_tensor(transformed["image"])
         label_img = F.to_tensor(transformed["mask"])

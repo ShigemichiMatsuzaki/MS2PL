@@ -1,176 +1,157 @@
 import os
-import sys
-import torch
-import torch.utils.data as data
-from PIL import Image
-import cv2
-from transforms.segmentation.data_transforms import RandomFlip, RandomCrop, RandomScale, Normalize, Resize, Compose, Tensorize
 from collections import OrderedDict
+from dataset.base_dataset import BaseDataset
 import numpy as np
+from PIL import Image
 from torchvision.transforms import functional as F
-import random
-import glob
+import torch
+from .cityscapes_labels import labels
 
-FOREST_CLASS_LIST = ['road', 'grass', 'tree', 'sky', 'obstacle']
+color_encoding = OrderedDict(
+    [
+        ("road", (128, 64, 128)),
+        ("sidewalk", (244, 35, 232)),
+        ("building", (70, 70, 70)),
+        ("wall", (102, 102, 156)),
+        ("fence", (190, 153, 153)),
+        ("pole", (153, 153, 153)),
+        ("traffic light", (250, 170, 30)),
+        ("traffic sign", (220, 220, 0)),
+        ("vegetation", (107, 142, 35)),
+        ("terrain", (152, 251, 152)),
+        ("sky", (70, 130, 180)),
+        ("person", (220, 20, 60)),
+        ("rider", (255, 0, 0)),
+        ("car", (0, 0, 142)),
+        ("truck", (0, 0, 70)),
+        ("bus", (0, 60, 100)),
+        ("train", (0, 80, 100)),
+        ("motorcycle", (0, 0, 230)),
+        ("bicycle", (119, 11, 32)),
+        ("background", (0, 0, 0)),
+    ]
+)
+id_cityscapes_to_greenhouse = np.array(
+    [
+        2,  # Road
+        2,  # Sidewalk
+        1,  # Building
+        1,  # Wall
+        1,  # Fence
+        1,  # Pole
+        1,  # Traffic light
+        1,  # Traffic sign
+        0,  # Vegetation
+        2,  # Terrain
+        3,  # Sky
+        3,  # Person
+        3,  # Rider
+        1,  # Car
+        1,  # Truck
+        1,  # Bus
+        1,  # Train
+        1,  # Motorcycle
+        1,  # Bicycle
+        3,  # Background
+    ]
+)
 
-color_encoding = OrderedDict([
-    ('road', (170, 170, 170)),
-    ('grass', (0, 255, 0)),
-    ('tree', (102, 102, 51)),
-    ('sky', (0, 120, 255)),
-    ('obstacle', (0, 0, 0))
-])
 
-color_to_id_city = {
+class GTA5(BaseDataset):
+    def __init__(
+        self,
+        root,
+        mode="train",
+        ignore_idx=255,
+        scale=(0.5, 2.0),
+        height=512,
+        width=1024,
+        transform=None,
+        label_conversion=False,
+        max_iter=None,
+    ):
+        super().__init__(
+            root,
+            mode=mode,
+            ignore_idx=ignore_idx,
+            scale=scale,
+            height=height,
+            width=width,
+            transform=transform,
+            label_conversion=label_conversion,
+            max_iter=max_iter,
+        )
 
-}
+        # Image directories
+        data_train_image_dir = os.path.join(self.root, "images")
+        data_train_label_dir = os.path.join(self.root, "labels")
 
-color_to_id_camvid = {
-}
+        if self.mode in ['train', 'val', 'test']:
+            data_file = os.path.join(self.root, self.mode + '.lst')
+        else:
+            print("Mode '{}' is not supported".format(self.mode))
+            raise ValueError
 
-color_palette_camvid = [
-    0,0,0,
-    0,0,0,
-    0,0,0,
-    0,0,0,
-    0,0,0,
-    0,0,0,
-    0,0,0,
-    128,64,128,
-    0,0,192,
-    64,192,128,
-    0,0,0,
-    128,0,0,
-    64,192,0,
-    64,64,128,
-    0,0,0,
-    0,128,64,
-    64,0,64,
-    192,192,128,
-    192,192,128,
-    0,64,64,
-    192,128,128,
-    128,128,0,
-    192,192,0,
-    128,128,128,
-    64,64,0,
-    0,128,192,
-    64,0,128,
-    64,128,192,
-    192,128,192,
-    64,128,192,
-    64,128,192,
-    192,64,128,
-    192,0,192,
-    192,64,0,
-    0,0,0
-]
-
-color_palette_city = [
-      0,  0,  0,
-      0,  0,  0,
-      0,  0,  0,
-      0,  0,  0,
-    20,  20,  20,
-    111, 74,  0,
-     81,  0, 81,
-    128, 64,128,
-    244, 35,232,
-    250,170,160,
-    230,150,140,
-     70, 70, 70,
-    102,102,156,
-    190,153,153,
-    180,165,180,
-    150,100,100,
-    150,120, 90,
-    153,153,153,
-    153,153,153,
-    250,170, 30,
-    220,220,  0,
-    107,142, 35,
-    152,251,152,
-     70,130,180,
-    220, 20, 60,
-    255,  0,  0,
-      0,  0,142,
-      0,  0, 70,
-      0, 60,100,
-      0,  0, 90,
-      0,  0,110,
-      0, 80,100,
-      0,  0,230,
-    119, 11, 32,
-      0,  0,142
-]
-
-class GTA5(data.Dataset):
-
-    def __init__(self, root, list_name, train=True, scale=(0.5, 2.0), size=(480, 256), normalize=True):
-
-        self.root = root
-        self.normalize = normalize
-        self.train = train
-
-        self.images = []
-        self.masks = []
-        data_file = os.path.join(root, list_name)
-        with open(data_file, 'r') as lines:
+        with open(data_file, "r") as lines:
             for line in lines:
-                line_split = line.split(',')
-#                rgb_img_loc = root + os.sep + line_split[0].rstrip()
-                rgb_img_loc = line_split[0].rstrip()
-#                rgb_img_loc = root + os.sep + line_split[1].rstrip()
-                label_img_loc = line_split[1].rstrip()
-                print(rgb_img_loc)
-                print(label_img_loc)
-                assert os.path.isfile(rgb_img_loc)
-                assert os.path.isfile(label_img_loc)
+                file_name = '{:05d}'.format(int(line.rstrip()))+'.png'
+                #
+                # RGB
+                #
+                rgb_img_loc = os.path.join(
+                    data_train_image_dir, file_name)
+
+                if not os.path.isfile(rgb_img_loc):
+                    print("Not found : " + rgb_img_loc)
+                    assert os.path.isfile(rgb_img_loc)
                 self.images.append(rgb_img_loc)
-                self.masks.append(label_img_loc)
+                #
+                # Segmentation label
+                #
+                label_img_loc = os.path.join(
+                    data_train_label_dir, file_name)
 
-        if isinstance(size, tuple):
-            self.size = size
-        else:
-            self.size = (size, size)
+                if not os.path.isfile(label_img_loc):
+                    print("Not found : " + label_img_loc)
+                    assert os.path.isfile(label_img_loc)
 
-        if isinstance(scale, tuple):
-            self.scale = scale
-        else:
-            self.scale = (scale, scale)
+                self.labels.append(label_img_loc)
 
-        self.train_transforms, self.val_transforms = self.transforms()
+        self.label_conversion_map = id_cityscapes_to_greenhouse
+        self.size = (height, width)
 
-    def transforms(self):
-        train_transforms = Compose(
-            [
-                # RandomScale(scale=self.scale),
-                RandomCrop(crop_size=self.size),
-                RandomFlip(),
-                Normalize() if self.normalize else Tensorize()
-            ]
-        )
-        val_transforms = Compose(
-            [
-                Resize(size=self.size),
-                Normalize() if self.normalize else Tensorize()
-            ]
-        )
-        return train_transforms, val_transforms
+        if self.max_iter is not None and self.max_iter > len(self.images):
+            self.images *= self.max_iter // len(self.images)
+            self.labels *= self.max_iter // len(self.labels)
+
+        self.id2trainId = np.array([label.trainId for label in labels])
+        self.id2trainId[self.id2trainId < 0] = 255
+        print(self.id2trainId)
 
     def __len__(self):
         return len(self.images)
 
     def __getitem__(self, index):
-        rgb_img = Image.open(os.path.join(self.root, self.images[index])).convert('RGB')
-        label_img = Image.open(os.path.join(self.root, self.masks[index]))
+        rgb_img = Image.open(self.images[index]).convert("RGB")
+        label_img = Image.open(self.labels[index])
 
-        if self.train:
-            rgb_img, label_img = self.train_transforms(rgb_img, label_img)
-        else:
-            rgb_img, label_img = self.val_transforms(rgb_img, label_img)
+        rgb_np = np.array(rgb_img)
+        label_np = np.array(label_img).astype(np.uint8)
+        label_np = self.id2trainId[label_np]
 
-        # Get a file name
-        filename = self.images[index].rsplit('/', 1)[1]
+        # Convert images to tensors
+        # label_img = np.array(label_img)
+        if self.label_conversion and self.label_conversion_map is not None:
+            label_img = self.label_conversion_map[label_img]
 
-        return rgb_img, label_img, filename
+        transformed = self.transform(image=rgb_np, mask=label_np)
+
+        rgb_img_orig = F.to_tensor(transformed["image"])
+        label_img = torch.LongTensor(transformed["mask"].astype(np.int64))
+
+        # Normalize the pixel values
+        rgb_img = F.normalize(
+            rgb_img_orig, (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+        )
+
+        return {"image": rgb_img, "image_orig": rgb_img_orig, "label": label_img}
