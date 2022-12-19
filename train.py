@@ -144,7 +144,8 @@ def train(
             # Uniform distribution: the probability of each class is 1/num_classes
             #  The number of classes is the 1st dim of the output
             uni_dist = torch.ones_like(prob_a).to(device) / prob_a.size()[1]
-            uni_dist_aux = torch.ones_like(prob_a_aux).to(device) / prob_a_aux.size()[1]
+            uni_dist_aux = torch.ones_like(prob_a_aux).to(
+                device) / prob_a_aux.size()[1]
             # loss_val = loss_ent_func(output, uni_dist)
 
             # Calculate and sum up the loss
@@ -188,7 +189,8 @@ def train(
             )
 
             if i == 0:
-                add_images_to_tensorboard(writer, image_orig, epoch, "train/image")
+                add_images_to_tensorboard(
+                    writer, image_orig, epoch, "train/image")
                 add_images_to_tensorboard(
                     writer,
                     label,
@@ -310,7 +312,8 @@ def val(
             # print("==== Cls Loss: {} ====".format(loss_val.item()))
 
             if i == 0 and writer is not None and color_encoding is not None:
-                add_images_to_tensorboard(writer, image_orig, epoch, "val/image")
+                add_images_to_tensorboard(
+                    writer, image_orig, epoch, "val/image")
                 add_images_to_tensorboard(
                     writer,
                     label,
@@ -360,10 +363,12 @@ def val(
                 aux_output = log_softmax(output["aux"])
 
                 uni_dist = (
-                    torch.ones_like(main_output).to(device) / main_output.size()[1]
+                    torch.ones_like(main_output).to(
+                        device) / main_output.size()[1]
                 )
                 uni_dist_aux = (
-                    torch.ones_like(aux_output).to(device) / aux_output.size()[1]
+                    torch.ones_like(aux_output).to(
+                        device) / aux_output.size()[1]
                 )
 
                 loss_val = loss_ent_func(main_output, uni_dist) + 0.5 * loss_ent_func(
@@ -380,7 +385,8 @@ def val(
                 # print("==== Cls Loss: {} ====".format(loss_val.item()))
 
                 if i == 0:
-                    add_images_to_tensorboard(writer, image_orig, epoch, "val/a1_image")
+                    add_images_to_tensorboard(
+                        writer, image_orig, epoch, "val/a1_image")
                     add_images_to_tensorboard(
                         writer,
                         label,
@@ -401,7 +407,8 @@ def val(
     iou = inter_meter.sum / (union_meter.sum + 1e-10)
     class_avg_loss = class_total_loss / len(s1_loader)
     avg_iou = iou.mean()
-    ent_avg_loss = ent_total_loss / len(a1_loader) if a1_loader is not None else 0.0
+    ent_avg_loss = ent_total_loss / \
+        len(a1_loader) if a1_loader is not None else 0.0
 
     writer.add_scalar("val/class_avg_loss", class_avg_loss, epoch)
     writer.add_scalar("val/ent_avg_loss", ent_avg_loss, epoch)
@@ -597,7 +604,8 @@ def main():
             torch.save(
                 model.state_dict(),
                 os.path.join(
-                    save_path, "{}_{}_ep_{}.pth".format(args.model, args.s1_name, ep)
+                    save_path, "{}_{}_ep_{}.pth".format(
+                        args.model, args.s1_name, ep)
                 ),
             )
 
@@ -618,7 +626,8 @@ def main():
                 torch.save(
                     model.state_dict(),
                     os.path.join(
-                        save_path, "{}_{}_best_iou.pth".format(args.model, args.s1_name)
+                        save_path, "{}_{}_best_iou.pth".format(
+                            args.model, args.s1_name)
                     ),
                 )
             if current_ent_loss > metrics["ent_loss"]:
@@ -628,7 +637,8 @@ def main():
                     model.state_dict(),
                     os.path.join(
                         save_path,
-                        "{}_{}_best_ent_loss.pth".format(args.model, args.s1_name),
+                        "{}_{}_best_ent_loss.pth".format(
+                            args.model, args.s1_name),
                     ),
                 )
 

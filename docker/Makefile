@@ -3,7 +3,7 @@ IMAGE_NAME=aisl/ms2pl
 CONTAINER_NAME=domain-gap-eval
 VERSION=22.11-py3
 GPU_ID=all
-DATASET_ROOT=/data/aisl/matsuzaki/dataset
+DATASET_ROOT=/media/aisl/ExtremeSSD/dataset
 RUNS_ROOT=/data/aisl/matsuzaki/runs
 
 build:
