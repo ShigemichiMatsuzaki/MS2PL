@@ -27,7 +27,7 @@ def main():
         if os_d == "camvid":
             os_seg_classes = 13
         elif os_d == "cityscapes":
-            os_seg_classes = 19
+            os_seg_classes = 20
         elif os_d == "forest" or os_d == "greenhouse":
             os_seg_classes = 5
         else:

@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 import math
-from typing import Optional
+from typing import Optional, Union
 
 
 class SoftArgMax(nn.Module):
@@ -80,7 +80,7 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
         self,
         pred: torch.Tensor,
         target: torch.Tensor,
-        u_weight: torch.Tensor,
+        u_weight: Union[torch.Tensor, list],
         epsilon: float = 1e-12,
         is_hard: bool = True,
     ) -> torch.Tensor:
@@ -95,7 +95,13 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
         """
         torch.autograd.set_detect_anomaly(True)
 
+        if isinstance(u_weight, list) and len(u_weight) > 0:
+            u_weight_tmp = torch.ones(u_weight[0].size())
+            for l in u_weight:
+                u_weight_tmp = u_weight_tmp * l
+
         if is_hard:
+            # Standard cross entropy
             seg_loss = F.cross_entropy(
                 pred / self.T,
                 target,
@@ -104,14 +110,22 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
                 reduction="none",
             )
         else:
-            # Standard cross entropy
-            pred_prob = F.log_softmax(pred / self.T, dim=1)
-            seg_loss = F.kl_div(
-                pred_prob, torch.log(target), log_target=True, reduction="none"
-            ).sum(dim=1)
+            target = target.argmax(dim=1)
+            seg_loss = F.cross_entropy(
+                pred / self.T,
+                target,
+                weight=self.class_wts,
+                ignore_index=self.ignore_index,
+                reduction="none",
+            )
+            # pred_prob = F.log_softmax(pred / self.T, dim=1)
+            # seg_loss = F.kl_div(
+            #     pred_prob, torch.log(target), log_target=True, reduction="none"
+            # ).sum(dim=1)
 
         # Rectify the loss with the uncertainty weights
-        rect_ce = seg_loss * torch.exp(-u_weight)
+        # rect_ce = seg_loss * torch.exp(-u_weight)
+        rect_ce = seg_loss * u_weight
 
         if is_hard and not self.reduction == "none":
             rect_ce = rect_ce[target != self.ignore_index]

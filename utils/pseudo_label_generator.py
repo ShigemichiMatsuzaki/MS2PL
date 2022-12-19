@@ -18,10 +18,11 @@ import skimage.segmentation
 import torch
 import torch.nn.functional as F
 
-from domain_gap_evaluator.domain_gap_evaluator import calculate_domain_gap
+from domain_gap_evaluator.domain_gap_evaluator import calculate_domain_gap, calc_norm_ent
 from dataset.camvid import id_camvid_to_greenhouse
 from dataset.cityscapes import id_cityscapes_to_greenhouse
 from dataset.forest import id_forest_to_greenhouse
+from utils.calc_prototype import ClassFeatures
 
 
 def propagate_max_label_in_sp(sp, num_classes, min_portion=0.5, ignore_index=4):
@@ -112,47 +113,45 @@ def get_label_from_superpixel(
 
 
 def get_output(
-    model,
-    image,
-    device="cuda",
-    use_depth=False,
+    model: torch.nn.Module,
+    image: torch.Tensor,
+    device: str="cuda",
 ):
     """Get an output on the given input image from the given model
 
     Parameters
     ----------
-    model  :
-
-    image  :
-
-    model_name :
-
-    device :
-
-    use_depth :
+    model: `torch.nn.Module`
+        Model
+    image: `torch.Tensor`
+        Input tensor
+    device: `str`
+        Device for computation
 
     Returns
     --------
-    output : torch.Tensor
-        A tensor of output as class probabilities
-    kld : torch.Tensor
-
+    output : `dict`
+        `out`: `torch.Tensor`
+            A tensor of output as class probabilities
+        `feat`: `torch.Tensor`
+            A tensor of intermediate features
+        `kld` : `torch.Tensor`
+            A tensor of pixel-wise KLD (Currently not used, and `None` is set)
     """
 
     softmax2d = torch.nn.Softmax2d()
-    """
-    Get outputs from the input images
-    """
     # Forward the data
-    if not use_depth:  # or outsource == 'camvid':
-        output2 = model(image.to(device))
+    output2 = model(image.to(device))
 
     pred_aux = None
+    feat = None
     # Calculate the output from the two classification layers
     if isinstance(output2, OrderedDict) or isinstance(output2, dict):
         pred = output2["out"]
         if "aux" in output2.keys():
             pred_aux = output2["aux"]
+        if "feat" in output2.keys():
+            feat = output2["feat"]
 
     if pred_aux is not None:
         output2 = pred + 0.5 * pred_aux
@@ -161,7 +160,7 @@ def get_output(
 
     output = softmax2d(output2)  # softmax2d(output2).cpu().data[0].numpy()
 
-    return output
+    return {"out": output, "feat": feat, "kld": None}
 
 
 def merge_outputs(amax_output_list, ignore_index=4):
@@ -194,6 +193,7 @@ def generate_pseudo_label(
     model: torch.nn.Module,
     testloader: torch.utils.data.DataLoader,
     save_path: str,
+    prototypes: Optional[ClassFeatures] = None,
     proto_rect_thresh: float = 0.9,
     min_portion: float = -1.0,
     label_conversion: Optional[np.ndarray] = None,
@@ -210,6 +210,8 @@ def generate_pseudo_label(
         Dataloader
     save_path: `str`
         Directory name to save the labels
+    prototypes: `ClassFeatures`
+        Representative features of the classes for label rectification
     proto_rect_thresh: `float`
         Confidence threshold for pseudo-label generation
     min_portion: `float`
@@ -238,8 +240,25 @@ def generate_pseudo_label(
                 name = batch["name"]
 
                 # Output: tensor, KLD: tensor, feature: tensor
-                output_prob = get_output(model, image)
+                output = get_output(model, image)
+                output_prob = output["out"]
+                feature = output["feat"]
                 max_output, argmax_output = torch.max(output_prob, dim=1)
+
+                # 
+                # If the prototypes are given, apply filtering of the labels
+                # (Zhang et al., 2021)
+                #
+                if prototypes is not None:
+                    # Class-wise weights based on the distance to the prototype of each class
+                    weights = prototypes.get_prototype_weight(feature).to(args.device)
+
+                    # Rectified output probability
+                    rectified_prob = weights * output_prob
+                    # Normalize the rectified values as probabilities
+                    rectified_prob = rectified_prob / rectified_prob.sum(1, keepdim=True)
+                    # Predicted label map after rectification
+                    max_output, argmax_output = rectified_prob.max(1, keepdim=True)
 
                 # Filter out the pixels with a confidence below the threshold
                 argmax_output[max_output <
@@ -327,7 +346,7 @@ def generate_pseudo_label_multi_model(
                 output_list = []
                 for m, os_data in zip(model_list, source_dataset_name_list):
                     # Output: Numpy, KLD: Numpy
-                    output = get_output(m, image)
+                    output = get_output(m, image)["out"]
                     amax_output = output.argmax(dim=1)
 
                     # Visualize pseudo labels
@@ -420,8 +439,8 @@ def generate_pseudo_label_multi_model_domain_gap(
     save_path: str,
     device: str = "cuda",
     is_per_pixel: bool = False,
+    is_per_sample: bool = False,
     ignore_index: int = 4,
-    softmax_normalize: bool = False,
     label_normalize: str = "softmax",
     class_weighting: str = "normal",
 ) -> torch.Tensor:
@@ -486,25 +505,28 @@ def generate_pseudo_label_multi_model_domain_gap(
     # evaluation process
     class_array = np.zeros(num_classes)
 
-    # Domain gap. Less value means closer -> More importance.
-    domain_gap_list = calculate_domain_gap(dg_model_list, data_loader, device)[
-        "domain_gap_list"
-    ]
-
-    del dg_model_list
-
+    #
     # Calculate weights based on the domain gaps
-    domain_gap_weight = torch.Tensor(domain_gap_list).to(device)
-    if softmax_normalize:
-        domain_gap_weight = torch.nn.Softmax2d()(domain_gap_weight)
-    else:
+    #
+    if not is_per_sample:
+        # Domain gap. Less value means closer -> More importance.
+        domain_gap_list = calculate_domain_gap(dg_model_list, data_loader, device)[
+            "domain_gap_list"
+        ]
+
+        del dg_model_list
+
+        domain_gap_weight = torch.Tensor(domain_gap_list).to(device)
+        # if softmax_normalize:
+        #     domain_gap_weight = torch.nn.Softmax2d()(domain_gap_weight)
+        # else:
         domain_gap_weight /= domain_gap_weight.sum()
 
-    # Calculate the inverse values of the domain gap
-    domain_gap_weight = 1 / (domain_gap_weight + 1e-10)
-    domain_gap_weight.to(device)
+        # Calculate the inverse values of the domain gap
+        domain_gap_weight = 1 / (domain_gap_weight + 1e-10)
+        domain_gap_weight.to(device)
 
-    print(domain_gap_weight)
+        print(domain_gap_weight)
 
     with torch.no_grad():
         with tqdm(total=len(data_loader)) as pbar:
@@ -517,7 +539,7 @@ def generate_pseudo_label_multi_model_domain_gap(
                 ds_index = 0
                 for m, os_data in zip(model_list, source_dataset_name_list):
                     # Output: Numpy, KLD: Numpy
-                    output = get_output(m, image)
+                    output = get_output(m, image)["out"]
 
                     # Extract the maximum value for each target class
                     output_target = torch.zeros(
@@ -541,12 +563,20 @@ def generate_pseudo_label_multi_model_domain_gap(
                         indices = torch.where(label_conversion == i)[0]
                         output_target[:, i] = output[:, indices].max(dim=1)[0]
 
-                    output_target = F.normalize(output_target, p=1)
+                    # output_target = F.normalize(output_target, p=1)
+                    output_target = F.softmax(output_target, dim=1)
 
                     output_list.append(output_target)
 
-                    output_total += output_target * domain_gap_weight[ds_index]
-                    ds_index += 1
+                    if is_per_sample:
+                        domain_gap_w = calc_norm_ent(
+                            output_target, 
+                            reduction="none" if is_per_pixel else "mean"
+                        )["ent"]
+                        output_total += output_target * domain_gap_w
+                    else:
+                        output_total += output_target * domain_gap_weight[ds_index]
+                        ds_index += 1
 
                 if label_normalize == "L1":
                     output_total = F.normalize(output_total, p=1)

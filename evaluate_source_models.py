@@ -38,7 +38,8 @@ def main():
             from dataset.camvid import id_camvid_to_greenhouse as label_conversion
             from dataset.camvid import color_encoding
         elif os_d == "cityscapes":
-            os_seg_classes = 19
+            # os_seg_classes = 19
+            os_seg_classes = 20
             from dataset.cityscapes import (
                 id_cityscapes_to_greenhouse as label_conversion,
             )

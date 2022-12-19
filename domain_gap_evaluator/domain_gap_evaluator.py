@@ -6,7 +6,7 @@ from collections import OrderedDict
 import torch
 import numpy as np
 from tqdm import tqdm
-from typing import Union
+from typing import Union, Optional
 
 
 def get_output(
@@ -78,7 +78,7 @@ def calc_entropy(pred: torch.Tensor, is_prob: bool = False, reduction: str = "me
         p = softmax2d(pred)
 
     logp = torch.log(p)
-    pixel_ent = -(p * logp).sum(dim=1)  # per pixel
+    pixel_ent = -(p * logp).sum(dim=1, keepdim=True)  # per pixel
 
     if reduction == "none":
         return pixel_ent
@@ -87,9 +87,10 @@ def calc_entropy(pred: torch.Tensor, is_prob: bool = False, reduction: str = "me
 
 
 def calc_norm_ent(
-    model: torch.Tensor,
     target: Union[torch.utils.data.DataLoader, torch.Tensor],
+    model: Optional[torch.Tensor]=None,
     device: str = "cuda",
+    reduction: str = "mean",
 ) -> dict:
     """Calculate domain gap for one source
 
@@ -113,11 +114,16 @@ def calc_norm_ent(
                 return the tensor of predicted probability values
     """
 
-    model.eval()
+    if model is not None:
+        model.eval()
+
     softmax2d = torch.nn.Softmax2d()
     sum_ent = 0.0
 
     if isinstance(target, torch.utils.data.DataLoader):
+        if model is None:
+            print("model must be given if the target is a data loader")
+            raise ValueError
         target_loader = target
 
         with torch.no_grad():
@@ -135,7 +141,7 @@ def calc_norm_ent(
                     # logp = torch.log(p)
                     # pixel_ent = -(p * logp).sum(dim=1)  # per pixel
                     # image_ent_sum = pixel_ent.mean()  # per image
-                    image_ent_sum = calc_entropy(pred)
+                    image_ent_sum = calc_entropy(pred, reduction=reduction)
 
                     sum_ent += image_ent_sum.item()
 
@@ -147,15 +153,14 @@ def calc_norm_ent(
         return {"ent": sum_ent / (len(target_loader) * np.log(C)), "out": None}
 
     elif isinstance(target, torch.Tensor):
-        pred = get_output(model, target, aux_weight=0.5, device=device)
+        if model is not None:
+            pred = get_output(model, target, aux_weight=0.5, device=device)
+        else:
+            pred = target
 
         # Entropy
-        # p = softmax2d(pred)
-        # logp = torch.log(p)
-        # pixel_ent = -(p * logp).sum(dim=1)  # per pixel
-        # image_ent_sum = pixel_ent.mean()  # per image
         p = softmax2d(pred)
-        image_ent_sum = calc_entropy(pred, is_prob=True)
+        image_ent_sum = calc_entropy(pred, is_prob=True, reduction=reduction)
 
         # Number of classes
         C = pred.size(1)
@@ -197,7 +202,7 @@ def calculate_domain_gap(
     output_list = []
 
     for model in model_list:
-        gap = calc_norm_ent(model, target, device)
+        gap = calc_norm_ent(target, model=model, device=device)
 
         domain_gap_value_list.append(gap["ent"])
         output_list.append(gap["out"])
