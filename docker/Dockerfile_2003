@@ -1,0 +1,17 @@
+FROM nvcr.io/nvidia/pytorch:20.03-py3
+
+# Add path of edgenets to PYTHONPATH so that the models can be successfully imported
+# I believe there should be a better way
+ENV PYTHONPATH /root/training/models/edgenets:${PYTHONPATH}
+
+RUN pip install git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git
+# RUN pip install mmcv-full -f https://download.openmmlab.com/mmcv/dist/cu102/torch1.5.1/index.html
+
+# MMCV: Library for computer vision including MMSegmentation
+RUN pip install -U \
+    # openmim \
+    # mmsegmentation \
+    # timm \
+    #    optuna \
+    albumentations==1.2.1 \
+    "opencv-python-headless<4.3"

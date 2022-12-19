@@ -1,18 +1,21 @@
 NAME=domain-gap-eval
-IMAGE_NAME=nvcr.io/nvidia/pytorch
+IMAGE_NAME=aisl/ms2pl
 CONTAINER_NAME=domain-gap-eval
-# VERSION=21.09-py3
 VERSION=22.11-py3
-GPU_ID=1
+GPU_ID=all
 DATASET_ROOT=/data/aisl/matsuzaki/dataset
 RUNS_ROOT=/data/aisl/matsuzaki/runs
 
 build:
 	docker build -t $(IMAGE_NAME):$(VERSION) .
 
+# For older drivers, with limited libraries
+build-2003:
+	docker build -t $(IMAGE_NAME):20.03-py3 -f Dockerfile_2003 .
+
 bash:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -24,7 +27,7 @@ bash:
 
 eval-model:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		--rm \
 		--shm-size 10G \
@@ -35,7 +38,7 @@ eval-model:
 
 train-camvid:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -48,7 +51,7 @@ train-camvid:
 
 train-cityscapes:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -61,7 +64,7 @@ train-cityscapes:
 
 train-cityscapes-highres:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -74,7 +77,7 @@ train-cityscapes-highres:
 
 train-gta5-highres:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -87,7 +90,7 @@ train-gta5-highres:
 
 train-forest:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -100,7 +103,7 @@ train-forest:
 
 train-greenhouse-pseudo-hard:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -113,7 +116,7 @@ train-greenhouse-pseudo-hard:
 
 train-greenhouse-pseudo-soft:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -126,7 +129,7 @@ train-greenhouse-pseudo-soft:
 
 generate-pseudo-labels:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -139,7 +142,7 @@ generate-pseudo-labels:
 
 evaluate-domain-gap:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -152,7 +155,7 @@ evaluate-domain-gap:
 
 evaluate-source-models:
 	docker run -it \
-		--gpus="device=all" \
+		--gpus="device=${GPU_ID}" \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
