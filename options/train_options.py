@@ -47,7 +47,7 @@ class TrainBaseOptions(BaseOptions):
             "--scheduler",
             type=str,
             default="polynomial",
-            help="Type of the learning rate cheduler. Default: cyclic",
+            help="Type of the learning rate cheduler. Default: polynomial",
         )
         self.parser.add_argument(
             "--lr-gamma",

@@ -4,7 +4,7 @@ CONTAINER_NAME=domain-gap-eval
 # VERSION=21.09-py3
 VERSION=22.11-py3
 GPU_ID=1
-DATASET_ROOT=/data/aisl/matsuzaki/dataset
+DATASET_ROOT=/media/aisl/ExtremeSSD/dataset
 RUNS_ROOT=/data/aisl/matsuzaki/runs
 
 build:
