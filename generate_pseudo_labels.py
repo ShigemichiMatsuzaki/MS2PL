@@ -28,7 +28,8 @@ def main():
         if os_d == "camvid":
             os_seg_classes = 13
         elif os_d == "cityscapes":
-            os_seg_classes = 19
+            # os_seg_classes = 19
+            os_seg_classes = 20
         elif os_d == "forest" or os_d == "greenhouse":
             os_seg_classes = 5
         else:
@@ -87,7 +88,7 @@ def main():
             num_classes=num_classes,
             device=args.device,
             save_path=args.save_path,
-            min_portion=args.superpixel_pseudo_min_portion,
+            min_portion=args.sp_label_min_portion,
             ignore_index=args.ignore_index,
         )
     else:
@@ -100,6 +101,9 @@ def main():
             num_classes=num_classes,
             save_path=args.save_path,
             device=args.device,
+            label_normalize="softmax" if args.is_softmax_normalize else "L1",
+            is_per_pixel=args.is_per_pixel,
+            is_per_sample=args.is_per_sample,
             ignore_index=args.ignore_index,
         )
 

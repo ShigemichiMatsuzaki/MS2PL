@@ -48,6 +48,12 @@ class PseudoLabelOptions(BaseOptions):
             help="If set, normalize the domain gaps using softmax. Otherwise by the sum",
         )
         self.parser.add_argument(
+            "--is-per-sample",
+            type=strtobool,
+            default=False,
+            help="If set, consider the domain gap per sample. Otherwise, per batch",
+        )
+        self.parser.add_argument(
             "--is-per-pixel",
             type=strtobool,
             default=False,
@@ -55,7 +61,7 @@ class PseudoLabelOptions(BaseOptions):
         )
 
         self.parser.add_argument(
-            "--superpixel-pseudo-min-portion",
+            "--sp-label-min-portion",
             type=float,
             default=0.5,
             help="Minimum proportion of the majority label in a superpixel to propagate",

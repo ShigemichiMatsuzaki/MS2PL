@@ -129,6 +129,14 @@ class TrainOptions(TrainBaseOptions):
             default=1.0,
             help="True to use inverse label entropy as loss weights",
         )
+        self.parser.add_argument(
+            "--label-weight-threshold",
+            type=float,
+            default=0.5,
+            help="Threshold of label weight value. Below this value is set to 0",
+        )
+
+
 
         # Pseudo-label update
         self.parser.add_argument(
@@ -154,4 +162,10 @@ class TrainOptions(TrainBaseOptions):
             type=str,
             default="",
             help="Path to the directory where the pre-trained class weight file is",
+        )
+        self.parser.add_argument(
+            "--use-prototype-denoising",
+            type=strtobool,
+            default=False,
+            help="Whether to use prototype-based denoising",
         )

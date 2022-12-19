@@ -22,11 +22,14 @@ from utils.metrics import AverageMeter, MIOU
 from utils.visualization import add_images_to_tensorboard
 from utils.optim_opt import get_optimizer, get_scheduler
 from utils.model_io import import_model
+from utils.calc_prototype import calc_prototype
 
 from utils.dataset_utils import import_dataset, DATASET_LIST
 
-from loss_fns.segmentation_loss import UncertaintyWeightedSegmentationLoss
+from loss_fns.segmentation_loss import UncertaintyWeightedSegmentationLoss, PixelwiseKLD
 from utils.pseudo_label_generator import generate_pseudo_label
+
+from utils.logger import log_training_conditions
 
 
 def train_pseudo(
@@ -96,6 +99,7 @@ def train_pseudo(
     loss_ent_acc_val = 0.0
 
     logsoftmax = torch.nn.LogSoftmax(dim=1)
+    softmax = torch.nn.Softmax(dim=1)
     # Classification for S1
     for i, batch in enumerate(s1_loader):
         # Get input image and label batch
@@ -114,23 +118,24 @@ def train_pseudo(
 
         # Calculate and sum up the loss
 
-        output_main_prob = logsoftmax(output_main)
-        output_aux_prob = logsoftmax(output_aux)
-        kld_loss_value = kld_loss(output_aux_prob, output_main_prob).sum(dim=1)
+        output_main_prob = softmax(output_main)
+        output_aux_logprob = logsoftmax(output_aux)
+        kld_loss_value = kld_loss(output_aux_logprob, output_main_prob).sum(dim=1)
 
         # Label entropy
         if not args.is_hard and args.use_label_ent_weight:
+            # label = softmax(label * 5)
             label_ent = torch.sum(-label * torch.log(label), dim=1) / np.log(
                 args.num_classes
             )
 
-            u_weight = (
-                kld_loss_value.detach()
-                + label_ent.detach() * args.label_weight_temperature
-            )
+            kld_weight = torch.exp(-kld_loss_value.detach()) 
+            label_ent_weight = torch.exp(-label_ent.detach() * args.label_weight_temperature)
+            label_ent_weight[label_ent_weight < args.label_weight_threshold] = 0.0
+            u_weight = kld_weight * label_ent_weight
             # print(kld_loss_value.mean(), label_ent.mean())
         else:
-            u_weight = kld_loss_value.detach()
+            u_weight = torch.exp(-kld_loss_value.detach())
 
         # if args.is_hard:
         #     seg_loss_value = seg_loss(output_total, label, kld_loss_value.detach())
@@ -217,7 +222,7 @@ def train_pseudo(
                     # -kld_loss_value / torch.max(kld_loss_value).item() + 1
                 )  # * 255# Scale to [0, 255]
                 kld = torch.reshape(
-                    kld, (kld.size(0), 1, kld.size(1), kld.size(2)))
+                    kld, (kld.size(0), 1, kld.size(1), kld.size(2))) / kld.max()
                 add_images_to_tensorboard(
                     writer,
                     kld,
@@ -226,22 +231,18 @@ def train_pseudo(
                 )
 
                 if not args.is_hard and args.use_label_ent_weight:
-                    pixelwise_weight = (
-                        torch.exp(-u_weight)
-                        # -u_weight / torch.max(u_weight).item() + 1
-                    )  # * 255# Scale to [0, 255]
-                    pixelwise_weight = torch.reshape(
-                        pixelwise_weight,
+                    label_ent_weight = torch.reshape(
+                        label_ent_weight,
                         (
-                            pixelwise_weight.size(0),
+                            label_ent_weight.size(0),
                             1,
-                            pixelwise_weight.size(1),
-                            pixelwise_weight.size(2),
+                            label_ent_weight.size(1),
+                            label_ent_weight.size(2),
                         ),
                     )
                     add_images_to_tensorboard(
                         writer,
-                        pixelwise_weight,
+                        label_ent_weight,
                         epoch,
                         "train/pixelwise_weight",
                     )
@@ -537,7 +538,7 @@ def main():
 
     # For estimating pixel-wise uncertainty
     # (KLD between main and aux branches)
-    kld_loss = torch.nn.KLDivLoss(reduction="none", log_target=True)
+    kld_loss = torch.nn.KLDivLoss(reduction="none")
 
     #
     # Tensorboard writer
@@ -553,7 +554,11 @@ def main():
         os.makedirs(save_path)
         os.makedirs(pseudo_save_path)
 
+    # SummaryWriter for Tensorboard
     writer = SummaryWriter(save_path)
+
+    # Save the training parameters
+    log_training_conditions(args, save_dir=save_path)
 
     #
     # Training
@@ -620,11 +625,18 @@ def main():
             args.is_hard = True
             args.use_label_ent_weight = False
 
+            # Prototype-based denoising
+            prototypes = None
+            if args.use_prototype_denoising: 
+                prototypes = calc_prototype(
+                    model, dataset_pseudo, args.num_classes, args.device)
+
             class_wts, label_path_list = generate_pseudo_label(
                 args,
                 model=model,
                 testloader=pseudo_loader,
                 save_path=pseudo_save_path,
+                prototypes=prototypes,
                 proto_rect_thresh=args.conf_thresh,
                 min_portion=args.sp_label_min_portion,
             )

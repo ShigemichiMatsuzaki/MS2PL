@@ -17,18 +17,18 @@ if [ ${model} = "unet" ]; then
     # forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20221022-122052/${forest_model}_forest_${model_type}.pth"
     forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20221027-232513/${forest_model}_forest_${model_type}.pth"
 elif [ ${model} = "espnetv2" ]; then
-    # camvid_weight="./pretrained_weights/espdnetue_2.0_480_best_camvid.pth"
-    # cityscapes_weight="./pretrained_weights/espdnetue_2.0_512_best_city.pth"
-    # forest_weight="./pretrained_weights/espdnetue_2.0_480_best_forest.pth"
+    camvid_weight="./pretrained_weights/espdnetue_2.0_480_best_camvid.pth"
+    cityscapes_weight="./pretrained_weights/espdnetue_2.0_512_best_city.pth"
+    forest_weight="./pretrained_weights/espdnetue_2.0_480_best_forest.pth"
     # Uniform weight
     # camvid_weight="/tmp/runs/domain_gap/camvid/${camvid_model}/20221104-221219/${camvid_model}_camvid_${model_type}.pth"
     # cityscapes_weight="/tmp/runs/domain_gap/cityscapes/${cityscapes_model}/20221105-050515/${cityscapes_model}_cityscapes_${model_type}.pth"
     # forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20221104-141705/${forest_model}_forest_${model_type}.pth"
 
     # # Inverse
-    camvid_weight="/tmp/runs/domain_gap/camvid/${camvid_model}/20221124-123644/${camvid_model}_camvid_${model_type}.pth"
-    cityscapes_weight="/tmp/runs/domain_gap/cityscapes/${cityscapes_model}/20221124-171652/${cityscapes_model}_cityscapes_${model_type}.pth"
-    forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20221124-145751/${forest_model}_forest_${model_type}.pth"
+    # camvid_weight="/tmp/runs/domain_gap/camvid/${camvid_model}/20221124-123644/${camvid_model}_camvid_${model_type}.pth"
+    # cityscapes_weight="/tmp/runs/domain_gap/cityscapes/${cityscapes_model}/20221124-171652/${cityscapes_model}_cityscapes_${model_type}.pth"
+    # forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20221124-145751/${forest_model}_forest_${model_type}.pth"
     # # Normal
     # # camvid_weight="/tmp/runs/domain_gap/camvid/${camvid_model}/20221122-130747/${camvid_model}_camvid_${model_type}.pth"
     # # cityscapes_weight="/tmp/runs/domain_gap/cityscapes/${cityscapes_model}/20221122-164200/${cityscapes_model}_cityscapes_${model_type}.pth"
@@ -49,7 +49,9 @@ python generate_pseudo_labels.py \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
     --batch-size 12 \
-    --is-hard true \
-    --is-softmax-normalize false \
-    --superpixel-pseudo-min-portion 0.7 \
+    --is-hard false \
+    --is-softmax-normalize true \
+    --is-per-sample false \
+    --is-per-pixel false \
+    --sp-label-min-portion 0.9 \
     --save-path ./pseudo_labels/${camvid_model}/

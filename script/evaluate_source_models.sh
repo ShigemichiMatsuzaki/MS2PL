@@ -31,9 +31,9 @@ elif [ ${model} = "espnetv2" ]; then
     # cityscapes_weight="/tmp/runs/domain_gap/cityscapes/${cityscapes_model}/20221122-233111/${cityscapes_model}_cityscapes_${model_type}.pth"
     # forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20221123-074219/${forest_model}_forest_${model_type}.pth"
     # Normal
-    camvid_weight="/tmp/runs/domain_gap/camvid/${camvid_model}/20221123-214211/${camvid_model}_camvid_${model_type}.pth"
-    cityscapes_weight="/tmp/runs/domain_gap/cityscapes/${cityscapes_model}/20221124-003304/${cityscapes_model}_cityscapes_${model_type}.pth"
-    forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20221123-230959/${forest_model}_forest_${model_type}.pth"
+    # camvid_weight="/tmp/runs/domain_gap/camvid/${camvid_model}/20221123-214211/${camvid_model}_camvid_${model_type}.pth"
+    # cityscapes_weight="/tmp/runs/domain_gap/cityscapes/${cityscapes_model}/20221124-003304/${cityscapes_model}_cityscapes_${model_type}.pth"
+    # forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20221123-230959/${forest_model}_forest_${model_type}.pth"
 elif [ ${model} = "deeplabv3_mobilenet_v3_large" ]; then
     camvid_weight="/tmp/runs/domain_gap/camvid/${camvid_model}/20220725-034846/${camvid_model}_camvid_best_iou.pth"
     cityscapes_weight="/tmp/runs/domain_gap/cityscapes/${cityscapes_model}/20220801-233634/${cityscapes_model}_cityscapes_best_iou.pth"
