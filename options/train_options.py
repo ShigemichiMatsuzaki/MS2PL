@@ -112,11 +112,18 @@ class TrainOptions(TrainBaseOptions):
 
         # Loss
         self.parser.add_argument(
-            "--weight-loss-ent",
+            "--kld-loss-weight",
+            type=float,
+            default=0.2,
+            help="Weight on the KLD loss",
+        )
+        self.parser.add_argument(
+            "--entropy-loss-weight",
             type=float,
             default=0.2,
             help="Weight on the entropy loss",
         )
+
         self.parser.add_argument(
             "--use-label-ent-weight",
             type=strtobool,
@@ -141,14 +148,16 @@ class TrainOptions(TrainBaseOptions):
         # Pseudo-label update
         self.parser.add_argument(
             "--label-update-epoch",
+            required=True,
+            nargs="*",
             type=int,
-            default=15,
             help="Epoch at which the pseudo-labels are updated",
         )
         self.parser.add_argument(
             "--conf-thresh",
+            required=True,
+            nargs="*",
             type=float,
-            default=0.9,
             help="Threshold of confidence to be selected as a pseudo-label",
         )
         self.parser.add_argument(

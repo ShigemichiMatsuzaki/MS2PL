@@ -2,11 +2,11 @@
 __author__ = "Sachin Mehta"
 __maintainer__ = "Sachin Mehta"
 # ============================================
-from multiprocessing.sharedctypes import Value
 import torch
 from torch import nn
 from torch.nn import functional as F
 import math
+import numpy as np
 from typing import Optional, Union
 
 
@@ -49,6 +49,8 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
         device: str = "cuda",
         temperature: float = 1.0,
         reduction: str = "mean",
+        is_hard: bool = True,
+        is_kld: bool = False,
     ):
         """Cross entropy loss with weights
 
@@ -56,7 +58,21 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
         ----------
         num_classes: `int`
             Number of classes
-        class_wts: ``
+        class_wts: `Optional[torch.Tensor]`
+            Weights on loss of each class
+        ignore_index: `int`
+            Label index to ignore in training
+        device: `str`
+            Device on which the loss is computed
+        temperature: `float`
+            Temperature parameter of softmax
+        reduction: `str`
+            Reduction type of the loss
+        is_hard: `bool`
+            `True` to use hard label
+        is_kld: `bool`
+            `True` to use KLD loss for soft label. Valid only when `is_hard`==`False`
+        
         """
 
         super(UncertaintyWeightedSegmentationLoss, self).__init__()
@@ -75,6 +91,8 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
             raise ValueError
 
         self.reduction = reduction
+        self.is_hard = is_hard
+        self.is_kld = is_kld
 
     def forward(
         self,
@@ -82,7 +100,6 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
         target: torch.Tensor,
         u_weight: Union[torch.Tensor, list],
         epsilon: float = 1e-12,
-        is_hard: bool = True,
     ) -> torch.Tensor:
         """Forward calculation
 
@@ -91,6 +108,16 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
 
         Returns
         -------
+        pred: `torch.Tensor`
+            Prediction value in a shape (B, C, H, W)
+        target: `torch.Tensor`
+            Label value (B, H, W)
+        u_weight: `Union[torch.Tensor, list]`
+            Pixel-wise weight for loss function.
+            If it's given as a list, weight is calculated as a product of the elements of the list.
+            The weight(s) must be given with the same spatial shape (B, H, W) as `pred`.
+        epsilon: `float` 
+            CURRENTLY NOT USED.
 
         """
         torch.autograd.set_detect_anomaly(True)
@@ -100,7 +127,7 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
             for l in u_weight:
                 u_weight_tmp = u_weight_tmp * l
 
-        if is_hard:
+        if self.is_hard:
             # Standard cross entropy
             seg_loss = F.cross_entropy(
                 pred / self.T,
@@ -109,7 +136,14 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
                 ignore_index=self.ignore_index,
                 reduction="none",
             )
+        elif self.is_kld:
+            # KLD between the predicted probability and the soft label
+            pred_prob = F.log_softmax(pred / self.T, dim=1)
+            seg_loss = F.kl_div(
+                pred_prob, target, reduction="none"
+            ).sum(dim=1)
         else:
+            # Label is the argmax of the soft label
             target = target.argmax(dim=1)
             seg_loss = F.cross_entropy(
                 pred / self.T,
@@ -118,16 +152,11 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
                 ignore_index=self.ignore_index,
                 reduction="none",
             )
-            # pred_prob = F.log_softmax(pred / self.T, dim=1)
-            # seg_loss = F.kl_div(
-            #     pred_prob, torch.log(target), log_target=True, reduction="none"
-            # ).sum(dim=1)
 
         # Rectify the loss with the uncertainty weights
-        # rect_ce = seg_loss * torch.exp(-u_weight)
         rect_ce = seg_loss * u_weight
 
-        if is_hard and not self.reduction == "none":
+        if self.is_hard and not self.reduction == "none":
             rect_ce = rect_ce[target != self.ignore_index]
 
         if self.reduction == "mean":
@@ -198,3 +227,35 @@ class PixelwiseKLD(nn.Module):
         kld_i = p1 * logp1 - p1 * logp2
 
         return torch.sum(kld_i, dim=1)
+
+class Entropy(nn.Module):
+    def __init__(self, reduction='none', log_target=False, num_classes: int=None):
+        super(Entropy, self).__init__()
+
+        self.reduction = reduction
+        self.log_target = log_target
+        self.num_classes = num_classes
+    
+    def forward(self, p: torch.Tensor):
+        """Calculate entropy of the probability distribution in (B, C, H, W)
+
+        Parameters
+        ----------
+        p: `torch.Tensor`
+            Probability distribution
+        
+        """
+        if not self.log_target:
+            ent = torch.sum(-p * torch.log(p), dim=1)
+        else:
+            ent = torch.sum(-torch.exp(p) * p, dim=1)
+        
+        if self.num_classes is not None:
+            ent = ent / np.log(self.num_classes)
+
+        if self.reduction == 'mean':
+            ent = torch.mean(ent)
+        elif self.reduction == 'sum':
+            ent = torch.sum(ent)
+
+        return ent
