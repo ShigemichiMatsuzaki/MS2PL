@@ -70,6 +70,33 @@ class TrainBaseOptions(BaseOptions):
             help="True to set more weight to more frequent classes",
         )
 
+        # Parameters related to cosine-based softmax
+        self.parser.add_argument(
+            '--use-cosine', 
+            default=False, 
+            type=strtobool,
+            help='True to use cosine-based loss (ArcFace). Valid only when "model"=="espnetv2"'
+        )
+        self.parser.add_argument(
+            '--cos-margin', 
+            default=0.1, 
+            type=float,
+            help='Angle margin'
+        )
+        self.parser.add_argument(
+            '--cos-logit-scale', 
+            default=30.0, 
+            type=float,
+            help='Scale factor for the final logits'
+        )
+        self.parser.add_argument(
+            '--is-easy-margin', 
+            default=False, 
+            type=strtobool,
+            help='Whether to use an easy margin'
+        )
+
+
 
 class PreTrainOptions(TrainBaseOptions):
     def initialize(self):

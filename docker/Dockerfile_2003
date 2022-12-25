@@ -7,11 +7,14 @@ ENV PYTHONPATH /root/training/models/edgenets:${PYTHONPATH}
 RUN pip install git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git
 # RUN pip install mmcv-full -f https://download.openmmlab.com/mmcv/dist/cu102/torch1.5.1/index.html
 
+RUN pip uninstall -y pillow
 # MMCV: Library for computer vision including MMSegmentation
 RUN pip install -U \
-    # openmim \
-    # mmsegmentation \
-    # timm \
-    #    optuna \
+    tqdm \
+    torchsummary \
+    umap-learn \
+    llvmlite \
+    pillow-simd \
     albumentations==1.2.1 \
-    "opencv-python-headless<4.3"
+    "opencv-python-headless<4.3" \
+    --ignore-installed

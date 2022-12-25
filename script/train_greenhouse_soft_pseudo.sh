@@ -11,6 +11,7 @@ label_weight_threshold=0.1
 python train_pseudo.py \
     --device cuda \
     --model ${MODEL} \
+    --use-cosine true \
     --target greenhouse \
     --batch-size 64 \
     --epoch 50 \
@@ -26,7 +27,7 @@ python train_pseudo.py \
     --label-weight-temperature ${label_weight_temp} \
     --label-weight-threshold ${label_weight_threshold} \
     --kld-loss-weight 0.2 \
-    --entropy-loss-weight 0.2 \
+    --entropy-loss-weight 0.5 \
     --sp-label-min-portion 0.9 \
     --pseudo-label-dir ./pseudo_labels/${SOURCE_MODEL}/ \
     --ignore-index 3 

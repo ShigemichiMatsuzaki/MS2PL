@@ -19,7 +19,7 @@ from warmup_scheduler import GradualWarmupScheduler
 
 from options.train_options import TrainOptions
 from utils.metrics import AverageMeter, MIOU
-from utils.visualization import add_images_to_tensorboard
+from utils.visualization import add_images_to_tensorboard, assign_label_on_features
 from utils.optim_opt import get_optimizer, get_scheduler
 from utils.model_io import import_model
 from utils.calc_prototype import calc_prototype
@@ -112,7 +112,11 @@ def train_pseudo(
         label = batch["label"].to(device)
 
         # Get output
-        output = model(image)
+        if args.use_cosine and args.is_hard:
+            output = model(image, label)
+        else:
+            output = model(image,)
+
         output_main = output["out"]
         output_aux = output["aux"]
         output_total = output_main + 0.5 * output_aux
@@ -120,13 +124,14 @@ def train_pseudo(
         amax_main = output_main.argmax(dim=1)
         amax_aux = output_aux.argmax(dim=1)
 
-        output_ent = entropy(softmax(output_total))
 
-        # Calculate and sum up the loss
-
+        # Calculate output probability etc.
         output_main_prob = softmax(output_main)
         output_aux_logprob = logsoftmax(output_aux)
+        # KLD between the main and the aux branch
         kld_loss_value = kld_loss(output_aux_logprob, output_main_prob).sum(dim=1)
+        # Entropy
+        output_ent = entropy(softmax(output_total))
 
         # Label entropy
         if not args.is_hard and args.use_label_ent_weight:
@@ -312,6 +317,8 @@ def val(
     miou_class = MIOU(num_classes=args.num_classes)
     # Classification for S1
     class_total_loss = 0.0
+    feature_list = []
+    label_list = []
     with torch.no_grad():
         for i, batch in enumerate(s1_loader):
             # Get input image and label batch
@@ -324,6 +331,7 @@ def val(
 
             main_output = output["out"]
             aux_output = output["aux"]
+            feature = output["feat"]
 
             loss_val = loss_cls_func(main_output, label) + 0.5 * loss_cls_func(
                 aux_output, label
@@ -337,6 +345,17 @@ def val(
 
             inter_meter.update(inter)
             union_meter.update(union)
+
+            # Visualize features
+            features, labels = assign_label_on_features(
+                feature, 
+                label, 
+                label_type='object', 
+                scale_factor=16, 
+                ignore_index=args.ignore_index,
+            )
+            feature_list += features
+            label_list += labels
 
             # Calculate and sum up the loss
             if i == 0 and writer is not None and color_encoding is not None:
@@ -382,6 +401,12 @@ def val(
 
     writer.add_scalar("val/class_avg_loss", class_avg_loss, epoch)
     writer.add_scalar("val/miou", avg_iou, epoch)
+    writer.add_embedding(
+        torch.Tensor(features), 
+        metadata=labels,
+        global_step=epoch,
+
+    )
 
     return {
         "miou": avg_iou,
@@ -511,6 +536,7 @@ def main():
         aux_loss=True,
         pretrained=False,
         device=args.device,
+        use_cosine=args.use_cosine,
     )
 
     #
@@ -613,6 +639,7 @@ def main():
                             args.model, args.target),
                     ),
                 )
+
 
     
         train_pseudo(
