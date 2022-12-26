@@ -9,7 +9,13 @@ class Arguments(object):
 
 
 def make_argument_for_espnetv2(
-    num_classes: int, channels: int = 3, s: float = 2.0
+    num_classes: int, 
+    channels: int = 3, 
+    s: float = 2.0,
+    use_cosine: bool = False,
+    cos_margin: float = 0.1,
+    cos_logit_scale: float = 30.0,
+    is_easy_margin: bool = False,
 ) -> Arguments:
     """Return Namespace that stores parameters for ESPNetv2
 
@@ -27,23 +33,45 @@ def make_argument_for_espnetv2(
     args.channels = channels
     args.s = s
 
+    # ArcFace-related parameters
+    args.use_cosine = use_cosine
+    args.cos_logit_scale = cos_logit_scale
+    args.cos_margin = cos_margin
+    args.is_easy_margin = is_easy_margin
+
     return args
 
 
-def import_espnetv2(num_classes: int) -> torch.nn.Module:
+def import_espnetv2(
+    num_classes: int, 
+    use_cosine: bool = False,
+    cos_margin: float = 0.1,
+    cos_logit_scale: float = 30.0,
+    is_easy_margin: bool = False,
+) -> torch.nn.Module:
     """Wrapper for code to import ESPNetv2
 
     Parameters
     ----------
+    num_classes: `int`
+        Number of classes
+    use_cosine: `bool`
+        `True` to use cosine-based loss (ArcFace). Default: `True`
 
     Returns
     -------
     model: `torch.nn.Module`
-
+        Model
     """
     from models.edgenets.model.segmentation.espnetv2 import ESPNetv2Segmentation
 
-    args = make_argument_for_espnetv2(num_classes)
+    args = make_argument_for_espnetv2(
+        num_classes,
+        use_cosine=use_cosine,
+        cos_margin=cos_margin,
+        cos_logit_scale=cos_logit_scale,
+        is_easy_margin=is_easy_margin,
+    )
     model = ESPNetv2Segmentation(
         args,
         classes=num_classes,
@@ -64,6 +92,8 @@ def import_espnetv2(num_classes: int) -> torch.nn.Module:
     basenet_dict = model.base_net.state_dict()
     overlap_dict = {k: v for k, v in pretrained_dict.items()
                     if k in basenet_dict}
+
+
     if len(overlap_dict) == 0:
         print("No overlapping elements")
         raise ValueError
@@ -81,6 +111,7 @@ def import_model(
     pretrained: bool = False,
     aux_loss: bool = True,
     device: Optional[str] = "cuda",
+    use_cosine: bool = False,
 ) -> torch.nn.Module:
     # Import model
     if model_name == "deeplabv3_resnet101":
@@ -103,7 +134,10 @@ def import_model(
             num_classes=num_classes,
         )
     elif model_name == "espnetv2":
-        model = import_espnetv2(num_classes=num_classes)
+        model = import_espnetv2(
+            num_classes=num_classes, 
+            use_cosine=use_cosine,
+        )
     elif model_name == "unet":
         from models.unet.unet import UNet
 
@@ -143,6 +177,7 @@ def import_model(
             and "depth" not in k
         }
 
+        print(non_overlap_dict.keys())
         # print(state_dict["module.bu_dec_l4.merge_layer.3.weight"].size())
         # print(model_dict["bu_dec_l4.merge_layer.3.weight"].size())
 

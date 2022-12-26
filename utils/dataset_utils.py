@@ -66,8 +66,9 @@ def import_dataset(
     height: int = 256,
     width: int = 480,
     scale: list = (0.5, 2.0),
-    transform=None,
+    transform: Optional[A.Compose]=None,
     max_iter: Optional[int] = None,
+    label_conversion: bool = False,
 ):
     """Import a designated dataset
 
@@ -82,6 +83,20 @@ def import_dataset(
     is_class_wts_inverse: `bool`
         True to calculate class weights propotional to the frequency
         (usually, less frequent classes have more weight)
+    height: `int`
+        Height of the image size after resizing
+    width: `int`
+        Width of the image size after resizing
+    scale: `list`
+        Scales to be used in data augumentation
+    transform: `Optional[albumentations.Compose]`
+        Transforms to be used in data loading
+    max_iter: `Optional[int]`
+        Maximum iteration. If the number of data in a dataset is below max_iter, 
+        the data are multiplied by max_iter // len(dataset) to (approximately) match 
+        the number of the data with this value.
+    label_conversion: `bool`
+        `True` to convert the labels to the Greenhouse label map. Default: `False`
 
     Returns
     -------
@@ -98,7 +113,7 @@ def import_dataset(
     if dataset_name == DATASET_LIST[0]:
         from dataset.camvid import CamVidSegmentation, color_encoding
 
-        num_classes = 13
+        num_classes = 13 if not label_conversion else 3
 
         dataset = CamVidSegmentation(
             root="/tmp/dataset/CamVid",
@@ -108,6 +123,7 @@ def import_dataset(
             width=width,
             scale=scale,
             transform=transform,
+            label_conversion=label_conversion,
         )
         dataset_label = CamVidSegmentation(
             root="/tmp/dataset/CamVid",
@@ -115,6 +131,7 @@ def import_dataset(
             height=height,
             width=width,
             scale=scale,
+            label_conversion=label_conversion,
         )
     elif dataset_name == DATASET_LIST[1]:
         from dataset.cityscapes import CityscapesSegmentation, color_encoding
@@ -127,9 +144,11 @@ def import_dataset(
             width=width,
             scale=scale,
             transform=transform,
+            label_conversion=label_conversion,
         )
 
-        num_classes = 19
+        num_classes = 19 if not label_conversion else 3
+
 
     elif dataset_name == DATASET_LIST[2]:
         from dataset.forest import FreiburgForestDataset, color_encoding
@@ -142,6 +161,7 @@ def import_dataset(
             width=width,
             scale=scale,
             transform=transform,
+            label_conversion=label_conversion,
         )
         dataset_label = FreiburgForestDataset(
             root="/tmp/dataset/freiburg_forest_annotated/",
@@ -149,8 +169,10 @@ def import_dataset(
             height=height,
             width=width,
             scale=scale,
+            label_conversion=label_conversion,
         )
-        num_classes = 5
+        num_classes = 5 if not label_conversion else 3
+
     elif dataset_name == DATASET_LIST[3]:
         from dataset.gta5 import GTA5, color_encoding
 
@@ -162,6 +184,7 @@ def import_dataset(
             width=width,
             scale=scale,
             transform=transform,
+            label_conversion=label_conversion,
         )
         dataset_label = GTA5(
             root="/tmp/dataset/gta5/",
@@ -169,10 +192,15 @@ def import_dataset(
             height=height,
             width=width,
             scale=scale,
+            label_conversion=label_conversion,
         )
-        num_classes = 19
+        num_classes = 19 if not label_conversion else 3
+
     else:
         raise Exception
+
+    if label_conversion:
+        from dataset.greenhouse import color_encoding
 
     if calc_class_wts:
         if dataset_name != DATASET_LIST[1]:

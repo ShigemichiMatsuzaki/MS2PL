@@ -32,9 +32,9 @@ from utils.dataset_utils import import_dataset, DATASET_LIST
 def train(
     args,
     model: torch.Tensor,
-    s1_loader: torch.utils.data.DataLoader,
-    a1_loader: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
+    s1_loader: torch.utils.data.DataLoader,
+    a1_loader: Optional[torch.utils.data.DataLoader] = None,
     class_weights: Optional[torch.Tensor] = None,
     weight_loss_ent: float = 0.1,
     writer: Optional[torch.utils.tensorboard.SummaryWriter] = None,
@@ -108,7 +108,8 @@ def train(
     loss_cls_acc_val_count = 0.0
     loss_ent_acc_val_count = 0.0
 
-    a1_loader_iter = iter(a1_loader)
+    if a1_loader is not None:
+        a1_loader_iter = iter(a1_loader)
 
     # Classification for S1
     for i, batch in enumerate(s1_loader):
@@ -132,7 +133,7 @@ def train(
         )
         # loss_cls_acc_val = loss_cls_func(output_total, label)
 
-        if weight_loss_ent > 0.0:
+        if a1_loader is not None:
             batch_a = a1_loader_iter.next()
             image_a = batch_a["image"].to(device)
 
@@ -282,7 +283,7 @@ def val(
     # Classification for S1
     class_total_loss = 0.0
     with torch.no_grad():
-        for i, batch in enumerate(s1_loader):
+        for i, batch in enumerate(tqdm(s1_loader)):
             # Get input image and label batch
             image = batch["image"].to(device)
             image_orig = batch["image_orig"].to(device)
@@ -443,68 +444,86 @@ def main():
             A.HorizontalFlip(p=0.5),
         ]
     )
-    max_iter = 3000 if args.weight_loss_ent > 0 else None
-    try:
-        dataset_s1, num_classes, color_encoding, class_wts = import_dataset(
-            args.s1_name,
-            mode="train",
-            calc_class_wts=(args.class_wts_type != "uniform"),
-            is_class_wts_inverse=(args.class_wts_type == "inverse"),
-            height=args.train_image_size_h,
-            width=args.train_image_size_w,
-            transform=transform,
-            max_iter=max_iter,
-        )
-        dataset_s1_val, _, _, _ = import_dataset(
-            args.s1_name,
-            mode="val",
-            height=args.val_image_size_h,
-            width=args.val_image_size_w,
-        )
-        args.num_classes = num_classes
-    except Exception as e:
-        t, v, tb = sys.exc_info()
-        print(traceback.format_exception(t, v, tb))
-        print(traceback.format_tb(e.__traceback__))
-        print("Dataset '{}' not found".format(args.s1_name))
-        sys.exit(1)
+    max_iter = 3000 if args.use_other_datasets or len(args.s1_name) > 1 else None
 
-    # A1 is a set of datasets other than S1
-    dataset_a1_list = []
-    dataset_a1_val_list = []
+    if len(args.s1_name) > 1:
+        args.label_conversion = True
 
-    for ds in DATASET_LIST[:3]:
-        # If ds is the name of S1, skip importing
-        if ds == args.s1_name:
-            continue
-
-        # Import
+    dataset_s1_list = []
+    dataset_s1_val_list = []
+    for dataset_name in args.s1_name:
         try:
-            dataset_a_tmp, _, _, _ = import_dataset(
-                ds, height=args.train_image_size_h, width=args.train_image_size_w
+            dataset_s1, num_classes, color_encoding, class_wts = import_dataset(
+                # args.s1_name,
+                dataset_name=dataset_name,
+                mode="train",
+                calc_class_wts=(args.class_wts_type != "uniform"),
+                is_class_wts_inverse=(args.class_wts_type == "inverse"),
+                height=args.train_image_size_h,
+                width=args.train_image_size_w,
+                transform=transform,
+                max_iter=max_iter,
+                label_conversion=args.use_label_conversion,
             )
-            dataset_a_val_tmp, _, _, _ = import_dataset(
-                ds,
+            dataset_s1_val, _, _, _ = import_dataset(
+                #args.s1_name,
+                dataset_name=dataset_name,
                 mode="val",
                 height=args.val_image_size_h,
                 width=args.val_image_size_w,
-                transform=transform,
-                max_iter=max_iter,
+                label_conversion=args.use_label_conversion,
             )
+            args.num_classes = num_classes
         except Exception as e:
             t, v, tb = sys.exc_info()
             print(traceback.format_exception(t, v, tb))
             print(traceback.format_tb(e.__traceback__))
-            print("Dataset '{}' not found".format(ds))
+            print("Dataset '{}' not found".format(dataset_s1))
             sys.exit(1)
 
-        dataset_a1_list.append(dataset_a_tmp)
-        dataset_a1_val_list.append(dataset_a_val_tmp)
+        dataset_s1_list.append(dataset_s1)
+        dataset_s1_val_list.append(dataset_s1)
+    
+    if len(dataset_s1_list) > 1:
+        dataset_s1 = torch.utils.data.ConcatDataset(dataset_s1_list)
+        dataset_s1_val = torch.utils.data.ConcatDataset(dataset_s1_val_list)
 
-    # Concatenate the A1 datasets to form a single dataset
-    dataset_a1 = torch.utils.data.ConcatDataset(dataset_a1_list)
-    dataset_a1_val = torch.utils.data.ConcatDataset(dataset_a1_val_list)
-    print(dataset_a1)
+    if args.use_other_datasets:
+        # A1 is a set of datasets other than S1
+        dataset_a1_list = []
+        dataset_a1_val_list = []
+        for ds in DATASET_LIST[:3]:
+            # If ds is the name of S1, skip importing
+            if ds == args.s1_name:
+                continue
+
+            # Import
+            try:
+                dataset_a_tmp, _, _, _ = import_dataset(
+                    ds, height=args.train_image_size_h, width=args.train_image_size_w
+                )
+                dataset_a_val_tmp, _, _, _ = import_dataset(
+                    ds,
+                    mode="val",
+                    height=args.val_image_size_h,
+                    width=args.val_image_size_w,
+                    transform=transform,
+                    max_iter=max_iter,
+                )
+            except Exception as e:
+                t, v, tb = sys.exc_info()
+                print(traceback.format_exception(t, v, tb))
+                print(traceback.format_tb(e.__traceback__))
+                print("Dataset '{}' not found".format(ds))
+                sys.exit(1)
+
+            dataset_a1_list.append(dataset_a_tmp)
+            dataset_a1_val_list.append(dataset_a_val_tmp)
+
+        # Concatenate the A1 datasets to form a single dataset
+        dataset_a1 = torch.utils.data.ConcatDataset(dataset_a1_list)
+        dataset_a1_val = torch.utils.data.ConcatDataset(dataset_a1_val_list)
+        print(dataset_a1)
 
     #
     # Dataloader
@@ -526,21 +545,25 @@ def main():
         num_workers=args.num_workers,
     )
 
-    train_loader_a1 = torch.utils.data.DataLoader(
-        dataset_a1,
-        batch_size=args.batch_size,
-        shuffle=True,
-        pin_memory=args.pin_memory,
-        num_workers=args.num_workers,
-        drop_last=True,
-    )
-    val_loader_a1 = torch.utils.data.DataLoader(
-        dataset_a1_val,
-        batch_size=args.batch_size,
-        shuffle=False,
-        pin_memory=args.pin_memory,
-        num_workers=args.num_workers,
-    )
+    if args.use_other_datasets:
+        train_loader_a1 = torch.utils.data.DataLoader(
+            dataset_a1,
+            batch_size=args.batch_size,
+            shuffle=True,
+            pin_memory=args.pin_memory,
+            num_workers=args.num_workers,
+            drop_last=True,
+        )
+        val_loader_a1 = torch.utils.data.DataLoader(
+            dataset_a1_val,
+            batch_size=args.batch_size,
+            shuffle=False,
+            pin_memory=args.pin_memory,
+            num_workers=args.num_workers,
+        )
+    else:
+        train_loader_a1 = None
+        val_loader_a1 = None
 
     #
     # Define a model
@@ -566,9 +589,6 @@ def main():
     #
     # Scheduler: Gradually changes the learning rate
     #
-    # scheduler = torch.optim.lr_scheduler.MultiStepLR(
-    #    optimizer, milestones=[50, 100, 200], gamma=0.1
-    # )
     scheduler = get_scheduler(args, optimizer)
     if args.use_lr_warmup:
         scheduler = GradualWarmupScheduler(
@@ -584,8 +604,17 @@ def main():
     # Tensorboard writer
     #
     now = datetime.datetime.now() + datetime.timedelta(hours=9)
+    # Dataset name
+    dataset_used = args.s1_name[0]
+    if len(args.s1_name) > 1:
+        for s in args.s1_name[1:]:
+            dataset_used += ("_" + s)
+
     save_path = os.path.join(
-        args.save_path, args.s1_name, args.model, now.strftime("%Y%m%d-%H%M%S")
+        args.save_path, 
+        dataset_used, 
+        args.model, 
+        now.strftime("%Y%m%d-%H%M%S")
     )
     # If the directory not found, create it
     if not os.path.isdir(save_path):
@@ -644,10 +673,10 @@ def main():
 
         train(
             args,
-            model,
-            train_loader_s1,
-            train_loader_a1,
-            optimizer,
+            model=model,
+            optimizer=optimizer,
+            s1_loader=train_loader_s1,
+            a1_loader=train_loader_a1,
             class_weights=class_wts,
             weight_loss_ent=args.weight_loss_ent,
             writer=writer,

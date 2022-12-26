@@ -50,6 +50,7 @@ python generate_pseudo_labels.py \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
     --batch-size 12 \
     --is-hard false \
+    --use-domain-gap true \
     --is-softmax-normalize true \
     --is-per-sample false \
     --is-per-pixel false \

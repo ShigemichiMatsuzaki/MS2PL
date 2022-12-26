@@ -70,6 +70,33 @@ class TrainBaseOptions(BaseOptions):
             help="True to set more weight to more frequent classes",
         )
 
+        # Parameters related to cosine-based softmax
+        self.parser.add_argument(
+            '--use-cosine', 
+            default=False, 
+            type=strtobool,
+            help='True to use cosine-based loss (ArcFace). Valid only when "model"=="espnetv2"'
+        )
+        self.parser.add_argument(
+            '--cos-margin', 
+            default=0.1, 
+            type=float,
+            help='Angle margin'
+        )
+        self.parser.add_argument(
+            '--cos-logit-scale', 
+            default=30.0, 
+            type=float,
+            help='Scale factor for the final logits'
+        )
+        self.parser.add_argument(
+            '--is-easy-margin', 
+            default=False, 
+            type=strtobool,
+            help='Whether to use an easy margin'
+        )
+
+
 
 class PreTrainOptions(TrainBaseOptions):
     def initialize(self):
@@ -78,9 +105,22 @@ class PreTrainOptions(TrainBaseOptions):
         # Dataset
         self.parser.add_argument(
             "--s1-name",
-            # choices=DATASET_LIST,
-            default="camvid",
+            required=True,
+            nargs="*",
+            type=str,
             help="The dataset used as S1, the main source",
+        )
+        self.parser.add_argument(
+            "--use-other-datasets",
+            type=strtobool,
+            default=False,
+            help="True to use other datasets than S1 for domain gap evaluation.",
+        )
+        self.parser.add_argument(
+            "--use-label-conversion",
+            type=strtobool,
+            default=False,
+            help="True to use label conversion",
         )
 
         # Loss
@@ -112,10 +152,23 @@ class TrainOptions(TrainBaseOptions):
 
         # Loss
         self.parser.add_argument(
-            "--weight-loss-ent",
+            "--kld-loss-weight",
+            type=float,
+            default=0.2,
+            help="Weight on the KLD loss between main and aux",
+        )
+        self.parser.add_argument(
+            "--entropy-loss-weight",
             type=float,
             default=0.2,
             help="Weight on the entropy loss",
+        )
+
+        self.parser.add_argument(
+            "--use-kld-class-loss",
+            type=strtobool,
+            default=False,
+            help="True to use KLD loss to train classifier",
         )
         self.parser.add_argument(
             "--use-label-ent-weight",
@@ -141,14 +194,16 @@ class TrainOptions(TrainBaseOptions):
         # Pseudo-label update
         self.parser.add_argument(
             "--label-update-epoch",
+            required=True,
+            nargs="*",
             type=int,
-            default=15,
             help="Epoch at which the pseudo-labels are updated",
         )
         self.parser.add_argument(
             "--conf-thresh",
+            required=True,
+            nargs="*",
             type=float,
-            default=0.9,
             help="Threshold of confidence to be selected as a pseudo-label",
         )
         self.parser.add_argument(

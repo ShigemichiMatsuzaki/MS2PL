@@ -42,6 +42,12 @@ class PseudoLabelOptions(BaseOptions):
             help="If True, generate hard pseudo-labels.",
         )
         self.parser.add_argument(
+            "--use-domain-gap",
+            type=strtobool,
+            default=True,
+            help="If True, domain gap-based weights are used for soft pseudo-label generation",
+        )
+        self.parser.add_argument(
             "--is-softmax-normalize",
             type=strtobool,
             default=False,
