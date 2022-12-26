@@ -29,7 +29,7 @@ from utils.dataset_utils import import_dataset, DATASET_LIST
 from loss_fns.segmentation_loss import UncertaintyWeightedSegmentationLoss, Entropy
 from utils.pseudo_label_generator import generate_pseudo_label
 
-from utils.logger import log_training_conditions
+from utils.logger import log_training_conditions, log_metrics
 
 
 def train_pseudo(
@@ -124,7 +124,6 @@ def train_pseudo(
         amax_main = output_main.argmax(dim=1)
         amax_aux = output_aux.argmax(dim=1)
 
-
         # Calculate output probability etc.
         output_main_prob = softmax(output_main)
         output_aux_logprob = logsoftmax(output_aux)
@@ -140,7 +139,7 @@ def train_pseudo(
 
             kld_weight = torch.exp(-kld_loss_value.detach()) 
             label_ent_weight = torch.exp(-label_ent.detach() * args.label_weight_temperature)
-            label_ent_weight[label_ent_weight < args.label_weight_threshold] = 0.0
+            # label_ent_weight[label_ent_weight < args.label_weight_threshold] = 0.0
             u_weight = kld_weight * label_ent_weight
             # print(kld_loss_value.mean(), label_ent.mean())
         else:
@@ -410,6 +409,9 @@ def val(
 
     return {
         "miou": avg_iou,
+        "plant_iou": iou[0],
+        "artificial_iou": iou[1],
+        "ground_iou": iou[2],
         "cls_loss": class_avg_loss,
     }
 
@@ -574,7 +576,7 @@ def main():
         temperature=1,
         reduction="mean",
         is_hard=args.is_hard,
-        is_kld=not args.is_hard,
+        is_kld=args.use_kld_class_loss,
     )
 
     # For estimating pixel-wise uncertainty
@@ -628,6 +630,14 @@ def main():
                 epoch=ep,
             )
 
+            # Log the metric values in a text file
+            log_metrics(
+                metrics=metrics, 
+                epoch=ep, 
+                save_dir=save_path, 
+                write_header=(ep==0)
+            )
+
             if current_miou < metrics["miou"]:
                 current_miou = metrics["miou"]
 
@@ -640,8 +650,6 @@ def main():
                     ),
                 )
 
-
-    
         train_pseudo(
             args,
             model,

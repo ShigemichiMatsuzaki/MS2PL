@@ -105,9 +105,22 @@ class PreTrainOptions(TrainBaseOptions):
         # Dataset
         self.parser.add_argument(
             "--s1-name",
-            # choices=DATASET_LIST,
-            default="camvid",
+            required=True,
+            nargs="*",
+            type=str,
             help="The dataset used as S1, the main source",
+        )
+        self.parser.add_argument(
+            "--use-other-datasets",
+            type=strtobool,
+            default=False,
+            help="True to use other datasets than S1 for domain gap evaluation.",
+        )
+        self.parser.add_argument(
+            "--use-label-conversion",
+            type=strtobool,
+            default=False,
+            help="True to use label conversion",
         )
 
         # Loss
@@ -142,7 +155,7 @@ class TrainOptions(TrainBaseOptions):
             "--kld-loss-weight",
             type=float,
             default=0.2,
-            help="Weight on the KLD loss",
+            help="Weight on the KLD loss between main and aux",
         )
         self.parser.add_argument(
             "--entropy-loss-weight",
@@ -151,6 +164,12 @@ class TrainOptions(TrainBaseOptions):
             help="Weight on the entropy loss",
         )
 
+        self.parser.add_argument(
+            "--use-kld-class-loss",
+            type=strtobool,
+            default=False,
+            help="True to use KLD loss to train classifier",
+        )
         self.parser.add_argument(
             "--use-label-ent-weight",
             type=strtobool,

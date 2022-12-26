@@ -2,7 +2,7 @@ MODEL=espnetv2
 SOURCE_MODEL=espnetv2
 
 # Parameters
-label_weight_temp=0.0 
+label_weight_temp=0.5 
 label_weight_threshold=0.1
 
 # 5 was the best
@@ -22,8 +22,9 @@ python train_pseudo.py \
     --scheduler constant \
     --class-wts-type uniform \
     --is-hard false \
-    --use-label-ent-weight true \
-    --use-prototype-denoising false \
+    --use-kld-class-loss true \
+    --use-label-ent-weight false \
+    --use-prototype-denoising true \
     --label-weight-temperature ${label_weight_temp} \
     --label-weight-threshold ${label_weight_threshold} \
     --kld-loss-weight 0.2 \

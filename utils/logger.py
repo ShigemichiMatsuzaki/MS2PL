@@ -19,3 +19,50 @@ def log_training_conditions(
         for arg in vars(args):
             val = getattr(args, arg)
             f.write("%s: %s\n" % (arg, val))
+
+def log_metrics(
+    metrics: dict, 
+    epoch: int, 
+    save_dir: str, 
+    name: str="metrics.txt", 
+    write_header: bool=False,
+) -> None:
+    """Save the training parameters
+
+    Parameters
+    ----------
+    metrics: `dict`
+        Arguments
+    epoch: `int`
+        Epoch number
+    save_dir: `str`
+        Directory name
+    name: `str`
+        File name
+    write_header: `bool`
+        `True` to write the labels of the metrics
+    """
+    with open(os.path.join(save_dir, name), 'a') as f:
+        if write_header:
+            is_first = True
+            for k in metrics.keys():
+                if is_first:
+                    f.write("%s" % (k))
+                    is_first = False
+                else:
+                    f.write(",%s" % (k))
+            
+            f.write("\n")
+
+        is_first = True
+        for k in metrics.keys():
+            if is_first:
+                f.write("%s" % (str(metrics[k])))
+                is_first = False
+            else:
+                f.write(",%s" % (str(metrics[k])))
+        
+        f.write("\n")
+
+        
+

@@ -92,6 +92,8 @@ def import_espnetv2(
     basenet_dict = model.base_net.state_dict()
     overlap_dict = {k: v for k, v in pretrained_dict.items()
                     if k in basenet_dict}
+
+
     if len(overlap_dict) == 0:
         print("No overlapping elements")
         raise ValueError
@@ -175,6 +177,7 @@ def import_model(
             and "depth" not in k
         }
 
+        print(non_overlap_dict.keys())
         # print(state_dict["module.bu_dec_l4.merge_layer.3.weight"].size())
         # print(model_dict["bu_dec_l4.merge_layer.3.weight"].size())
 

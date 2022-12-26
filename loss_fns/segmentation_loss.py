@@ -229,20 +229,53 @@ class PixelwiseKLD(nn.Module):
         return torch.sum(kld_i, dim=1)
 
 class Entropy(nn.Module):
-    def __init__(self, reduction='none', log_target=False, num_classes: int=None):
+    def __init__(
+        self, 
+        reduction: str='none', 
+        log_target: bool=False, 
+        num_classes: int=None, 
+        keepdim: bool=False
+    ):
+        """Entropy loss
+        
+        Parameters
+        ----------
+        reduction: `str`
+            Reduction type. Default: 'none'
+        log_target: `bool`
+            `True` if the input is given in the log space. 
+            Otherwise, the function accept probability values (e.g., softmax-ed values). Default: `False`
+        num_classes: `int`
+            The number of classes. If given, the entropy value is normalized by the maximum value of the entropy, i.e., np.log(num_classes)
+            Default: `None`
+        keepdim: `bool`
+            `True` to keep the original dimensions. Default: `False`
+
+        """
         super(Entropy, self).__init__()
 
-        self.reduction = reduction
+        if reduction not in ['none', 'mean', 'sum']:
+            print("Warning: reduction type '{}' is not supported. Set to default ('none').".format(reduction))
+            self.reduction = 'none'
+        else:
+            self.reduction = reduction
+
         self.log_target = log_target
         self.num_classes = num_classes
+        self.keepdim = keepdim
     
-    def forward(self, p: torch.Tensor):
+    def forward(self, p: torch.Tensor) -> torch.Tensor:
         """Calculate entropy of the probability distribution in (B, C, H, W)
 
         Parameters
         ----------
         p: `torch.Tensor`
             Probability distribution
+
+        Returns
+        -------
+        ent: `torch.Tensor`
+            Output entropy values
         
         """
         if not self.log_target:
