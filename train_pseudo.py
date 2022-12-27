@@ -19,17 +19,17 @@ from warmup_scheduler import GradualWarmupScheduler
 
 from options.train_options import TrainOptions
 from utils.metrics import AverageMeter, MIOU
-from utils.visualization import add_images_to_tensorboard
+from utils.visualization import add_images_to_tensorboard, assign_label_on_features
 from utils.optim_opt import get_optimizer, get_scheduler
 from utils.model_io import import_model
 from utils.calc_prototype import calc_prototype
 
 from utils.dataset_utils import import_dataset, DATASET_LIST
 
-from loss_fns.segmentation_loss import UncertaintyWeightedSegmentationLoss, PixelwiseKLD
+from loss_fns.segmentation_loss import UncertaintyWeightedSegmentationLoss, Entropy
 from utils.pseudo_label_generator import generate_pseudo_label
 
-from utils.logger import log_training_conditions
+from utils.logger import log_training_conditions, log_metrics
 
 
 def train_pseudo(
@@ -40,7 +40,8 @@ def train_pseudo(
     seg_loss: torch.nn.Module,
     kld_loss: Optional[torch.nn.Module] = None,
     class_weights: Optional[torch.Tensor] = None,
-    weight_kld_loss: float = 0.1,
+    kld_loss_weight: float = 0.1,
+    entropy_loss_weight: float = 0.1,
     writer: Optional[torch.utils.tensorboard.SummaryWriter] = None,
     color_encoding: Optional[collections.OrderedDict] = None,
     epoch: int = -1,
@@ -64,8 +65,10 @@ def train_pseudo(
         KLD loss for weighting (Optional)
     class_weights: `torch.Tensor`
         Loss weights per class for classification
-    weight_kld_loss: `float`
+    kld_loss_weight: `float`
         Weight on the KLD loss
+    entropy_loss_weight: `float`
+        Weight on the entropy loss
     writer: `torch.utils.tensorboard.SummaryWriter`
         SummaryWriter for TensorBoard
     color_encoding: `OrderedDict`
@@ -100,6 +103,7 @@ def train_pseudo(
 
     logsoftmax = torch.nn.LogSoftmax(dim=1)
     softmax = torch.nn.Softmax(dim=1)
+    entropy = Entropy(num_classes=args.num_classes)
     # Classification for S1
     for i, batch in enumerate(s1_loader):
         # Get input image and label batch
@@ -108,7 +112,11 @@ def train_pseudo(
         label = batch["label"].to(device)
 
         # Get output
-        output = model(image)
+        if args.use_cosine and args.is_hard:
+            output = model(image, label)
+        else:
+            output = model(image,)
+
         output_main = output["out"]
         output_aux = output["aux"]
         output_total = output_main + 0.5 * output_aux
@@ -116,8 +124,7 @@ def train_pseudo(
         amax_main = output_main.argmax(dim=1)
         amax_aux = output_aux.argmax(dim=1)
 
-        # Calculate and sum up the loss
-
+        # Calculate output probability etc.
         output_main_prob = softmax(output_main)
         output_aux_logprob = logsoftmax(output_aux)
         kld_loss_value = kld_loss(
@@ -126,15 +133,12 @@ def train_pseudo(
         # Label entropy
         if not args.is_hard and args.use_label_ent_weight:
             # label = softmax(label * 5)
-            label_ent = torch.sum(-label * torch.log(label), dim=1) / np.log(
-                args.num_classes
-            )
+            label_ent = entropy(label)
 
             kld_weight = torch.exp(-kld_loss_value.detach())
             label_ent_weight = torch.exp(-label_ent.detach()
                                          * args.label_weight_temperature)
-            label_ent_weight[label_ent_weight <
-                             args.label_weight_threshold] = 0.0
+            # label_ent_weight[label_ent_weight < args.label_weight_threshold] = 0.0
             u_weight = kld_weight * label_ent_weight
             # print(kld_loss_value.mean(), label_ent.mean())
         else:
@@ -148,10 +152,10 @@ def train_pseudo(
             output_total,
             label,
             u_weight=u_weight,
-            is_hard=args.is_hard,
         )
 
-        loss_val = seg_loss_value + weight_kld_loss * kld_loss_value.mean()
+        loss_val = seg_loss_value + kld_loss_weight * \
+            kld_loss_value.mean() + entropy_loss_weight * output_ent.mean()
 
         loss_val.backward()
         optimizer.step()
@@ -186,6 +190,7 @@ def train_pseudo(
                     writer, image_orig, epoch, "train/image")
                 if not args.is_hard:
                     label = torch.argmax(label, dim=1)
+
                 add_images_to_tensorboard(
                     writer,
                     label,
@@ -231,6 +236,15 @@ def train_pseudo(
                     kld,
                     epoch,
                     "train/kld",
+                )
+
+                output_ent = torch.reshape(
+                    output_ent, (output_ent.size(0), 1, output_ent.size(1), output_ent.size(2)))
+                add_images_to_tensorboard(
+                    writer,
+                    output_ent,
+                    epoch,
+                    "train/output_ent",
                 )
 
                 if not args.is_hard and args.use_label_ent_weight:
@@ -302,6 +316,8 @@ def val(
     miou_class = MIOU(num_classes=args.num_classes)
     # Classification for S1
     class_total_loss = 0.0
+    feature_list = []
+    label_list = []
     with torch.no_grad():
         for i, batch in enumerate(s1_loader):
             # Get input image and label batch
@@ -314,6 +330,7 @@ def val(
 
             main_output = output["out"]
             aux_output = output["aux"]
+            feature = output["feat"]
 
             loss_val = loss_cls_func(main_output, label) + 0.5 * loss_cls_func(
                 aux_output, label
@@ -327,6 +344,17 @@ def val(
 
             inter_meter.update(inter)
             union_meter.update(union)
+
+            # Visualize features
+            features, labels = assign_label_on_features(
+                feature,
+                label,
+                label_type='object',
+                scale_factor=16,
+                ignore_index=args.ignore_index,
+            )
+            feature_list += features
+            label_list += labels
 
             # Calculate and sum up the loss
             if i == 0 and writer is not None and color_encoding is not None:
@@ -372,9 +400,18 @@ def val(
 
     writer.add_scalar("val/class_avg_loss", class_avg_loss, epoch)
     writer.add_scalar("val/miou", avg_iou, epoch)
+    writer.add_embedding(
+        torch.Tensor(features),
+        metadata=labels,
+        global_step=epoch,
+
+    )
 
     return {
         "miou": avg_iou,
+        "plant_iou": iou[0],
+        "artificial_iou": iou[1],
+        "ground_iou": iou[2],
         "cls_loss": class_avg_loss,
     }
 
@@ -501,6 +538,7 @@ def main():
         aux_loss=True,
         pretrained=False,
         device=args.device,
+        use_cosine=args.use_cosine,
     )
 
     #
@@ -537,6 +575,8 @@ def main():
         device=args.device,
         temperature=1,
         reduction="mean",
+        is_hard=args.is_hard,
+        is_kld=args.use_kld_class_loss,
     )
 
     # For estimating pixel-wise uncertainty
@@ -568,6 +608,7 @@ def main():
     #
     current_miou = 0.0
 
+    label_update_times = 0
     for ep in range(args.resume_epoch, args.epochs):
         if ep % 100 == 0 and ep != 0:
             torch.save(
@@ -587,6 +628,14 @@ def main():
                 writer=writer,
                 color_encoding=color_encoding,
                 epoch=ep,
+            )
+
+            # Log the metric values in a text file
+            log_metrics(
+                metrics=metrics,
+                epoch=ep,
+                save_dir=save_path,
+                write_header=(ep == 0)
             )
 
             if current_miou < metrics["miou"]:
@@ -609,7 +658,8 @@ def main():
             seg_loss=seg_loss,
             kld_loss=kld_loss,
             class_weights=class_wts,
-            weight_kld_loss=args.weight_loss_ent,
+            kld_loss_weight=args.kld_loss_weight,
+            entropy_loss_weight=args.entropy_loss_weight if args.is_hard else 0.0,
             writer=writer,
             color_encoding=color_encoding,
             epoch=ep,
@@ -624,8 +674,8 @@ def main():
 
         # Update pseudo-labels
         # After the update, usual hard label training is done
-        if ep == args.label_update_epoch:
-            args.is_hard = True
+        # if ep == args.label_update_epoch:
+        if ep in args.label_update_epoch:
             args.use_label_ent_weight = False
 
             # Prototype-based denoising
@@ -640,12 +690,16 @@ def main():
                 testloader=pseudo_loader,
                 save_path=pseudo_save_path,
                 prototypes=prototypes,
-                proto_rect_thresh=args.conf_thresh,
+                proto_rect_thresh=args.conf_thresh[label_update_times],
                 min_portion=args.sp_label_min_portion,
             )
+            label_update_times += 1
             class_wts.to(args.device)
 
+            # Update the configuration of the seg loss
             seg_loss.class_wts = class_wts
+            args.is_hard = seg_loss.is_hard = True
+            seg_loss.is_kld = False
 
             dataset_train = GreenhouseRGBD(
                 list_name="dataset/data_list/train_greenhouse_a.lst",

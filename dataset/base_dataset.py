@@ -81,7 +81,7 @@ class BaseDataset(data.Dataset):
         raise NotImplementedError
 
     # def label_preprocess(self, label_pil: Image):
-    def label_preprocess(self, label_pil: Image) -> Image:
+    def label_preprocess(self, label_pil):
         return label_pil
 
     def __len__(self):
@@ -102,7 +102,7 @@ class BaseDataset(data.Dataset):
         # Convert images to tensors
         # label_img = np.array(label_img)
         if self.label_conversion and self.label_conversion_map is not None:
-            label_img = self.label_conversion_map[label_img]
+            label_np = self.label_conversion_map[label_np]
 
         transformed = self.transform(image=rgb_np, mask=label_np)
 

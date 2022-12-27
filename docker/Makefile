@@ -100,6 +100,20 @@ train-forest:
 		--name $(CONTAINER_NAME)-forest \
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/pretrain.sh forest
+	
+train-joint:
+	docker run -it \
+		--gpus="device=${GPU_ID}" \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 20G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-joint \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/pretrain_joint.sh 
+
 
 train-greenhouse-pseudo-hard:
 	docker run -it \

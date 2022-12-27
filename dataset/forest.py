@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Union
 import torch
 import torch.utils.data as data
 from PIL import Image
@@ -97,17 +98,17 @@ class FreiburgForestDataset(BaseDataset):
     # def __len__(self):
     #     return len(self.images)
 
-    def label_preprocess(self, label) -> Image:
+    def label_preprocess(self, label):
         """Convert color label to ids
 
         Parameters
         ----------
-        label_pil : `PIL.Image`or numpy.ndarray
+        label : `PIL.Image`or numpy.ndarray
             3-channel color label image
 
         Returns
         -------
-        label_img : `PIL.Image`or numpy.ndarray
+        label_img : `PIL.Image`or `numpy.ndarray`
             1-channel label image
         """
         if isinstance(label, np.ndarray):

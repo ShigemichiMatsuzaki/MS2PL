@@ -165,29 +165,31 @@ class CityscapesSegmentation(BaseDataset):
         self.label_conversion_map = id_cityscapes_to_greenhouse
         self.size = (256, 480)
 
-    def __len__(self):
-        return len(self.images)
+    def label_preprocess(self, label):
+        """Convert color label to ids
 
-    # def __getitem__(self, index):
-    #     rgb_img = Image.open(self.images[index]).convert("RGB")
-    #     label_img = Image.open(self.labels[index])
+        Parameters
+        ----------
+        label : `PIL.Image`or numpy.ndarray
+            3-channel color label image
 
-    #     # Resize
-    #     rgb_img = F.resize(rgb_img, self.size)
-    #     label_img = F.resize(label_img, self.size)
+        Returns
+        -------
+        label_img : `PIL.Image`or `numpy.ndarray`
+            1-channel label image
+        """
+        if self.label_conversion:
+            if isinstance(label, np.ndarray):
+                label_np = label
+            else:
+                label_np = np.array(label, np.uint8)
 
-    #     # Convert images to tensors
-    #     rgb_img = F.to_tensor(rgb_img)
+            label_np[label_np==self.ignore_idx] = 19
 
-    #     label_img = np.array(label_img)
-    #     if self.label_conversion:
-    #         label_img = id_cityscapes_to_greenhouse[label_img]
+            if isinstance(label, np.ndarray):
+                label_img = label_np
+            else:
+                label_img = Image.fromarray(label_np)
 
-    #     label_img = torch.LongTensor(label_img.astype(np.int64))
+        return label_img
 
-    #     label_img[label_img >= 19] = 255
-
-    #     # Normalize the pixel values
-    #     rgb_img = F.normalize(rgb_img, (0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-
-    #     return {"image": rgb_img, "label": label_img}

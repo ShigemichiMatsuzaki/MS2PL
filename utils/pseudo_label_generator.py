@@ -23,6 +23,7 @@ from dataset.camvid import id_camvid_to_greenhouse
 from dataset.cityscapes import id_cityscapes_to_greenhouse
 from dataset.forest import id_forest_to_greenhouse
 from utils.calc_prototype import ClassFeatures
+from loss_fns.segmentation_loss import Entropy
 
 
 def propagate_max_label_in_sp(sp, num_classes, min_portion=0.5, ignore_index=4):
@@ -438,6 +439,7 @@ def generate_pseudo_label_multi_model_domain_gap(
     num_classes: int,
     save_path: str,
     device: str = "cuda",
+    use_domain_gap: bool = True,
     is_per_pixel: bool = False,
     is_per_sample: bool = False,
     ignore_index: int = 4,
@@ -466,6 +468,9 @@ def generate_pseudo_label_multi_model_domain_gap(
         Number of target classes
     device: `str`
         Device on which the computation is done
+    use_domain_gap: `bool`
+        `True` to use domain gap-based weights.
+        If `False`, equal weights are used. Default: `True`
     is_per_pixel: `bool`
         True if the domain gap values are computed and
         considered per pixel.
@@ -508,7 +513,7 @@ def generate_pseudo_label_multi_model_domain_gap(
     #
     # Calculate weights based on the domain gaps
     #
-    if not is_per_sample:
+    if not is_per_sample and use_domain_gap:
         # Domain gap. Less value means closer -> More importance.
         domain_gap_list = calculate_domain_gap(dg_model_list, data_loader, device)[
             "domain_gap_list"
@@ -528,6 +533,7 @@ def generate_pseudo_label_multi_model_domain_gap(
 
         print(domain_gap_weight)
 
+    entropy_layer = Entropy(num_classes=num_classes,) 
     with torch.no_grad():
         with tqdm(total=len(data_loader)) as pbar:
             for index, batch in enumerate(tqdm(data_loader)):
@@ -568,7 +574,9 @@ def generate_pseudo_label_multi_model_domain_gap(
 
                     output_list.append(output_target)
 
-                    if is_per_sample:
+                    if not use_domain_gap:
+                        output_total += output_target
+                    elif is_per_sample:
                         domain_gap_w = calc_norm_ent(
                             output_target, 
                             reduction="none" if is_per_pixel else "mean"
@@ -590,6 +598,7 @@ def generate_pseudo_label_multi_model_domain_gap(
                     )
                     raise ValueError
 
+                entropy = entropy_layer(output_total)
                 label = output_total.argmax(dim=1)
                 for j in range(0, num_classes):
                     class_array[j] += (label == j).sum()
@@ -608,7 +617,22 @@ def generate_pseudo_label_multi_model_domain_gap(
                         output_prob_i,
                         os.path.join(save_path, "{}.pt".format(image_name)),
                     )
-                    
+
+                    # Visualize entropy
+                    ent = torch.exp(-entropy[i].detach() * 5.0)
+                    ent = ent / ent.max()
+                    ent = (ent * 255).cpu().byte().numpy()
+                    ent = Image.fromarray(ent)
+                    ent.save(os.path.join(save_path, "{}_entropy.png".format(image_name)))
+
+                    label = output_total[i].argmax(dim=0).cpu().byte().numpy()
+                    label = Image.fromarray(
+                        label.astype(np.uint8)).convert("P")
+                    label.putpalette(color_palette)
+                    # Save the predicted images (+ colorred images for visualization)
+                    # label.save("%s/%s.png" % (save_pred_path, image_name))
+                    label.save(os.path.join(save_path, "{}_argmax.png".format(image_name)))
+
 
     if class_weighting == "normal":
         class_array /= class_array.sum()  # normalized
