@@ -444,7 +444,8 @@ def main():
             A.HorizontalFlip(p=0.5),
         ]
     )
-    max_iter = 3000 if args.use_other_datasets or len(args.s1_name) > 1 else None
+    max_iter = 3000 if args.use_other_datasets or len(
+        args.s1_name) > 1 else None
 
     if len(args.s1_name) > 1:
         args.label_conversion = True
@@ -466,7 +467,7 @@ def main():
                 label_conversion=args.use_label_conversion,
             )
             dataset_s1_val, _, _, _ = import_dataset(
-                #args.s1_name,
+                # args.s1_name,
                 dataset_name=dataset_name,
                 mode="val",
                 height=args.val_image_size_h,
@@ -483,7 +484,7 @@ def main():
 
         dataset_s1_list.append(dataset_s1)
         dataset_s1_val_list.append(dataset_s1)
-    
+
     if len(dataset_s1_list) > 1:
         dataset_s1 = torch.utils.data.ConcatDataset(dataset_s1_list)
         dataset_s1_val = torch.utils.data.ConcatDataset(dataset_s1_val_list)
@@ -568,6 +569,7 @@ def main():
     #
     # Define a model
     #
+    print("=== Import model ===")
     model = import_model(
         model_name=args.model,
         num_classes=num_classes,
@@ -584,6 +586,7 @@ def main():
     # Optimizer: Updates
     #
     # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    print("=== Get optimizer ===")
     optimizer = get_optimizer(args, model=model)
 
     #
@@ -596,6 +599,7 @@ def main():
         )
 
     if args.device == "cuda":
+        print("=== Data parallel ===")
         model = torch.nn.DataParallel(model)  # make parallel
         torch.backends.cudnn.enabled = True
         torch.backends.cudnn.benchmark = True
@@ -611,9 +615,9 @@ def main():
             dataset_used += ("_" + s)
 
     save_path = os.path.join(
-        args.save_path, 
-        dataset_used, 
-        args.model, 
+        args.save_path,
+        dataset_used,
+        args.model,
         now.strftime("%Y%m%d-%H%M%S")
     )
     # If the directory not found, create it
@@ -628,6 +632,7 @@ def main():
     current_miou = 0.0
 
     current_ent_loss = math.inf
+    print("=== Start training ===")
     for ep in range(args.resume_epoch, args.epochs):
         if ep % 100 == 0 and ep != 0:
             torch.save(

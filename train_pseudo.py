@@ -127,18 +127,17 @@ def train_pseudo(
         # Calculate output probability etc.
         output_main_prob = softmax(output_main)
         output_aux_logprob = logsoftmax(output_aux)
-        # KLD between the main and the aux branch
-        kld_loss_value = kld_loss(output_aux_logprob, output_main_prob).sum(dim=1)
-        # Entropy
-        output_ent = entropy(softmax(output_total))
+        kld_loss_value = kld_loss(
+            output_aux_logprob, output_main_prob).sum(dim=1)
 
         # Label entropy
         if not args.is_hard and args.use_label_ent_weight:
             # label = softmax(label * 5)
             label_ent = entropy(label)
 
-            kld_weight = torch.exp(-kld_loss_value.detach()) 
-            label_ent_weight = torch.exp(-label_ent.detach() * args.label_weight_temperature)
+            kld_weight = torch.exp(-kld_loss_value.detach())
+            label_ent_weight = torch.exp(-label_ent.detach()
+                                         * args.label_weight_temperature)
             # label_ent_weight[label_ent_weight < args.label_weight_threshold] = 0.0
             u_weight = kld_weight * label_ent_weight
             # print(kld_loss_value.mean(), label_ent.mean())
@@ -155,7 +154,8 @@ def train_pseudo(
             u_weight=u_weight,
         )
 
-        loss_val = seg_loss_value + kld_loss_weight * kld_loss_value.mean() + entropy_loss_weight * output_ent.mean()
+        loss_val = seg_loss_value + kld_loss_weight * \
+            kld_loss_value.mean() + entropy_loss_weight * output_ent.mean()
 
         loss_val.backward()
         optimizer.step()
@@ -190,7 +190,7 @@ def train_pseudo(
                     writer, image_orig, epoch, "train/image")
                 if not args.is_hard:
                     label = torch.argmax(label, dim=1)
-                    
+
                 add_images_to_tensorboard(
                     writer,
                     label,
@@ -347,10 +347,10 @@ def val(
 
             # Visualize features
             features, labels = assign_label_on_features(
-                feature, 
-                label, 
-                label_type='object', 
-                scale_factor=16, 
+                feature,
+                label,
+                label_type='object',
+                scale_factor=16,
                 ignore_index=args.ignore_index,
             )
             feature_list += features
@@ -401,7 +401,7 @@ def val(
     writer.add_scalar("val/class_avg_loss", class_avg_loss, epoch)
     writer.add_scalar("val/miou", avg_iou, epoch)
     writer.add_embedding(
-        torch.Tensor(features), 
+        torch.Tensor(features),
         metadata=labels,
         global_step=epoch,
 
@@ -632,10 +632,10 @@ def main():
 
             # Log the metric values in a text file
             log_metrics(
-                metrics=metrics, 
-                epoch=ep, 
-                save_dir=save_path, 
-                write_header=(ep==0)
+                metrics=metrics,
+                epoch=ep,
+                save_dir=save_path,
+                write_header=(ep == 0)
             )
 
             if current_miou < metrics["miou"]:
@@ -680,7 +680,7 @@ def main():
 
             # Prototype-based denoising
             prototypes = None
-            if args.use_prototype_denoising: 
+            if args.use_prototype_denoising:
                 prototypes = calc_prototype(
                     model, dataset_pseudo, args.num_classes, args.device)
 
