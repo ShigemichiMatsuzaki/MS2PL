@@ -282,7 +282,7 @@ def val(
     # Classification for S1
     class_total_loss = 0.0
     with torch.no_grad():
-        for i, batch in enumerate(s1_loader):
+        for i, batch in enumerate(tqdm(s1_loader)):
             # Get input image and label batch
             image = batch["image"].to(device)
             image_orig = batch["image_orig"].to(device)
@@ -545,6 +545,7 @@ def main():
     #
     # Define a model
     #
+    print("=== Import model ===")
     model = import_model(
         model_name=args.model,
         num_classes=num_classes,
@@ -561,6 +562,7 @@ def main():
     # Optimizer: Updates
     #
     # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    print("=== Get optimizer ===")
     optimizer = get_optimizer(args, model=model)
 
     #
@@ -569,6 +571,7 @@ def main():
     # scheduler = torch.optim.lr_scheduler.MultiStepLR(
     #    optimizer, milestones=[50, 100, 200], gamma=0.1
     # )
+    print("=== Get scheduler ===")
     scheduler = get_scheduler(args, optimizer)
     if args.use_lr_warmup:
         scheduler = GradualWarmupScheduler(
@@ -576,6 +579,7 @@ def main():
         )
 
     if args.device == "cuda":
+        print("=== Data parallel ===")
         model = torch.nn.DataParallel(model)  # make parallel
         torch.backends.cudnn.enabled = True
         torch.backends.cudnn.benchmark = True
@@ -599,6 +603,7 @@ def main():
     current_miou = 0.0
 
     current_ent_loss = math.inf
+    print("=== Start training ===")
     for ep in range(args.resume_epoch, args.epochs):
         if ep % 100 == 0 and ep != 0:
             torch.save(

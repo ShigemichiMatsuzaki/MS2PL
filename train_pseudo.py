@@ -120,7 +120,8 @@ def train_pseudo(
 
         output_main_prob = softmax(output_main)
         output_aux_logprob = logsoftmax(output_aux)
-        kld_loss_value = kld_loss(output_aux_logprob, output_main_prob).sum(dim=1)
+        kld_loss_value = kld_loss(
+            output_aux_logprob, output_main_prob).sum(dim=1)
 
         # Label entropy
         if not args.is_hard and args.use_label_ent_weight:
@@ -129,9 +130,11 @@ def train_pseudo(
                 args.num_classes
             )
 
-            kld_weight = torch.exp(-kld_loss_value.detach()) 
-            label_ent_weight = torch.exp(-label_ent.detach() * args.label_weight_temperature)
-            label_ent_weight[label_ent_weight < args.label_weight_threshold] = 0.0
+            kld_weight = torch.exp(-kld_loss_value.detach())
+            label_ent_weight = torch.exp(-label_ent.detach()
+                                         * args.label_weight_temperature)
+            label_ent_weight[label_ent_weight <
+                             args.label_weight_threshold] = 0.0
             u_weight = kld_weight * label_ent_weight
             # print(kld_loss_value.mean(), label_ent.mean())
         else:
@@ -627,7 +630,7 @@ def main():
 
             # Prototype-based denoising
             prototypes = None
-            if args.use_prototype_denoising: 
+            if args.use_prototype_denoising:
                 prototypes = calc_prototype(
                     model, dataset_pseudo, args.num_classes, args.device)
 
