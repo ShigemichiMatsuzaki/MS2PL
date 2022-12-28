@@ -130,6 +130,9 @@ def train_pseudo(
         kld_loss_value = kld_loss(
             output_aux_logprob, output_main_prob).sum(dim=1)
 
+        # Entropy
+        output_ent = entropy(softmax(output_total))
+
         # Label entropy
         if not args.is_hard and args.use_label_ent_weight:
             # label = softmax(label * 5)
@@ -404,7 +407,6 @@ def val(
         torch.Tensor(features),
         metadata=labels,
         global_step=epoch,
-
     )
 
     return {
