@@ -136,9 +136,10 @@ class CityscapesSegmentation(BaseDataset):
         self.label_conversion_map = id_cityscapes_to_greenhouse
         self.size = (height, width)
 
-        if self.max_iter is not None:
+        if self.max_iter is not None and self.max_iter > len(self.images):
             self.images *= self.max_iter // len(self.images)
             self.labels *= self.max_iter // len(self.labels)
+
 
     def initialize(self):
         self.annot_type = "gtFine"
