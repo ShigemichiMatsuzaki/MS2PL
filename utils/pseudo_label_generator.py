@@ -190,10 +190,12 @@ def merge_outputs(amax_output_list, ignore_index=4):
 
 
 def generate_pseudo_label(
-    args,
     model: torch.nn.Module,
     testloader: torch.utils.data.DataLoader,
+    num_classes: int,
+    ignore_index: int,
     save_path: str,
+    device: str = "cuda",
     prototypes: Optional[ClassFeatures] = None,
     proto_rect_thresh: float = 0.9,
     min_portion: float = -1.0,
@@ -203,12 +205,14 @@ def generate_pseudo_label(
 
     Parameters
     ----------
-    args:
-        Args
     model: `torch.nn.Module`
         Current model
     testloader: `torch.utils.data.DataLoader`
         Dataloader
+    num_classes: `int`
+        The number of classes
+    ignore_index: `int`
+        Label index to ignore in training
     save_path: `str`
         Directory name to save the labels
     prototypes: `ClassFeatures`
@@ -216,7 +220,7 @@ def generate_pseudo_label(
     proto_rect_thresh: `float`
         Confidence threshold for pseudo-label generation
     min_portion: `float`
-        Minimum portion of the same lable in a superpixel to be propagated
+        Minimum portion of the same label in a superpixel to be propagated
     label_conversion: `numpy.ndarray`
         Label conversion
 
@@ -229,15 +233,15 @@ def generate_pseudo_label(
     """
     # model for evaluation
     model.eval()
-    model.to(args.device)
+    model.to(device)
 
     # evaluation process
     label_path_list = []
-    class_array = np.zeros(args.num_classes)
+    class_array = np.zeros(num_classes)
     with torch.no_grad():
         with tqdm(total=len(testloader)) as pbar:
             for index, batch in enumerate(tqdm(testloader)):
-                image = batch["image"].to(args.device)
+                image = batch["image"].to(device)
                 name = batch["name"]
 
                 # Output: tensor, KLD: tensor, feature: tensor
@@ -252,7 +256,7 @@ def generate_pseudo_label(
                 #
                 if prototypes is not None:
                     # Class-wise weights based on the distance to the prototype of each class
-                    weights = prototypes.get_prototype_weight(feature).to(args.device)
+                    weights = prototypes.get_prototype_weight(feature).to(device)
 
                     # Rectified output probability
                     rectified_prob = weights * output_prob
@@ -263,12 +267,12 @@ def generate_pseudo_label(
 
                 # Filter out the pixels with a confidence below the threshold
                 argmax_output[max_output <
-                              proto_rect_thresh] = args.ignore_index
+                              proto_rect_thresh] = ignore_index
 
                 # Convert the label space from the source to the target
                 if label_conversion is not None:
                     label_conversion = torch.tensor(
-                        label_conversion).to(args.device)
+                        label_conversion).to(device)
                     argmax_output = label_conversion[argmax_output]
 
                 for i in range(argmax_output.size(0)):
@@ -288,7 +292,7 @@ def generate_pseudo_label(
                             min_portion=min_portion,
                         )
 
-                    for j in range(0, args.num_classes):
+                    for j in range(0, num_classes):
                         class_array[j] += (amax_output == j).sum()
 
                     file_name = name[i].split("/")[-1]
@@ -307,7 +311,7 @@ def generate_pseudo_label(
     class_wts = 1 / (class_array + 1e-10)
 
     print("class_weights : {}".format(class_wts))
-    class_wts = torch.from_numpy(class_wts).float().to(args.device)
+    class_wts = torch.from_numpy(class_wts).float().to(device)
 
     return class_wts, label_path_list
 

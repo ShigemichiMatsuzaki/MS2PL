@@ -418,6 +418,22 @@ def val(
     }
 
 
+def objective(trial):
+    """Objective for Optuna
+
+    Parameters
+    ----------
+    trial:
+        `trial` object
+
+    Returns
+    -------
+    obj_val: `float`
+        An objective value for optimization
+    """
+    pass
+
+
 def main():
     # Get arguments
     # args = parse_arguments()
@@ -687,9 +703,10 @@ def main():
                     model, dataset_pseudo, args.num_classes, args.device)
 
             class_wts, label_path_list = generate_pseudo_label(
-                args,
                 model=model,
                 testloader=pseudo_loader,
+                num_classes=args.num_classes,
+                ignore_index=args.ignore_index,
                 save_path=pseudo_save_path,
                 prototypes=prototypes,
                 proto_rect_thresh=args.conf_thresh[label_update_times],
