@@ -13,7 +13,7 @@ python train.py \
     --device cuda \
     --model ${MODEL} \
     --batch-size $BATCH_SIZE \
-    --epoch 500 \
+    --epoch 100 \
     --lr 0.009 \
     --save-path /tmp/runs/domain_gap/ \
     --scheduler exponential \

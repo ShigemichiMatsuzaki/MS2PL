@@ -595,6 +595,7 @@ def main():
         weights=args.resume_from if args.resume_from else None,
         aux_loss=True,
         device=args.device,
+        use_cosine=args.use_cosine,
     )
 
     model.to(args.device)
@@ -658,7 +659,7 @@ def main():
                 model.state_dict(),
                 os.path.join(
                     save_path, "{}_{}_ep_{}.pth".format(
-                        args.model, args.s1_name, ep)
+                        args.model, dataset_used, ep)
                 ),
             )
 
@@ -680,7 +681,7 @@ def main():
                     model.state_dict(),
                     os.path.join(
                         save_path, "{}_{}_best_iou.pth".format(
-                            args.model, args.s1_name)
+                            args.model, dataset_used)
                     ),
                 )
             if current_ent_loss > metrics["ent_loss"]:
@@ -691,7 +692,7 @@ def main():
                     os.path.join(
                         save_path,
                         "{}_{}_best_ent_loss.pth".format(
-                            args.model, args.s1_name),
+                            args.model, dataset_used),
                     ),
                 )
 
@@ -720,7 +721,7 @@ def main():
         torch.save(
             model.state_dict(),
             os.path.join(
-                save_path, "{}_{}_current.pth".format(args.model, args.s1_name)
+                save_path, "{}_{}_current.pth".format(args.model, dataset_used)
             ),
         )
 
