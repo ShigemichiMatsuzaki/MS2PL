@@ -4,6 +4,8 @@ FROM nvcr.io/nvidia/pytorch:22.11-py3
 # I believe there should be a better way
 ENV PYTHONPATH /root/training/models/edgenets:${PYTHONPATH}
 
+RUN python3 -m pip install --upgrade pip
+
 RUN pip3 install git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git
 RUN pip3 install mmcv-full -f https://download.openmmlab.com/mmcv/dist/cu11.4/torch1.10/index.html
 
@@ -15,12 +17,12 @@ RUN pip3 install -U \
     umap-learn \
     llvmlite \
     pillow-simd \
-    openmim \
-    mmsegmentation \
-    timm \
+    #    openmim \
+    #    mmsegmentation \
+    #    timm \
     optuna \
     albumentations \
-    pytorch-lightning \
+    torchtnt \
     fvcore \
     torch-tb-profiler \
     --ignore-installed
