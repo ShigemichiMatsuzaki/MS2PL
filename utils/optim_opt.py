@@ -11,19 +11,19 @@ class ConstantLR:
         pass
 
 
-def get_optimizer(args, model: torch.Tensor) -> torch.optim.Optimizer:
+def get_optimizer(args, model: torch.nn.Module) -> torch.optim.Optimizer:
     """Get optimizer
 
     Parameters
     ----------
     args :
-        Arguments acquired by ``argparse''
-    model : ``torch.Tensor''
+        Arguments acquired by `argparse`
+    model : `torch.nn.Module`
         A model to optimize
 
     Return
     ------
-    optimizer : ``torch.optim.Optimizer''
+    optimizer : `torch.optim.Optimizer`
         An optimizer
 
     """
@@ -75,13 +75,13 @@ def get_scheduler(
     Parameters
     ----------
     args :
-        Arguments acquired by ``argparse''
-    optimizer : ``torch.optim.Optimizer''
+        Arguments acquired by `argparse`
+    optimizer : `torch.optim.Optimizer`
         Optimizer
 
     Returns
     -------
-    scheduler : ``torch.optim.lr_scheduler._LRScheduler''
+    scheduler : `torch.optim.lr_scheduler._LRScheduler`
         Scheduler
 
     """
