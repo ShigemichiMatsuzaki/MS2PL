@@ -113,6 +113,33 @@ def import_model(
     device: Optional[str] = "cuda",
     use_cosine: bool = False,
 ) -> torch.nn.Module:
+    """Import model
+
+    Parameters
+    ----------
+    model_name: `str`
+        Name of the model. 
+        ['deeplabv3_resnet101', 'deeplabv3_resnet50', 'deeplabv3_mobilenet_v3_large', 'espnetv2', 'unet']
+    num_classes: `int`
+        Number of classes
+    weights: `str`
+        Name of weight file. Default: `None`
+    pretrained: `bool`
+        `True` to use the pretrained weights provided by TorchHub
+    aux_loss: `bool`
+        `True` to use auxiliary branch. Default: `True`
+    device: `str`
+        Device. Default: `cuda`
+    use_cosine: `bool`
+        `True` to use normalized classifier. Valid only for 'espnetv2'.
+        Default: `False`
+
+    Returns
+    -------
+    model: `torch.nn.Module`
+        Imported model
+
+    """
     # Import model
     if model_name == "deeplabv3_resnet101":
         model = torchvision.models.segmentation.deeplabv3_resnet101(
