@@ -1,29 +1,30 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
-
+RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
 # Parameters
-label_weight_temp=0.5 
+label_weight_temp=5 
 label_weight_threshold=0.1
-
-# 5 was the best
-#for label_weight_temp in 1 2 3 4 5 10 20 30; do
-#for label_weight_threshold in 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9; do
+use_kld_class_loss=false
+use_label_ent_weight=true
+is_hard=false
+conf_thresh=0.95
 python train_pseudo.py \
     --device cuda \
     --model ${MODEL} \
     --use-cosine true \
+    --resume-from ${RESUME_FROM} \
     --target greenhouse \
     --batch-size 64 \
     --epoch 50 \
     --lr 0.009 \
     --label-update-epoch 5 \
-    --conf-thresh 0.80 \
     --save-path /tmp/runs/domain_gap/ \
     --scheduler constant \
     --class-wts-type uniform \
-    --is-hard false \
-    --use-kld-class-loss true \
-    --use-label-ent-weight false \
+    --is-hard ${is_hard} \
+    --use-kld-class-loss ${use_kld_class_loss} \
+    --use-label-ent-weight ${use_label_ent_weight} \
+    --conf-thresh ${conf_thresh} \
     --use-prototype-denoising true \
     --label-weight-temperature ${label_weight_temp} \
     --label-weight-threshold ${label_weight_threshold} \
@@ -32,4 +33,3 @@ python train_pseudo.py \
     --sp-label-min-portion 0.9 \
     --pseudo-label-dir ./pseudo_labels/${SOURCE_MODEL}/ \
     --ignore-index 3 
-# done

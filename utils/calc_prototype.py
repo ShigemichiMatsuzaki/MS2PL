@@ -14,73 +14,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
 from tqdm import tqdm
-
-def calc_prototype(model, dataset, num_classes, device='cpu'):
-    ''' Calculate the prototype feature of each class
-
-    Parameters
-    ----------
-    model: torch.Module
-        A pre-trained model to produce output features
-    dataset: torch.utils.data.Dataset
-        A dataset of images
-    num_classes: 
-        The number of classes in the dataset
-    
-    Returns
-    --------
-    class_features: ClassFeatures
-        An object to store the prototypes
-
-    '''
-    #
-    # Load datasets (source and target)
-    #
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
-
-    #
-    # Define a class feature object
-    #
-    class_features = ClassFeatures(num_classes=num_classes, device=device)
-
-    model.eval()
-#    model.to('cuda')
-    # begin training
-    for epoch in range(1):
-        for batch in tqdm(data_loader):
-            images = batch["image"].to('cuda')
-            labels = batch["label"].to(device)
-
-            with torch.no_grad():
-                # Get outputs
-                out = model(images)
-                prob = (out["out"] + out["aux"] * 0.5).to(device) # segmentation
-                feat = out["feat"].to(device) # feature (32-dimensional in espdnetue)
-
-                batch, w, h = labels.size()
-                newlabels = labels.reshape([batch, 1, w, h]).float()
-                newlabels = F.interpolate(newlabels, size=feat.size()[2:], mode='nearest')
-
-                # Calculate the mean of the features for each class in this batch
-                vectors, ids = class_features.calculate_mean_vector(feat, prob, newlabels)
-
-                # Update the overall mean of the features
-                for t in range(len(ids)):
-                    class_features.update_objective_SingleVector(ids[t], vectors[t].detach().to(device), 'mean')
-
-    return class_features
+from typing import Optional
 
 class ClassFeatures(object):
     """ Manage the prototype feature of each class
 
     Attributes
     ----------
-    num_classes : int
+    num_classes : `int`
         The number of classes
-    device :
+    device : `str`
         Device name used for the computation
     
-
     Methods
     -------
     calculate_mean_vector(feat_cls, outputs, labels_val=None, thresh=None)
@@ -90,34 +35,40 @@ class ClassFeatures(object):
         Update the prototype of the specified class with the given vectors
 
     """
-    def __init__(self, num_classes=19, device='cpu'):
+    def __init__(self, num_classes: int=19, device: str='cpu', feat_dim: int=32):
         self.device = device
         self.num_classes = num_classes
         self.class_features = [[] for i in range(self.num_classes)]
-        self.objective_vectors = torch.zeros([self.num_classes, 32]).to(self.device)
+        self.objective_vectors = torch.zeros([self.num_classes, feat_dim]).to(self.device)
         self.objective_vectors_num = torch.zeros([self.num_classes]).to(self.device)
 
-    def calculate_mean_vector(self, feat_cls, outputs, labels_val=None, thresh=-1):
-        ''' Calculate the prototype feature of each class
+    def calculate_mean_vector(
+        self, 
+        feat_cls: torch.Tensor, 
+        outputs: torch.Tensor, 
+        labels_val: Optional[torch.Tensor]=None, 
+        thresh: float=-1,
+    ):
+        """Calculate the prototype feature of each class
 
         Parameters
         ----------
-        feat_cls:
+        feat_cls: `torch.Tensor`
             A tensor consisting of K dimensional feature vector (B, K, H, W)
-        outputs:
+        outputs: `torch.Tensor`
             C dimensional output tensor (B, C, H, W), C: the number of classes
-        labels_val:
+        labels_val: `torch.Tensor`
             Ground truth label tensor (B, 1, H, W)
-        thresh:
+        thresh: `float`
             Threshold of the confidence of pixels used for calculating the mean vector
 
         Returns
         --------
-        vectors: List
-        
-        ids: List
-
-        '''
+        vectors: `list`
+            List of calculated mean feature of each class
+        ids: `list`
+            List of id values corresponding to the features
+        """
         # Class robability
         outputs_softmax = F.softmax(outputs, dim=1)
 
@@ -175,22 +126,33 @@ class ClassFeatures(object):
         return vectors, ids
 
 
-    def update_objective_SingleVector(self, id, vector, name='moving_average', start_mean=True, proto_momentum=0.9999):
-        ''' Calculate the prototype feature of each class
+    def update_objective_SingleVector(
+        self, 
+        id: int, 
+        vector: torch.Tensor, 
+        name: str='moving_average', 
+        start_mean: bool=True, 
+        proto_momentum: float=0.9999
+    ):
+        """ Calculate the prototype feature of each class
 
         Parameters
         ----------
-        id: int
+        id: `int`
             Class ID
-        vector: 
+        vector: `torch.Tensor`
             New vectors
-        name:
-        start_mean:
+        name: `str`
+            Type of updating the prototypes. Default: 'moveing_average'
+        start_mean: `bool`
+            ?. Default: True
+        proto_momentum: `float`
+            Momentum for moving verage in prototype update. Default: 0.9999
 
         Returns
         --------
-
-        '''
+        `None`
+        """
         vector = vector.to(self.device)
         if vector.sum().item() == 0:
             return
@@ -209,21 +171,20 @@ class ClassFeatures(object):
             raise NotImplementedError('no such updating way of objective vectors {}'.format(name))
 
 
-    def process_label(self, label):
-        ''' Convert the label tensor to one-hot representation
+    def process_label(self, label: torch.Tensor):
+        """Convert the label tensor to one-hot representation
 
         Parameters
         ----------
-        label: torch.Tensor
+        label: `torch.Tensor`
             A tensor of label values (B, 1, H, W)
 
         Returns
         --------
-        pred1: torch.Tensor
+        pred1: `torch.Tensor`
             A tensor of one-hot representation of the label (B, C, H, W)
 
-        '''
-
+        """
         batch, channel, w, h = label.size()
         pred1 = torch.zeros(batch, self.num_classes + 1, w, h).to(self.device)
         id = torch.where(label < self.num_classes, label, torch.Tensor([self.num_classes]).to(self.device))
@@ -232,20 +193,22 @@ class ClassFeatures(object):
         return pred1
 
 
-    def full2weak(self, feat, target_weak_params):
-        ''' Convert the label tensor to one-hot representation
+    def full2weak(self, feat: torch.Tensor, target_weak_params: dict):
+        """Convert the label tensor to one-hot representation (Currently not used)
 
         Parameters
         ----------
-        label: torch.Tensor
+        feat: `torch.Tensor`
             A tensor of label values (B, 1, H, W)
+        target_weak_params: `dict`
+            Parameters
 
         Returns
         --------
-        pred1: torch.Tensor
-            A tensor of one-hot representation of the label (B, C, H, W)
+        feat: `torch.Tensor`
+            Resulting feature
 
-        '''#
+        """
         for i in range(feat.shape[0]):
             h, w = target_weak_params['RandomSized'][0][i], target_weak_params['RandomSized'][1][i]
             feat_ = F.interpolate(feat[i:i+1], size=[int(h/4), int(w/4)], mode='bilinear', align_corners=True)
@@ -261,16 +224,54 @@ class ClassFeatures(object):
         return feat
 
 
-    def feat_prototype_distance(self, feat):
+    def feat_prototype_distance(self, feat: torch.Tensor):
+        """Calculate distance between the feature and each prototype
+
+        Parameters
+        ----------
+        feat: `torch.Tensor`
+            Feature with which the distances to the prototypes are calculated
+
+        Returns
+        -------
+        feat_proto_distance: `torch.Tensor`
+            Distances
+        """
         N, C, H, W = feat.shape
         feat_proto_distance = -torch.ones((N, self.num_classes, H, W)).to(self.device)
+
         for i in range(self.num_classes):
             #feat_proto_distance[:, i, :, :] = torch.norm(torch.Tensor(self.objective_vectors[i]).reshape(-1,1,1).expand(-1, H, W).to(feat.device) - feat, 2, dim=1,)
             feat_proto_distance[:, i, :, :] = torch.norm(self.objective_vectors[i].reshape(-1,1,1).expand(-1, H, W) - feat, 2, dim=1,)
+
         return feat_proto_distance
 
 
-    def get_prototype_weight(self, feat, label=None, target_weak_params=None, proto_temperature=1.0):
+    def get_prototype_weight(
+        self, 
+        feat: torch.Tensor, 
+        label: Optional[torch.Tensor]=None, 
+        target_weak_params: Optional[dict]=None,
+        proto_temperature: float=1.0,
+    ):
+        """Calculate class weights based on the distances to the prototypes
+
+        Parameters
+        ----------
+        feat: `torch.Tensor`
+            Feature for which the weights are calculated
+        label: `Optional[torch.Tensor]`
+            Label. Default: `None`
+        target_weak_params: `Optional[dict]`
+            Default: `None`
+        proto_temperature: `float`
+            Temperature value of softmax for calculating the weights
+        
+        Returns
+        -------
+        weight: `torch.Tensor`
+            Calculated weights
+        """
         feat = feat.to(self.device)
         if target_weak_params is not None:
             feat = self.full2weak(feat, target_weak_params)
@@ -280,7 +281,71 @@ class ClassFeatures(object):
 
         feat_proto_distance = feat_proto_distance - feat_nearest_proto_distance
         weight = F.softmax(-feat_proto_distance * proto_temperature, dim=1)
+
         return weight
+
+
+def calc_prototype(
+    model: torch.nn.Module, 
+    dataset: torch.utils.data.Dataset, 
+    num_classes: int, 
+    device: str='cpu',
+) -> ClassFeatures:
+    """Calculate the prototype feature of each class
+
+    Parameters
+    ----------
+    model: `torch.nn.Module`
+        A pre-trained model to produce output features
+    dataset: `torch.utils.data.Dataset`
+        A dataset of images
+    num_classes: `int`
+        The number of classes in the dataset
+    device: `str`
+        Device for computation
+    
+    Returns
+    --------
+    class_features: `ClassFeatures`
+        An object to store the prototypes
+    """
+    #
+    # Load datasets (source and target)
+    #
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
+
+    #
+    # Define a class feature object
+    #
+    class_features = ClassFeatures(num_classes=num_classes, device=device)
+
+    model.eval()
+#    model.to('cuda')
+    # begin training
+    for epoch in range(1):
+        for batch in tqdm(data_loader):
+            images = batch["image"].to('cuda')
+            labels = batch["label"].to(device)
+
+            with torch.no_grad():
+                # Get outputs
+                out = model(images)
+                prob = (out["out"] + out["aux"] * 0.5).to(device) # segmentation
+                feat = out["feat"].to(device) # feature (32-dimensional in espdnetue)
+
+                batch, w, h = labels.size()
+                newlabels = labels.reshape([batch, 1, w, h]).float()
+                newlabels = F.interpolate(newlabels, size=feat.size()[2:], mode='nearest')
+
+                # Calculate the mean of the features for each class in this batch
+                vectors, ids = class_features.calculate_mean_vector(feat, prob, newlabels)
+
+                # Update the overall mean of the features
+                for t in range(len(ids)):
+                    class_features.update_objective_SingleVector(ids[t], vectors[t].detach().to(device), 'mean')
+
+    return class_features
+
 
 
 def get_logger(logdir):
