@@ -184,6 +184,9 @@ class PseudoTrainer(object):
             num_workers=args.num_workers,
         )
     
+        now = datetime.datetime.now() + datetime.timedelta(hours=9)
+        condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
+        self.optuna_study_name = condition + "_" + self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
     
     def train(self, epoch: int = -1,) -> None:
         """Main training process for one epoch
@@ -465,8 +468,6 @@ class PseudoTrainer(object):
             os.makedirs(self.save_path)
             os.makedirs(self.pseudo_save_path)
     
-        self.optuna_study_name = condition + "_" + self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
-
         # SummaryWriter for Tensorboard
         self.writer = SummaryWriter(self.save_path)
     
@@ -791,16 +792,17 @@ class PseudoTrainer(object):
 
         return best_miou
 
-    def optuna_optimize(self, n_trials: int=100, timeout=600):
+    def optuna_optimize(self, n_trials: int=100, timeout: Optional[float]=None):
         """Optimize hyper-parameters by Optuna
 
         Parameters
         ----------
-        n_trials
+        n_trials: `int`
+            Number of trials
+        timeout: `Optional[float]`
+            Stop study after the given number of second(s).
         
         """
-        self.optuna_init_optimizer()
-
         optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
 
         storage_name = "sqlite:///{}.db".format(self.optuna_study_name)

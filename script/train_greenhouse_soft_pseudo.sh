@@ -17,12 +17,13 @@ python train_pseudo.py \
     --resume-from ${RESUME_FROM} \
     --target greenhouse \
     --batch-size 40 \
-    --epoch 50 \
+    --epoch 30 \
     --lr 0.009 \
     --label-update-epoch 1 \
     --save-path /tmp/runs/domain_gap/ \
     --scheduler constant \
     --class-wts-type uniform \
+    --use-optuna true \
     --is-hard ${is_hard} \
     --use-kld-class-loss ${use_kld_class_loss} \
     --use-label-ent-weight ${use_label_ent_weight} \
