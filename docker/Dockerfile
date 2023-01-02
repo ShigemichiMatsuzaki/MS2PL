@@ -21,6 +21,9 @@ RUN pip3 install -U \
     #    mmsegmentation \
     #    timm \
     optuna \
+    optuna-dashboard \
+    # For acceleration of Optuna
+    optuna-fast-fanova gunicorn \
     albumentations \
     torchtnt \
     fvcore \

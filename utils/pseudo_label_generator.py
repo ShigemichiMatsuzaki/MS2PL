@@ -266,8 +266,7 @@ def generate_pseudo_label(
                     max_output, argmax_output = rectified_prob.max(1, keepdim=True)
 
                 # Filter out the pixels with a confidence below the threshold
-                argmax_output[max_output <
-                              proto_rect_thresh] = ignore_index
+                argmax_output[max_output < proto_rect_thresh] = ignore_index
 
                 # Convert the label space from the source to the target
                 if label_conversion is not None:
