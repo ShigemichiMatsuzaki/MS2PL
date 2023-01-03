@@ -5,6 +5,7 @@ import os
 import shutil
 import sys
 import traceback
+from tqdm import tqdm
 from typing import Optional
 from loss_fns.segmentation_loss import Entropy, UncertaintyWeightedSegmentationLoss
 import optuna
@@ -77,112 +78,13 @@ class PseudoTrainer(object):
         self.target_name = args.target
         self.resume_epoch = args.resume_epoch
         self.train_data_list_path = args.train_data_list_path
+        self.val_data_list_path = args.val_data_list_path
+        self.pseudo_label_dir = args.pseudo_label_dir
+        self.is_old_label = args.is_old_label
         self.val_every_epochs = args.val_every_epochs 
         self.vis_every_vals = args.vis_every_vals
         self.save_path_root = args.save_path
-
-        #
-        # Import datasets
-        #
-        try:
-            from dataset.greenhouse import GreenhouseRGBD, color_encoding
-    
-            if self.params.is_hard:
-                self.dataset_train = GreenhouseRGBD(
-                    list_name=self.train_data_list_path,
-                    label_root=args.pseudo_label_dir,
-                    mode="train",
-                    is_hard_label=self.params.is_hard,
-                    is_old_label=args.is_old_label,
-                )
-            else:
-                from dataset.greenhouse import GreenhouseRGBDSoftLabel, color_encoding
-    
-                self.dataset_train = GreenhouseRGBDSoftLabel(
-                    list_name=self.train_data_list_path,
-                    label_root=args.pseudo_label_dir,
-                    mode="train",
-                )
-
-            self.color_encoding = color_encoding
-    
-            self.dataset_pseudo = GreenhouseRGBD(
-                list_name=self.train_data_list_path,
-                label_root=args.pseudo_label_dir,
-                mode="val",
-                is_hard_label=True,
-                load_labels=False,
-            )
-            self.dataset_val = GreenhouseRGBD(
-                list_name=args.val_data_list_path,
-                mode="val",
-                is_hard_label=True,
-                is_old_label=True,
-            )
-    
-            args.num_classes = 3
-            self.batch_size = min(self.batch_size, len(self.dataset_train))
-
-        except Exception as e:
-            t, v, tb = sys.exc_info()
-            print(traceback.format_exception(t, v, tb))
-            print(traceback.format_tb(e.__traceback__))
-            print("Dataset '{}' not found".format(self.target_name))
-            sys.exit(1)
-    
-        if args.class_wts_type == "normal" or args.class_wts_type == "inverse":
-            try:
-                self.class_wts = torch.load(
-                    os.path.join(
-                        args.pseudo_label_dir,
-                        "class_weights_" +
-                        ("hard" if self.params.is_hard else "soft") + ".pt",
-                    )
-                )
-            except Exception as e:
-                print(
-                    "Class weight '{}' not found".format(
-                        os.path.join(
-                            args.pseudo_label_dir,
-                            "class_weights_" +
-                            ("hard" if self.params.is_hard else "soft") + ".pt",
-                        )
-                    )
-                )
-                sys.exit(1)
-        elif args.class_wts_type == "uniform":
-            self.class_wts = torch.ones(self.num_classes).to(self.device)
-        else:
-            print("Class weight type {} is not supported.".format(args.class_wts_type))
-            raise ValueError
-
-        self.class_wts.to(self.device)
-    
-        #
-        # Dataloader
-        #
-        self.train_loader = torch.utils.data.DataLoader(
-            self.dataset_train,
-            batch_size=self.batch_size,
-            shuffle=True,
-            pin_memory=args.pin_memory,
-            num_workers=args.num_workers,
-            drop_last=True,
-        )
-        self.pseudo_loader = torch.utils.data.DataLoader(
-            self.dataset_pseudo,
-            batch_size=self.batch_size,
-            shuffle=False,
-            pin_memory=args.pin_memory,
-            num_workers=args.num_workers,
-        )
-        self.val_loader = torch.utils.data.DataLoader(
-            self.dataset_val,
-            batch_size=self.batch_size,
-            shuffle=False,
-            pin_memory=args.pin_memory,
-            num_workers=args.num_workers,
-        )
+        self.class_wts_type = args.class_wts_type
     
         now = datetime.datetime.now() + datetime.timedelta(hours=9)
         condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
@@ -215,164 +117,172 @@ class PseudoTrainer(object):
         #
         # Training loop
         #
-        for i, batch in enumerate(self.train_loader):
-            # Get input image and label batch
-            image = batch["image"].to(self.device)
-            image_orig = batch["image_orig"]
-            label = batch["label"].to(self.device)
+        with tqdm(self.train_loader) as pbar_loader:
+            pbar_loader.set_description("Epoch {}".format(epoch))
+            for i, batch in enumerate(self.train_loader):
+                # Get input image and label batch
+                image = batch["image"].to(self.device)
+                image_orig = batch["image_orig"]
+                label = batch["label"].to(self.device)
     
-            # Get output
-            if self.use_cosine and self.params.is_hard:
-                output = self.model(image, label)
-            else:
-                output = self.model(image,)
+                # Get output
+                if self.use_cosine and self.params.is_hard:
+                    output = self.model(image, label)
+                else:
+                    output = self.model(image,)
     
-            output_main = output["out"]
-            output_aux = output["aux"]
-            output_total = output_main + 0.5 * output_aux
-            amax = output_total.argmax(dim=1)
-            amax_main = output_main.argmax(dim=1)
-            amax_aux = output_aux.argmax(dim=1)
+                output_main = output["out"]
+                output_aux = output["aux"]
+                output_total = output_main + 0.5 * output_aux
+                amax = output_total.argmax(dim=1)
+                amax_main = output_main.argmax(dim=1)
+                amax_aux = output_aux.argmax(dim=1)
     
-            # Calculate output probability etc.
-            output_main_prob = F.softmax(output_main, dim=1)
-            output_aux_logprob = F.log_softmax(output_aux, dim=1)
-            kld_loss_value = self.kld_loss(
-                output_aux_logprob, output_main_prob).sum(dim=1)
+                # Calculate output probability etc.
+                output_main_prob = F.softmax(output_main, dim=1)
+                output_aux_logprob = F.log_softmax(output_aux, dim=1)
+                kld_loss_value = self.kld_loss(
+                    output_aux_logprob, output_main_prob).sum(dim=1)
     
-            # Entropy
-            output_ent = self.entropy(F.softmax(output_total, dim=1))
+                # Entropy
+                output_ent = self.entropy(F.softmax(output_total, dim=1))
     
-            # Label entropy
-            if not self.params.is_hard and self.params.use_label_ent_weight:
-                # label = softmax(label * 5)
-                label_ent = self.entropy(label)
+                # Label entropy
+                if not self.params.is_hard and self.params.use_label_ent_weight:
+                    # label = softmax(label * 5)
+                    label_ent = self.entropy(label)
     
-                kld_weight = torch.exp(-kld_loss_value.detach())
-                label_ent_weight = torch.exp(-label_ent.detach()
-                                             * self.params.label_weight_temperature)
-                # label_ent_weight[label_ent_weight < args.label_weight_threshold] = 0.0
-                u_weight = kld_weight * label_ent_weight
-                # print(kld_loss_value.mean(), label_ent.mean())
-            else:
-                u_weight = torch.exp(-kld_loss_value.detach())
+                    kld_weight = torch.exp(-kld_loss_value.detach())
+                    label_ent_weight = torch.exp(-label_ent.detach()
+                                                 * self.params.label_weight_temperature)
+                    # label_ent_weight[label_ent_weight < args.label_weight_threshold] = 0.0
+                    u_weight = kld_weight * label_ent_weight
+                    # print(kld_loss_value.mean(), label_ent.mean())
+                else:
+                    u_weight = torch.exp(-kld_loss_value.detach())
     
-            # Classification loss
-            seg_loss_value = self.seg_loss(
-                output_total,
-                label,
-                u_weight=u_weight,
-            )
-    
-            entropy_loss_weight = self.params.entropy_loss_weight if self.params.is_hard else 0.0
-            loss_val = seg_loss_value + self.params.kld_loss_weight * kld_loss_value.mean() + entropy_loss_weight * output_ent.mean()
-    
-            loss_val.backward()
-            self.optimizer.step()
-            self.optimizer.zero_grad()
-    
-            print(
-                "==== Epoch {}, iter {}/{}, Cls Loss: {}, Ent Loss: {}====".format(
-                    epoch,
-                    i + 1,
-                    len(self.train_loader),
-                    seg_loss_value.item(),
-                    kld_loss_value.mean().item(),
-                )
-            )
-            if self.writer is not None:
-                self.writer.add_scalar(
-                    "train/cls_loss", seg_loss_value.item(), epoch * len(self.train_loader) + i
-                )
-                self.writer.add_scalar(
-                    "train/ent_loss",
-                    kld_loss_value.mean().item(),
-                    epoch * len(self.train_loader) + i,
-                )
-                self.writer.add_scalar(
-                    "train/total_loss",
-                    seg_loss_value.item() + kld_loss_value.mean().item(),
-                    epoch * len(self.train_loader) + i,
+                # Classification loss
+                seg_loss_value = self.seg_loss(
+                    output_total,
+                    label,
+                    u_weight=u_weight,
                 )
     
-                if i == 0:
-                    add_images_to_tensorboard(
-                        self.writer, image_orig, epoch, "train/image")
-                    if not self.params.is_hard:
-                        label = torch.argmax(label, dim=1)
+                entropy_loss_weight = self.params.entropy_loss_weight if self.params.is_hard else 0.0
+                loss_val = seg_loss_value + self.params.kld_loss_weight * kld_loss_value.mean() + entropy_loss_weight * output_ent.mean()
     
-                    add_images_to_tensorboard(
-                        self.writer,
-                        label,
-                        epoch,
-                        "train/label",
-                        is_label=True,
-                        color_encoding=self.color_encoding,
-                    )
-                    add_images_to_tensorboard(
-                        self.writer,
-                        amax,
-                        epoch,
-                        "train/pred",
-                        is_label=True,
-                        color_encoding=self.color_encoding,
-                    )
-                    add_images_to_tensorboard(
-                        self.writer,
-                        amax_main,
-                        epoch,
-                        "train/pred_main",
-                        is_label=True,
-                        color_encoding=self.color_encoding,
-                    )
+                loss_val.backward()
+                self.optimizer.step()
+                self.optimizer.zero_grad()
     
-                    add_images_to_tensorboard(
-                        self.writer,
-                        amax_aux,
-                        epoch,
-                        "train/pred_aux",
-                        is_label=True,
-                        color_encoding=self.color_encoding,
+                # print(
+                #     "==== Epoch {}, iter {}/{}, Cls Loss: {}, Ent Loss: {}====".format(
+                #         epoch,
+                #         i + 1,
+                #         len(self.train_loader),
+                #         seg_loss_value.item(),
+                #         kld_loss_value.mean().item(),
+                #     )
+                # )
+                pbar_loader.set_postfix(
+                    cls=seg_loss_value.item(), 
+                    ent=kld_loss_value.mean().item()
+                )
+                pbar_loader.update()
+                
+                if self.writer is not None:
+                    self.writer.add_scalar(
+                        "train/cls_loss", seg_loss_value.item(), epoch * len(self.train_loader) + i
+                    )
+                    self.writer.add_scalar(
+                        "train/ent_loss",
+                        kld_loss_value.mean().item(),
+                        epoch * len(self.train_loader) + i,
+                    )
+                    self.writer.add_scalar(
+                        "train/total_loss",
+                        seg_loss_value.item() + kld_loss_value.mean().item(),
+                        epoch * len(self.train_loader) + i,
                     )
     
-                    kld = (
-                        torch.exp(-kld_loss_value)
-                        # -kld_loss_value / torch.max(kld_loss_value).item() + 1
-                    )  # * 255# Scale to [0, 255]
-                    kld = torch.reshape(
-                        kld, (kld.size(0), 1, kld.size(1), kld.size(2))) / kld.max()
-                    add_images_to_tensorboard(
-                        self.writer,
-                        kld,
-                        epoch,
-                        "train/kld",
-                    )
+                    if i == 0:
+                        add_images_to_tensorboard(
+                            self.writer, image_orig, epoch, "train/image")
+                        if not self.params.is_hard:
+                            label = torch.argmax(label, dim=1)
     
-                    output_ent = torch.reshape(
-                        output_ent, (output_ent.size(0), 1, output_ent.size(1), output_ent.size(2)))
-                    add_images_to_tensorboard(
-                        self.writer,
-                        output_ent,
-                        epoch,
-                        "train/output_ent",
-                    )
-    
-                    if not self.params.is_hard and self.params.use_label_ent_weight:
-                        label_ent_weight = torch.reshape(
-                            label_ent_weight,
-                            (
-                                label_ent_weight.size(0),
-                                1,
-                                label_ent_weight.size(1),
-                                label_ent_weight.size(2),
-                            ),
+                        add_images_to_tensorboard(
+                            self.writer,
+                            label,
+                            epoch,
+                            "train/label",
+                            is_label=True,
+                            color_encoding=self.color_encoding,
                         )
                         add_images_to_tensorboard(
                             self.writer,
-                            label_ent_weight,
+                            amax,
                             epoch,
-                            "train/pixelwise_weight",
+                            "train/pred",
+                            is_label=True,
+                            color_encoding=self.color_encoding,
                         )
+                        add_images_to_tensorboard(
+                            self.writer,
+                            amax_main,
+                            epoch,
+                            "train/pred_main",
+                            is_label=True,
+                            color_encoding=self.color_encoding,
+                        )
+    
+                        add_images_to_tensorboard(
+                            self.writer,
+                            amax_aux,
+                            epoch,
+                            "train/pred_aux",
+                            is_label=True,
+                            color_encoding=self.color_encoding,
+                        )
+    
+                        kld = (
+                            torch.exp(-kld_loss_value)
+                            # -kld_loss_value / torch.max(kld_loss_value).item() + 1
+                        )  # * 255# Scale to [0, 255]
+                        kld = torch.reshape(
+                            kld, (kld.size(0), 1, kld.size(1), kld.size(2))) / kld.max()
+                        add_images_to_tensorboard(
+                            self.writer,
+                            kld,
+                            epoch,
+                            "train/kld",
+                        )
+    
+                        output_ent = torch.reshape(
+                            output_ent, (output_ent.size(0), 1, output_ent.size(1), output_ent.size(2)))
+                        add_images_to_tensorboard(
+                            self.writer,
+                            output_ent,
+                            epoch,
+                            "train/output_ent",
+                        )
+    
+                        if not self.params.is_hard and self.params.use_label_ent_weight:
+                            label_ent_weight = torch.reshape(
+                                label_ent_weight,
+                                (
+                                    label_ent_weight.size(0),
+                                    1,
+                                    label_ent_weight.size(1),
+                                    label_ent_weight.size(2),
+                                ),
+                            )
+                            add_images_to_tensorboard(
+                                self.writer,
+                                label_ent_weight,
+                                epoch,
+                                "train/pixelwise_weight",
+                            )
 
     def init_training(self, trial=None):
         """Initialize model, optimizer, and scheduler for one training process
@@ -434,7 +344,111 @@ class PseudoTrainer(object):
             torch.backends.cudnn.benchmark = True
     
         self.model.to(self.device)
-        print(self.class_wts)
+
+        #
+        # Import datasets
+        #
+        try:
+            from dataset.greenhouse import GreenhouseRGBD, color_encoding
+    
+            if self.params.is_hard:
+                self.dataset_train = GreenhouseRGBD(
+                    list_name=self.train_data_list_path,
+                    label_root=self.pseudo_label_dir,
+                    mode="train",
+                    is_hard_label=self.params.is_hard,
+                    is_old_label=self.is_old_label,
+                )
+            else:
+                from dataset.greenhouse import GreenhouseRGBDSoftLabel, color_encoding
+    
+                self.dataset_train = GreenhouseRGBDSoftLabel(
+                    list_name=self.train_data_list_path,
+                    label_root=self.pseudo_label_dir,
+                    mode="train",
+                )
+
+            self.color_encoding = color_encoding
+    
+            self.dataset_pseudo = GreenhouseRGBD(
+                list_name=self.train_data_list_path,
+                label_root=self.pseudo_label_dir,
+                mode="val",
+                is_hard_label=True,
+                load_labels=False,
+            )
+            self.dataset_val = GreenhouseRGBD(
+                list_name=self.val_data_list_path,
+                mode="val",
+                is_hard_label=True,
+                is_old_label=True,
+            )
+    
+            self.batch_size = min(self.batch_size, len(self.dataset_train))
+
+        except Exception as e:
+            t, v, tb = sys.exc_info()
+            print(traceback.format_exception(t, v, tb))
+            print(traceback.format_tb(e.__traceback__))
+            print("Dataset '{}' not found".format(self.target_name))
+            sys.exit(1)
+    
+            args.num_classes = 3
+
+        if self.class_wts_type == "normal" or self.class_wts_type == "inverse":
+            try:
+                self.class_wts = torch.load(
+                    os.path.join(
+                        self.pseudo_label_dir,
+                        "class_weights_" +
+                        ("hard" if self.params.is_hard else "soft") + ".pt",
+                    )
+                )
+            except Exception as e:
+                print(
+                    "Class weight '{}' not found".format(
+                        os.path.join(
+                            self.pseudo_label_dir,
+                            "class_weights_" +
+                            ("hard" if self.params.is_hard else "soft") + ".pt",
+                        )
+                    )
+                )
+                sys.exit(1)
+        elif self.class_wts_type == "uniform":
+            self.class_wts = torch.ones(self.num_classes).to(self.device)
+        else:
+            print("Class weight type {} is not supported.".format(self.class_wts_type))
+            raise ValueError
+
+        self.class_wts.to(self.device)
+    
+        #
+        # Dataloader
+        #
+        self.train_loader = torch.utils.data.DataLoader(
+            self.dataset_train,
+            batch_size=self.batch_size,
+            shuffle=True,
+            pin_memory=self.pin_memory,
+            num_workers=self.num_workers,
+            drop_last=True,
+        )
+        self.pseudo_loader = torch.utils.data.DataLoader(
+            self.dataset_pseudo,
+            batch_size=self.batch_size,
+            shuffle=False,
+            pin_memory=self.pin_memory,
+            num_workers=self.num_workers,
+        )
+        self.val_loader = torch.utils.data.DataLoader(
+            self.dataset_val,
+            batch_size=self.batch_size,
+            shuffle=False,
+            pin_memory=self.pin_memory,
+            num_workers=self.num_workers,
+        )
+
     
         #
         # Loss
@@ -764,11 +778,11 @@ class PseudoTrainer(object):
         self.params.label_weight_temperature = trial.suggest_float('label_weight_temperature', 0.0, 20.0)
         self.params.kld_loss_weight = trial.suggest_float('kld_loss_weight', 0.0, 1.0)
         self.params.entropy_loss_weight = trial.suggest_float('entropy_loss_weight', 0.0, 1.0)
-        self.params.use_lr_warmup = trial.suggest_categorical('use_lr_warmup', [True, False])
+        # self.params.use_lr_warmup = trial.suggest_categorical('use_lr_warmup', [True, False])
         self.params.label_update_epoch = [trial.suggest_int('label_update_epoch', 1, self.params.epochs)]
         self.params.conf_thresh = [trial.suggest_float('conf_thresh', 0.5, 1.0)]
-        self.params.use_prototype_denoising = trial.suggest_categorical('use_prototype_denoising', [True, False])
-        self.params.sp_label_min_portion = trial.suggest_float('conf_thresh', 0.75, 1.0)
+        # self.params.use_prototype_denoising = trial.suggest_categorical('use_prototype_denoising', [True, False])
+        # self.params.sp_label_min_portion = trial.suggest_float('sp_label_min_portion', 0.75, 1.0)
 
         from utils.optim_opt import SUPPORTED_OPTIMIZERS, SUPPORTED_SCHEDULERS
         # Optimizer
