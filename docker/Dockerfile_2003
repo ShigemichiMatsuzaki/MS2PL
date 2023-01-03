@@ -1,20 +1,44 @@
-FROM nvcr.io/nvidia/pytorch:20.03-py3
+# FROM nvcr.io/nvidia/pytorch:20.03-py3
+FROM andrewseidl/nvidia-cuda:10.2-devel-ubuntu20.04
 
 # Add path of edgenets to PYTHONPATH so that the models can be successfully imported
 # I believe there should be a better way
 ENV PYTHONPATH /root/training/models/edgenets:${PYTHONPATH}
+ENV DEBIAN_FRONTEND=noninteractive
 
-RUN pip install git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git
-# RUN pip install mmcv-full -f https://download.openmmlab.com/mmcv/dist/cu102/torch1.5.1/index.html
+# Update key
+#   ref: https://zenn.dev/takakurasato/scraps/d3e0ee6132a5c5
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub
+RUN apt update && apt -y upgrade \
+    && apt install -y \
+    git \
+    python3-pip \
+    libjpeg-turbo8-dev \
+    zlib1g-dev \
+    python-is-python3 \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*rm 
 
-RUN pip uninstall -y pillow
-# MMCV: Library for computer vision including MMSegmentation
-RUN pip install -U \
-    tqdm \
+RUN pip3 install --upgrade pip
+
+RUN pip3 install git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git
+RUN pip3 install -U \
+    torch==1.12.1+cu102 \
+    torchvision==0.13.1+cu102 \
+    torchaudio==0.12.1 \
+    --extra-index-url https://download.pytorch.org/whl/cu102 \
     torchsummary \
+    tensorboard \
+    tqdm \
     umap-learn \
     llvmlite \
     pillow-simd \
+    optuna \
     albumentations==1.2.1 \
     "opencv-python-headless<4.3" \
     --ignore-installed
