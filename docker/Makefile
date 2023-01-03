@@ -15,7 +15,7 @@ build-2003:
 
 bash:
 	docker run -it \
-		--gpus="device=${GPU_ID}" \
+		--gpus '"device=${GPU_ID}"' \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -27,7 +27,7 @@ bash:
 
 eval-model:
 	docker run -it \
-		--gpus="device=${GPU_ID}" \
+		--gpus '"device=${GPU_ID}"' \
 		-v ${PWD}/../:/root/training/ \
 		--rm \
 		--shm-size 10G \
@@ -38,7 +38,7 @@ eval-model:
 
 train-camvid:
 	docker run -it \
-		--gpus="device=${GPU_ID}" \
+		--gpus '"device=${GPU_ID}"' \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -51,7 +51,7 @@ train-camvid:
 
 train-cityscapes:
 	docker run -it \
-		--gpus="device=${GPU_ID}" \
+		--gpus '"device=${GPU_ID}"' \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -64,7 +64,7 @@ train-cityscapes:
 
 train-cityscapes-highres:
 	docker run -it \
-		--gpus="device=${GPU_ID}" \
+		--gpus '"device=${GPU_ID}"' \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -77,7 +77,7 @@ train-cityscapes-highres:
 
 train-gta5-highres:
 	docker run -it \
-		--gpus="device=${GPU_ID}" \
+		--gpus '"device=${GPU_ID}"' \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -90,7 +90,7 @@ train-gta5-highres:
 
 train-forest:
 	docker run -it \
-		--gpus="device=${GPU_ID}" \
+		--gpus '"device=${GPU_ID}"' \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -103,7 +103,8 @@ train-forest:
 	
 train-joint:
 	docker run -it \
-		--gpus="device=${GPU_ID}" \
+		--gpus '"device=${GPU_ID}"' \
+		-v ${PWD}/../:/root/training/ \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -117,7 +118,7 @@ train-joint:
 
 train-greenhouse-pseudo-hard:
 	docker run -it \
-		--gpus="device=${GPU_ID}" \
+		--gpus '"device=${GPU_ID}"' \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
@@ -130,7 +131,7 @@ train-greenhouse-pseudo-hard:
 
 train-greenhouse-pseudo-soft:
 	docker run -it \
-		--gpus="device=${GPU_ID}" \
+		--gpus '"device=${GPU_ID}"' \
 		-v ${PWD}/../:/root/training/ \
 		-v ${DATASET_ROOT}:/tmp/dataset \
 		-v ${RUNS_ROOT}:/tmp/runs/ \
