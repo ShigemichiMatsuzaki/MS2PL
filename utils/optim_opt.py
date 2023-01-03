@@ -1,7 +1,10 @@
 import torch
 
 SUPPORTED_OPTIMIZERS = ['SGD', 'Adam']
-SUPPORTED_SCHEDULERS = ['step', 'multistep', 'exponential', 'polynomial', 'cyclic', 'constant']
+SUPPORTED_SCHEDULERS = (['step', 'multistep', 'exponential', 'polynomial', 'cyclic', 'constant']
+    if torch.__version__ >= '1.13.0'
+    else ['step', 'multistep', 'exponential', 'cyclic', 'constant']
+)
 
 class ConstantLR:
     def __init__(self):

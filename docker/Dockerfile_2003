@@ -39,6 +39,10 @@ RUN pip3 install -U \
     llvmlite \
     pillow-simd \
     optuna \
+    optuna-dashboard \
+    # For acceleration of Optuna
+    optuna-fast-fanova gunicorn \
     albumentations==1.2.1 \
+    matplotlib \
     "opencv-python-headless<4.3" \
     --ignore-installed
