@@ -757,8 +757,8 @@ class PseudoTrainer(object):
         self.params.kld_loss_weight = trial.suggest_float('kld_loss_weight', 0.0, 1.0)
         self.params.entropy_loss_weight = trial.suggest_float('entropy_loss_weight', 0.0, 1.0)
         # self.params.use_lr_warmup = trial.suggest_categorical('use_lr_warmup', [True, False])
-        self.params.label_update_epoch = [trial.suggest_int('label_update_epoch', 1, self.params.epochs)]
-        self.params.conf_thresh = [trial.suggest_float('conf_thresh', 0.5, 1.0)]
+        self.params.label_update_epoch = [trial.suggest_int('label_update_epoch', 1, self.params.epochs * 2 // 3)]
+        self.params.conf_thresh = [trial.suggest_float('conf_thresh', 0.75, 1.0)]
         # self.params.use_prototype_denoising = trial.suggest_categorical('use_prototype_denoising', [True, False])
         # self.params.sp_label_min_portion = trial.suggest_float('sp_label_min_portion', 0.75, 1.0)
 
