@@ -1,5 +1,3 @@
-from multiprocessing.sharedctypes import Value
-from xml.dom.minidom import Attr
 import torch
 
 SUPPORTED_OPTIMIZERS = ['SGD', 'Adam']
