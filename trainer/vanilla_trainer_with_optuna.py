@@ -105,20 +105,14 @@ class PseudoTrainer(object):
         # Set the model to 'train' mode
         self.model.train()
     
-        # Loss function
-        # self.class_wts = (
-        #     self.class_wts.to(self.device)
-        #     if self.class_wts is not None
-        #     else torch.ones(self.num_classes).to(self.device)
-        # )
-    
+        # Initialize the optimizer
         self.optimizer.zero_grad()
     
         #
         # Training loop
         #
         with tqdm(self.train_loader) as pbar_loader:
-            pbar_loader.set_description("Epoch {}".format(epoch))
+            pbar_loader.set_description("Epoch {:<3d}".format(epoch+1))
             for i, batch in enumerate(self.train_loader):
                 # Get input image and label batch
                 image = batch["image"].to(self.device)
@@ -144,12 +138,8 @@ class PseudoTrainer(object):
                 kld_loss_value = self.kld_loss(
                     output_aux_logprob, output_main_prob).sum(dim=1)
     
-                # Entropy
-                output_ent = self.entropy(F.softmax(output_total, dim=1))
-    
-                # Label entropy
+                # Weight by KLD between main and aux, and label entropy
                 if not self.params.is_hard and self.params.use_label_ent_weight:
-                    # label = softmax(label * 5)
                     label_ent = self.entropy(label)
     
                     kld_weight = torch.exp(-kld_loss_value.detach())
@@ -157,7 +147,6 @@ class PseudoTrainer(object):
                                                  * self.params.label_weight_temperature)
                     # label_ent_weight[label_ent_weight < args.label_weight_threshold] = 0.0
                     u_weight = kld_weight * label_ent_weight
-                    # print(kld_loss_value.mean(), label_ent.mean())
                 else:
                     u_weight = torch.exp(-kld_loss_value.detach())
     
@@ -167,26 +156,20 @@ class PseudoTrainer(object):
                     label,
                     u_weight=u_weight,
                 )
-    
+                # Entropy loss
+                output_ent = self.entropy(F.softmax(output_total, dim=1))
                 entropy_loss_weight = self.params.entropy_loss_weight if self.params.is_hard else 0.0
                 loss_val = seg_loss_value + self.params.kld_loss_weight * kld_loss_value.mean() + entropy_loss_weight * output_ent.mean()
     
+                # Update model weights
                 loss_val.backward()
                 self.optimizer.step()
                 self.optimizer.zero_grad()
     
-                # print(
-                #     "==== Epoch {}, iter {}/{}, Cls Loss: {}, Ent Loss: {}====".format(
-                #         epoch,
-                #         i + 1,
-                #         len(self.train_loader),
-                #         seg_loss_value.item(),
-                #         kld_loss_value.mean().item(),
-                #     )
-                # )
+                # Update tqdm
                 pbar_loader.set_postfix(
-                    cls=seg_loss_value.item(), 
-                    ent=kld_loss_value.mean().item()
+                    cls="{:.4f}".format(seg_loss_value.item()), 
+                    ent="{:.5f}".format(kld_loss_value.mean().item()),
                 )
                 pbar_loader.update()
                 
@@ -292,7 +275,7 @@ class PseudoTrainer(object):
         trial:
 
         """
-        # If 'trial' is given
+        # If 'trial' is given, initialize the parameters by Optuna
         if trial is not None:
             self.optuna_init_parameters(trial)
 
@@ -312,7 +295,6 @@ class PseudoTrainer(object):
         #
         # Optimizer: Updates
         #
-        # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         self.optimizer = get_optimizer(
             optim_name=self.params.optimizer_name, 
             model_name=self.model_name, 
@@ -393,8 +375,6 @@ class PseudoTrainer(object):
             print("Dataset '{}' not found".format(self.target_name))
             sys.exit(1)
     
-            args.num_classes = 3
-
         if self.class_wts_type == "normal" or self.class_wts_type == "inverse":
             try:
                 self.class_wts = torch.load(
@@ -448,7 +428,6 @@ class PseudoTrainer(object):
             pin_memory=self.pin_memory,
             num_workers=self.num_workers,
         )
-
     
         #
         # Loss
@@ -529,7 +508,6 @@ class PseudoTrainer(object):
 
                 # Get output
                 output = self.model(image)
-
                 main_output = output["out"]
                 aux_output = output["aux"]
                 feature = output["feat"]

@@ -17,7 +17,7 @@ python train_pseudo.py \
     --resume-from ${RESUME_FROM} \
     --target greenhouse \
     --batch-size 40 \
-    --epoch 30 \
+    --epoch 20 \
     --lr 0.009 \
     --label-update-epoch 1 \
     --save-path /tmp/runs/domain_gap/ \
