@@ -179,3 +179,12 @@ evaluate-source-models:
 		--name $(CONTAINER_NAME)-evaluate-source-models \
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/evaluate_source_models.sh
+
+optuna-dashboard:
+	docker run -it \
+		--rm \
+		-p 8080:8080 \
+		-v ../:/app \
+		-w /app \
+		ghcr.io/optuna/optuna-dashboard \
+		sqlite:///db.sqlite3

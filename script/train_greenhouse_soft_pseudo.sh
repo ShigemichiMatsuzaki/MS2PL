@@ -10,17 +10,20 @@ is_hard=false
 conf_thresh=0.95
 python train_pseudo.py \
     --device cuda \
+    --train-data-list-path dataset/data_list/train_greenhouse_a.lst \
+    --val-data-list-path dataset/data_list/val_greenhouse_a.lst \
     --model ${MODEL} \
     --use-cosine true \
     --resume-from ${RESUME_FROM} \
     --target greenhouse \
-    --batch-size 64 \
-    --epoch 50 \
+    --batch-size 40 \
+    --epoch 20 \
     --lr 0.009 \
-    --label-update-epoch 5 \
+    --label-update-epoch 1 \
     --save-path /tmp/runs/domain_gap/ \
     --scheduler constant \
     --class-wts-type uniform \
+    --use-optuna true \
     --is-hard ${is_hard} \
     --use-kld-class-loss ${use_kld_class_loss} \
     --use-label-ent-weight ${use_label_ent_weight} \
