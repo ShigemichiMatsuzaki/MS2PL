@@ -88,7 +88,12 @@ class PseudoTrainer(object):
     
         now = datetime.datetime.now() + datetime.timedelta(hours=9)
         condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
-        self.optuna_study_name = condition + "_" + self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
+        self.optuna_storage_name = condition + "_" + self.model_name
+
+        if args.optuna_resume_from:
+            self.optuna_study_name = args.optuna_resume_from
+        else:
+            self.optuna_study_name = condition + "_" + self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
     
     def train(self, epoch: int = -1,) -> None:
         """Main training process for one epoch
@@ -797,11 +802,12 @@ class PseudoTrainer(object):
         """
         optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
 
-        storage_name = "sqlite:///{}.db".format(self.optuna_study_name)
+        storage_name = "sqlite:///{}.db".format(self.optuna_storage_name)
         study = optuna.create_study(
             study_name=self.optuna_study_name,
             storage=storage_name,
-            direction="maximize"
+            direction="maximize",
+            load_if_exists=True,
         )
         study.optimize(self.optuna_objective, n_trials=n_trials, timeout=timeout)
 
