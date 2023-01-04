@@ -758,20 +758,20 @@ class PseudoTrainer(object):
         """
         self.params.use_kld_class_loss = trial.suggest_categorical('use_kld_class_loss', [True, False])
         self.params.use_label_ent_weight = trial.suggest_categorical('use_label_ent_weight', [True, False])
-        self.params.label_weight_temperature = trial.suggest_float('label_weight_temperature', 0.0, 20.0)
-        self.params.kld_loss_weight = trial.suggest_float('kld_loss_weight', 0.0, 1.0)
-        self.params.entropy_loss_weight = trial.suggest_float('entropy_loss_weight', 0.0, 1.0)
+        # self.params.label_weight_temperature = trial.suggest_float('label_weight_temperature', 0.0, 20.0)
+        # self.params.kld_loss_weight = trial.suggest_float('kld_loss_weight', 0.0, 1.0)
+        # self.params.entropy_loss_weight = trial.suggest_float('entropy_loss_weight', 0.0, 1.0)
         # self.params.use_lr_warmup = trial.suggest_categorical('use_lr_warmup', [True, False])
-        self.params.label_update_epoch = [trial.suggest_int('label_update_epoch', 1, self.params.epochs * 2 // 3)]
-        self.params.conf_thresh = [trial.suggest_float('conf_thresh', 0.75, 1.0)]
+        self.params.label_update_epoch = [trial.suggest_int('label_update_epoch', 5, self.params.epochs * 2 // 3)]
+        self.params.conf_thresh = [trial.suggest_float('conf_thresh', 0.8, 0.99)]
         # self.params.use_prototype_denoising = trial.suggest_categorical('use_prototype_denoising', [True, False])
         # self.params.sp_label_min_portion = trial.suggest_float('sp_label_min_portion', 0.75, 1.0)
 
-        from utils.optim_opt import SUPPORTED_OPTIMIZERS, SUPPORTED_SCHEDULERS
+        # from utils.optim_opt import SUPPORTED_OPTIMIZERS, SUPPORTED_SCHEDULERS
         # Optimizer
-        self.params.optimizer_name = trial.suggest_categorical('optimizer_name', SUPPORTED_OPTIMIZERS)
+        # self.params.optimizer_name = trial.suggest_categorical('optimizer_name', SUPPORTED_OPTIMIZERS)
         # Scheduler
-        self.params.scheduler_name = trial.suggest_categorical('scheduler_name', SUPPORTED_SCHEDULERS)
+        self.params.scheduler_name = trial.suggest_categorical('scheduler_name', ['constant', 'cyclic'])
 
 
     def optuna_objective(self, trial: optuna.trial.Trial):
