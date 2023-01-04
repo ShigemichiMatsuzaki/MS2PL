@@ -88,7 +88,12 @@ class PseudoTrainer(object):
     
         now = datetime.datetime.now() + datetime.timedelta(hours=9)
         condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
-        self.optuna_study_name = condition + "_" + self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
+        self.optuna_storage_name = condition + "_" + self.model_name
+
+        if args.optuna_resume_from:
+            self.optuna_study_name = args.optuna_resume_from
+        else:
+            self.optuna_study_name = condition + "_" + self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
     
     def train(self, epoch: int = -1,) -> None:
         """Main training process for one epoch
@@ -757,8 +762,8 @@ class PseudoTrainer(object):
         self.params.kld_loss_weight = trial.suggest_float('kld_loss_weight', 0.0, 1.0)
         self.params.entropy_loss_weight = trial.suggest_float('entropy_loss_weight', 0.0, 1.0)
         # self.params.use_lr_warmup = trial.suggest_categorical('use_lr_warmup', [True, False])
-        self.params.label_update_epoch = [trial.suggest_int('label_update_epoch', 1, self.params.epochs)]
-        self.params.conf_thresh = [trial.suggest_float('conf_thresh', 0.5, 1.0)]
+        self.params.label_update_epoch = [trial.suggest_int('label_update_epoch', 1, self.params.epochs * 2 // 3)]
+        self.params.conf_thresh = [trial.suggest_float('conf_thresh', 0.75, 1.0)]
         # self.params.use_prototype_denoising = trial.suggest_categorical('use_prototype_denoising', [True, False])
         # self.params.sp_label_min_portion = trial.suggest_float('sp_label_min_portion', 0.75, 1.0)
 
@@ -797,11 +802,12 @@ class PseudoTrainer(object):
         """
         optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
 
-        storage_name = "sqlite:///{}.db".format(self.optuna_study_name)
+        storage_name = "sqlite:///{}.db".format(self.optuna_storage_name)
         study = optuna.create_study(
             study_name=self.optuna_study_name,
             storage=storage_name,
-            direction="maximize"
+            direction="maximize",
+            load_if_exists=True,
         )
         study.optimize(self.optuna_objective, n_trials=n_trials, timeout=timeout)
 

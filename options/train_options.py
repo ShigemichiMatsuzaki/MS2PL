@@ -111,6 +111,13 @@ class TrainBaseOptions(BaseOptions):
             type=strtobool,
             help='Whether to use automatic hyperparameter tuning by Optuna'
         )
+        self.parser.add_argument(
+            '--optuna-resume-from', 
+            default='', 
+            type=str,
+            help='Name of existing study'
+        )
+
 
 
 
