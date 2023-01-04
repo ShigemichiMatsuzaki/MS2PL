@@ -3,7 +3,7 @@ IMAGE_NAME=aisl/ms2pl
 CONTAINER_NAME=domain-gap-eval
 VERSION=22.11-py3
 GPU_ID=all
-DATASET_ROOT=/media/aisl/ExtremeSSD/dataset
+DATASET_ROOT=/media/aisl/ExtremeSSD1/dataset
 RUNS_ROOT=/data/aisl/matsuzaki/runs
 
 build:
@@ -184,7 +184,7 @@ optuna-dashboard:
 	docker run -it \
 		--rm \
 		-p 8080:8080 \
-		-v ../:/app \
+		-v ${PWD}/../:/app \
 		-w /app \
 		ghcr.io/optuna/optuna-dashboard \
-		sqlite:///db.sqlite3
+		sqlite:///pseudo_soft_espnetv2.db
