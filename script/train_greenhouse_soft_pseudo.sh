@@ -23,7 +23,6 @@ python train_pseudo.py \
     --save-path /tmp/runs/domain_gap/ \
     --scheduler constant \
     --class-wts-type uniform \
-    --use-optuna true \
     --is-hard ${is_hard} \
     --use-kld-class-loss ${use_kld_class_loss} \
     --use-label-ent-weight ${use_label_ent_weight} \
@@ -35,4 +34,6 @@ python train_pseudo.py \
     --entropy-loss-weight 0.5 \
     --sp-label-min-portion 0.9 \
     --pseudo-label-dir ./pseudo_labels/${SOURCE_MODEL}/ \
-    --ignore-index 3 
+    --ignore-index 3  \
+    --use-optuna true \
+    --optuna-resume-from ./pseudo_soft_espnetv2_20230103-111856.db
