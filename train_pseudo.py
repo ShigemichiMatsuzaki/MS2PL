@@ -3,7 +3,6 @@ __author__ = "ShigemichiMatsuzaki"
 __maintainer__ = "ShigemichiMatsuzaki"
 # ============================================
 
-import random
 import numpy as np
 
 import torch
@@ -16,12 +15,6 @@ def main():
     # args = parse_arguments()
     args = TrainOptions().parse()
     print(args)
-
-    # Manually set the seeds of random values
-    # https://qiita.com/north_redwing/items/1e153139125d37829d2d
-    torch.manual_seed(args.rand_seed)
-    random.seed(args.rand_seed)
-    np.random.seed(args.rand_seed)
 
     torch.autograd.set_detect_anomaly(True)
 
