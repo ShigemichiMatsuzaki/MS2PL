@@ -1,4 +1,4 @@
-import collections
+import random
 import datetime
 import logging
 import os
@@ -66,6 +66,7 @@ class PseudoTrainer(object):
         # Scheduler
         self.params.scheduler_name = args.scheduler
 
+        self.rand_seed = args.rand_seed
         self.resume_from = args.resume_from
         self.batch_size = args.batch_size
         self.use_cosine = args.use_cosine
@@ -280,6 +281,12 @@ class PseudoTrainer(object):
         trial:
 
         """
+        # Manually set the seeds of random values
+        # https://qiita.com/north_redwing/items/1e153139125d37829d2d
+        torch.manual_seed(self.rand_seed)
+        random.seed(self.rand_seed)
+        np.random.seed(self.rand_seed)
+
         # If 'trial' is given, initialize the parameters by Optuna
         if trial is not None:
             self.optuna_init_parameters(trial)
