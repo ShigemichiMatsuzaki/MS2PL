@@ -474,7 +474,10 @@ class PseudoTrainer(object):
             os.makedirs(self.pseudo_save_path)
     
         # SummaryWriter for Tensorboard
-        self.writer = SummaryWriter(self.save_path)
+        if trial is None: # If not optuna
+            self.writer = SummaryWriter(self.save_path)
+        else:
+            self.writer = None
     
         # Save the training parameters
         log_training_conditions(self.params, save_dir=self.save_path)
@@ -626,6 +629,7 @@ class PseudoTrainer(object):
             Default: `None`
         
         """
+
         self.init_training()
 
         best_miou = 0.0
@@ -751,7 +755,7 @@ class PseudoTrainer(object):
         # Remove the pseudo-labels generated during the training
         shutil.rmtree(self.pseudo_save_path)
 
-        return best_miou
+        return (best_miou + metrics["miou"]) / 2
 
 
     def optuna_init_parameters(self, trial: optuna.trial.Trial):
@@ -763,14 +767,14 @@ class PseudoTrainer(object):
             A process of evaluating an objective function.
         
         """
-        self.params.use_kld_class_loss = trial.suggest_categorical('use_kld_class_loss', [True, False])
-        self.params.use_label_ent_weight = trial.suggest_categorical('use_label_ent_weight', [True, False])
-        # self.params.label_weight_temperature = trial.suggest_float('label_weight_temperature', 0.0, 20.0)
-        # self.params.kld_loss_weight = trial.suggest_float('kld_loss_weight', 0.0, 1.0)
-        # self.params.entropy_loss_weight = trial.suggest_float('entropy_loss_weight', 0.0, 1.0)
+        # self.params.use_kld_class_loss = trial.suggest_categorical('use_kld_class_loss', [True, False])
+        # self.params.use_label_ent_weight = trial.suggest_categorical('use_label_ent_weight', [True, False])
+        self.params.label_weight_temperature = trial.suggest_float('label_weight_temperature', 2.0, 10.0)
+        self.params.kld_loss_weight = trial.suggest_float('kld_loss_weight', 0.0, 1.0)
+        self.params.entropy_loss_weight = trial.suggest_float('entropy_loss_weight', 0.0, 1.0)
         # self.params.use_lr_warmup = trial.suggest_categorical('use_lr_warmup', [True, False])
-        self.params.label_update_epoch = [trial.suggest_int('label_update_epoch', 5, self.params.epochs * 2 // 3)]
-        self.params.conf_thresh = [trial.suggest_float('conf_thresh', 0.8, 0.99)]
+        # self.params.label_update_epoch = [trial.suggest_int('label_update_epoch', 5, self.params.epochs * 2 // 3)]
+        self.params.conf_thresh = [trial.suggest_float('conf_thresh', 0.75, 0.99)]
         # self.params.use_prototype_denoising = trial.suggest_categorical('use_prototype_denoising', [True, False])
         # self.params.sp_label_min_portion = trial.suggest_float('sp_label_min_portion', 0.75, 1.0)
 
@@ -778,7 +782,7 @@ class PseudoTrainer(object):
         # Optimizer
         # self.params.optimizer_name = trial.suggest_categorical('optimizer_name', SUPPORTED_OPTIMIZERS)
         # Scheduler
-        self.params.scheduler_name = trial.suggest_categorical('scheduler_name', ['constant', 'cyclic'])
+        # self.params.scheduler_name = trial.suggest_categorical('scheduler_name', ['constant', 'cyclic'])
 
 
     def optuna_objective(self, trial: optuna.trial.Trial):
@@ -808,6 +812,8 @@ class PseudoTrainer(object):
         
         """
         optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+
+        self.is_optuna = True
 
         storage_name = "sqlite:///{}.db".format(self.optuna_storage_name)
         study = optuna.create_study(

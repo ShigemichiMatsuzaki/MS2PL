@@ -187,5 +187,5 @@ optuna-dashboard:
 		-p 8080:8080 \
 		-v ${PWD}/../:/app \
 		-w /app \
-		ghcr.io/optuna/optuna-dashboard \
+		ghcr.io/optuna/optuna-dashboard:v0.9.0b2 \
 		sqlite:///pseudo_soft_espnetv2.db
