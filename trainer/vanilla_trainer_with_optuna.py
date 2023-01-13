@@ -435,7 +435,7 @@ class PseudoTrainer(object):
         )
         self.val_loader = torch.utils.data.DataLoader(
             self.dataset_val,
-            batch_size=self.batch_size,
+            batch_size=64,
             shuffle=False,
             pin_memory=self.pin_memory,
             num_workers=self.num_workers,

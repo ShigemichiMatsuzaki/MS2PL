@@ -104,7 +104,7 @@ def add_images_to_tensorboard(
     data_tag: str,
     is_label: bool = False,
     color_encoding: dict = None,
-    n_max: int = 32,
+    n_max: int = 64,
 ) -> None:
     """Write the given image batch to ``SummaryWriter`` of Tensorboard
 
