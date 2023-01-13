@@ -9,6 +9,14 @@ class TrainBaseOptions(BaseOptions):
         self.parser.add_argument(
             "--epochs", type=int, default=300, help="The number of training epochs"
         )
+
+        self.parser.add_argument(
+            "--val-every-epochs", type=int, default=1, help="Validate every this number of epochs"
+        )
+        self.parser.add_argument(
+            "--vis-every-vals", type=int, default=5, help="Visualize every this number of validation processes"
+        )
+
         self.parser.add_argument(
             "--resume-from",
             type=str,
@@ -51,8 +59,8 @@ class TrainBaseOptions(BaseOptions):
         )
         self.parser.add_argument(
             "--lr-gamma",
-            type=strtobool,
-            default=False,
+            type=float,
+            default=0.1,
             help="Whether to use learning rate warmup",
         )
         self.parser.add_argument(
@@ -96,6 +104,21 @@ class TrainBaseOptions(BaseOptions):
             help='Whether to use an easy margin'
         )
 
+        # Hyperparameter tuning
+        self.parser.add_argument(
+            '--use-optuna', 
+            default=False, 
+            type=strtobool,
+            help='Whether to use automatic hyperparameter tuning by Optuna'
+        )
+        self.parser.add_argument(
+            '--optuna-resume-from', 
+            default='', 
+            type=str,
+            help='Name of existing study'
+        )
+
+
 
 
 class PreTrainOptions(TrainBaseOptions):
@@ -136,13 +159,29 @@ class TrainOptions(TrainBaseOptions):
     def initialize(self):
         super().initialize()
 
+        # Dataset
         self.parser.add_argument(
             "--target",
             type=str,
             default="greenhouse",
             help="Target dataset",
         )
+        self.parser.add_argument(
+            "--train-data-list-path",
+            type=str,
+            default="dataset/data_list/train_greenhouse_a.lst",
+            help="Target training dataset",
+        )
+        self.parser.add_argument(
+            "--val-data-list-path",
+            type=str,
+            default="dataset/data_list/val_greenhouse_a.lst",
+            help="Target validation dataset",
+        )
 
+
+
+        # Label type
         self.parser.add_argument(
             "--is-hard",
             type=strtobool,
@@ -188,8 +227,6 @@ class TrainOptions(TrainBaseOptions):
             default=0.5,
             help="Threshold of label weight value. Below this value is set to 0",
         )
-
-
 
         # Pseudo-label update
         self.parser.add_argument(

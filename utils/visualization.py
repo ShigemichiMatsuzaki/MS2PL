@@ -104,6 +104,7 @@ def add_images_to_tensorboard(
     data_tag: str,
     is_label: bool = False,
     color_encoding: dict = None,
+    n_max: int = 64,
 ) -> None:
     """Write the given image batch to ``SummaryWriter`` of Tensorboard
 
@@ -121,12 +122,16 @@ def add_images_to_tensorboard(
         ``True`` if the given tensor is segmentation label maps
     color_encoding : ``dict``
         Definition of mapping from object labels to colors. Must be given if ``is_label`` is True
+    n_max: `int`
+        Maximum number of images
 
     Returns
     -------
     None
 
     """
+    if tensor.size(0) > n_max:
+        tensor = tensor[:n_max]
 
     if not is_label:
         images_grid = torchvision.utils.make_grid(tensor.data.cpu()).numpy()
@@ -256,7 +261,7 @@ def assign_label_on_features(
     scale_factor: `int`
         Factor to downsample the feature map (1/scale_factor)
     ignore_index: `int`
-        Label features with which are ignored in embedding.
+        Label features with which are ignored in embedding. Default: -1
 
     Returns
     -------
@@ -274,7 +279,6 @@ def assign_label_on_features(
     assert label_type != 'traversability' or masks is not None
 
     feature = F.interpolate(feature, scale_factor=1/scale_factor, mode='nearest')
-#    feature = feature.squeeze()
 
     # interpolate is not implemented for integers
     ih = torch.linspace(0, labels.size(1)-1, labels.size(1)//scale_factor).long()

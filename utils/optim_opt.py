@@ -1,7 +1,10 @@
-from multiprocessing.sharedctypes import Value
-from xml.dom.minidom import Attr
 import torch
 
+SUPPORTED_OPTIMIZERS = ['SGD', 'Adam']
+SUPPORTED_SCHEDULERS = (['step', 'multistep', 'exponential', 'polynomial', 'cyclic', 'constant']
+    if torch.__version__ >= '1.13.0'
+    else ['step', 'multistep', 'exponential', 'cyclic', 'constant']
+)
 
 class ConstantLR:
     def __init__(self):
@@ -11,116 +14,138 @@ class ConstantLR:
         pass
 
 
-def get_optimizer(args, model: torch.Tensor) -> torch.optim.Optimizer:
+def get_optimizer(
+    optim_name: str, 
+    model_name: str, 
+    model: torch.nn.Module, 
+    lr: float,
+    weight_decay: float,
+    momentum: float,
+) -> torch.optim.Optimizer:
     """Get optimizer
 
     Parameters
     ----------
-    args :
-        Arguments acquired by ``argparse''
-    model : ``torch.Tensor''
+    optim_name: `str`
+        Name of optimizer
+    model_name: `str`
+        Name of model
+    model : `torch.nn.Module`
         A model to optimize
+    lr: `float`
+        Base learning rate
+    weight_decay: `float`
+        Weight decay
+    momentum: `float`
+        Momentum value for SGD
 
     Return
     ------
-    optimizer : ``torch.optim.Optimizer''
+    optimizer : `torch.optim.Optimizer`
         An optimizer
 
     """
-    if args.optim == "Adam":
+    if optim_name == "Adam":
         optimizer = torch.optim.Adam(
             # model.parameters(),
             [
                 {
-                    "params": get_decoder_weights(model, args.model),
-                    "lr": args.lr,
+                    "params": get_decoder_weights(model, model_name),
+                    "lr": lr,
                 },
                 {
-                    "params": get_encoder_weights(model, args.model),
-                    "lr": args.lr / 10.0,
+                    "params": get_encoder_weights(model, model_name),
+                    "lr": lr / 10.0,
                 },
             ],
-            lr=args.lr,
-            weight_decay=args.weight_decay,
+            lr=lr,
+            weight_decay=weight_decay,
         )
-    elif args.optim == "SGD":
+    elif optim_name == "SGD":
         optimizer = torch.optim.SGD(
             # model.parameters(),
             [
                 {
-                    "params": get_decoder_weights(model, args.model),
-                    "lr": args.lr,
+                    "params": get_decoder_weights(model, model_name),
+                    "lr": lr,
                 },
                 {
-                    "params": get_encoder_weights(model, args.model),
-                    "lr": args.lr / 10.0,
+                    "params": get_encoder_weights(model, model_name),
+                    "lr": lr / 10.0,
                 },
             ],
-            lr=args.lr,
-            momentum=args.momentum,
-            weight_decay=args.weight_decay,
+            lr=lr,
+            momentum=momentum,
+            weight_decay=weight_decay,
         )
     else:
-        print("Invalid optimizer name {}".format(args.optim))
+        print("Invalid optimizer name {}".format(optim_name))
         raise ValueError
 
     return optimizer
 
 
 def get_scheduler(
-    args, optimizer: torch.optim.Optimizer
+    scheduler_name: str, 
+    optim_name: str,
+    optimizer: torch.optim.Optimizer,
+    epochs: int,
+    lr: float,
+    lr_gamma: float,
 ) -> torch.optim.lr_scheduler._LRScheduler:
     """Get learning rate scheduler
 
     Parameters
     ----------
-    args :
-        Arguments acquired by ``argparse''
-    optimizer : ``torch.optim.Optimizer''
+    scheduler_name: `str`
+        Name of scheduler
+    optimizer : `torch.optim.Optimizer`
         Optimizer
+    epochs: `int`
+        The total number of training epochs
 
     Returns
     -------
-    scheduler : ``torch.optim.lr_scheduler._LRScheduler''
+    scheduler : `torch.optim.lr_scheduler._LRScheduler`
         Scheduler
 
     """
-    if args.scheduler == "step":
+    if scheduler_name == "step":
         scheduler = torch.optim.lr_scheduler.StepLR(
-            optimizer, args.epochs // 4, gamma=0.1
+            optimizer, epochs // 4, gamma=0.1
         )
-    elif args.scheduler == "multistep":
+    elif scheduler_name == "multistep":
         scheduler = torch.optim.lr_scheduler.MultiStepLR(
             optimizer,
-            milestones=[args.epochs // 6, args.epochs // 3, args.epochs // 2],
-            gamma=0.1,
+            milestones=[epochs // 6, epochs // 3, epochs // 2],
+            gamma=lr_gamma,
         )
-    elif args.scheduler == "exponential":
+    elif scheduler_name == "exponential":
         scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            optimizer, gamma=args.lr_gamma
+            optimizer, gamma=lr_gamma
         )
-    elif args.scheduler == "polynomial":
+    elif scheduler_name == "polynomial":
         scheduler = torch.optim.lr_scheduler.PolynomialLR(
-            optimizer, total_iters=args.epochs, power=0.9, last_epoch=-1, verbose=False
+            optimizer, total_iters=epochs, power=0.9, last_epoch=-1, verbose=False
         )
-    elif args.scheduler == "cyclic":
+    elif scheduler_name == "cyclic":
         scheduler = torch.optim.lr_scheduler.CyclicLR(
             optimizer,
-            base_lr=args.lr,
-            max_lr=args.lr * 10,
+            base_lr=lr,
+            max_lr=lr * 10,
             mode="triangular",
             step_size_up=5,
             step_size_down=10,
-            cycle_momentum=(args.optim == "SGD"),
+            cycle_momentum=(optim_name == "SGD"),
         )
-    elif args.scheduler == "constant":
+    elif scheduler_name == "constant":
         scheduler = ConstantLR()
-    # elif args.scheduler == "linear":
+    # elif scheduler_name == "linear":
     #     schedule = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.5, total_iters=4)
     else:
         print(
             "Learning rate scheduling policy {} is not supported.".format(
-                args.scheduler
+                scheduler_name
             )
         )
         raise ValueError

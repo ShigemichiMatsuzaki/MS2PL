@@ -1,25 +1,34 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
-RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
+# RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
+RESUME_FROM=""
+
 # Parameters
-label_weight_temp=5 
+conf_thresh=0.95
+entropy_loss_weight=1.0
+kld_loss_weight=0.21879
+label_update_epoch=11
+label_weight_temp=3.536898
+optimizer_name=SGD
+scheduler_name=constant
 label_weight_threshold=0.1
 use_kld_class_loss=false
 use_label_ent_weight=true
 is_hard=false
-conf_thresh=0.95
 python train_pseudo.py \
     --device cuda \
+    --train-data-list-path dataset/data_list/train_greenhouse_a.lst \
+    --val-data-list-path dataset/data_list/val_greenhouse_a.lst \
     --model ${MODEL} \
     --use-cosine true \
-    --resume-from ${RESUME_FROM} \
     --target greenhouse \
-    --batch-size 64 \
-    --epoch 50 \
-    --lr 0.009 \
-    --label-update-epoch 5 \
+    --batch-size 128 \
+    --epoch 20 \
+    --lr 0.019 \
+    --label-update-epoch 1 \
     --save-path /tmp/runs/domain_gap/ \
-    --scheduler constant \
+    --optim ${optimizer_name} \
+    --scheduler ${scheduler_name} \
     --class-wts-type uniform \
     --is-hard ${is_hard} \
     --use-kld-class-loss ${use_kld_class_loss} \
@@ -27,9 +36,10 @@ python train_pseudo.py \
     --conf-thresh ${conf_thresh} \
     --use-prototype-denoising true \
     --label-weight-temperature ${label_weight_temp} \
-    --label-weight-threshold ${label_weight_threshold} \
-    --kld-loss-weight 0.2 \
-    --entropy-loss-weight 0.5 \
+    --kld-loss-weight ${kld_loss_weight} \
+    --entropy-loss-weight ${entropy_loss_weight} \
     --sp-label-min-portion 0.9 \
     --pseudo-label-dir ./pseudo_labels/${SOURCE_MODEL}/ \
-    --ignore-index 3 
+    --ignore-index 3  \
+    --use-optuna true \
+    --optuna-resume-from ./pseudo_soft_espnetv2_20230103-111856.db

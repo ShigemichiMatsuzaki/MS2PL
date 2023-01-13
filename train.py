@@ -607,12 +607,26 @@ def main():
     #
     # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     print("=== Get optimizer ===")
-    optimizer = get_optimizer(args, model=model)
+    optimizer = get_optimizer(
+        optim_name=args.optim, 
+        model_name=args.model,
+        model=model,
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+        momentum=args.momentum,
+    )
 
     #
     # Scheduler: Gradually changes the learning rate
     #
-    scheduler = get_scheduler(args, optimizer)
+    scheduler = get_scheduler(
+        scheduler_name=args.scheduler, 
+        optim_name=args.optim,
+        optimizer=optimizer,
+        epochs=args.epochs,
+        lr=args.lr,
+        lr_gamma=args.lr_gamma,
+    )
     if args.use_lr_warmup:
         scheduler = GradualWarmupScheduler(
             optimizer, multiplier=1, total_epoch=10, after_scheduler=scheduler
