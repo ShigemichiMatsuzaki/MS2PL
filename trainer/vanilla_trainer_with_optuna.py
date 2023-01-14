@@ -354,12 +354,19 @@ class PseudoTrainer(object):
                     is_old_label=self.is_old_label,
                 )
             else:
-                from dataset.greenhouse import GreenhouseRGBDSoftLabel, color_encoding
+                # from dataset.greenhouse import GreenhouseRGBDSoftLabel, color_encoding
+                from dataset.greenhouse import GreenhouseRGBD, color_encoding
     
-                self.dataset_train = GreenhouseRGBDSoftLabel(
+                # self.dataset_train = GreenhouseRGBDSoftLabel(
+                #     list_name=self.train_data_list_path,
+                #     label_root=self.pseudo_label_dir,
+                #     mode="train",
+                # )
+                self.dataset_train = GreenhouseRGBD(
                     list_name=self.train_data_list_path,
                     label_root=self.pseudo_label_dir,
                     mode="train",
+                    is_hard_label=self.params.is_hard,
                 )
 
             self.color_encoding = color_encoding

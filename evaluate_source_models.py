@@ -35,18 +35,18 @@ def main():
     ):
         if os_d == "camvid":
             os_seg_classes = 13
-            from dataset.camvid import id_camvid_to_greenhouse as label_conversion
+            from dataset.tools.label_conversions import id_camvid_to_greenhouse as label_conversion
             from dataset.camvid import color_encoding
         elif os_d == "cityscapes":
             # os_seg_classes = 19
             os_seg_classes = 20
-            from dataset.cityscapes import (
+            from dataset.tools.label_conversions import (
                 id_cityscapes_to_greenhouse as label_conversion,
             )
             from dataset.cityscapes import color_encoding
         elif os_d == "forest" or os_d == "greenhouse":
             os_seg_classes = 5
-            from dataset.forest import id_forest_to_greenhouse as label_conversion
+            from dataset.tools.label_conversions import id_forest_to_greenhouse as label_conversion
             from dataset.forest import color_encoding
         else:
             print("{} is not supported.".format(os_d))
@@ -74,7 +74,6 @@ def main():
             is_hard_label=True,
             is_old_label=True,
         )
-
     elif args.target == "cityscapes":
         from dataset.cityscapes import CityscapesSegmentation
 
@@ -89,9 +88,18 @@ def main():
         from dataset.forest import FreiburgForestDataset, color_encoding
 
         target_dataset = FreiburgForestDataset(
-            root="/tmp/dataset/freiburg_forest_annotated", mode="val"
+            root="/tmp/dataset/freiburg_forest_annotated", 
+            mode="val",
         )
+    elif args.target == "oxfordrobot":
+        from dataset.oxford_robot import OxfordRobot, color_encoding
 
+        target_dataset = OxfordRobot(
+            dataset_root="/tmp/dataset", 
+            mode="val", 
+            load_labels=False,
+            is_hard_label=True,
+        )
     else:
         print("Target {} is not supported.".format(args.target))
         raise ValueError

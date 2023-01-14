@@ -15,6 +15,8 @@ from collections import OrderedDict
 import numpy as np
 import copy
 
+from dataset.base_dataset import BaseTargetDataset
+
 GREENHOUSE_CLASS_LIST = ["plant", "artificial", "ground", "other"]
 
 color_encoding = OrderedDict(
@@ -29,7 +31,7 @@ color_encoding = OrderedDict(
 color_palette = [0, 255, 255, 255, 0, 0, 255, 255, 0, 0, 0, 0]
 
 
-class GreenhouseRGBD(torch.utils.data.Dataset):
+class GreenhouseRGBD(BaseTargetDataset):
     def __init__(
         self,
         list_name,
@@ -71,19 +73,20 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
             Otherwise, ['plant', 'artificial object', 'ground']
 
         """
-        self.mode = mode
-        self.rough_plant = rough_plant
-        data_file = list_name
+        super().__init__(
+            label_root=label_root,
+            mode=mode,
+            size=size,
+            is_hard_label=is_hard_label,
+            load_labels=load_labels,
+        )
 
-        self.is_hard_label = is_hard_label
-        self.load_labels = load_labels
+        self.data_file = list_name
+        self.rough_plant = rough_plant
         self.is_old_label = is_old_label
 
         # Initialize the lists
-        self.images = []
-        self.labels = []
-        self.soft_pseudo_labels = []  # Not loaded here
-        with open(data_file, "r") as lines:
+        with open(self.data_file, "r") as lines:
             for line in lines:
                 # Split a line
                 line_split = line.split(",")
@@ -104,10 +107,16 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
                 #
                 # Segmentation label
                 #
-                if label_root:
-                    label_img_loc = os.path.join(label_root, line_split[1].rstrip())
+                if self.load_labels:
+                    if self.label_root:
+                        label_img_loc = os.path.join(self.label_root, line_split[1].rstrip())
+                    else:
+                        label_img_loc = line_split[1].rstrip()
+
+                    if self.mode == "train" and not self.is_hard_label:
+                        label_img_loc = label_img_loc.replace("png", "pt")
                 else:
-                    label_img_loc = line_split[1].rstrip()
+                    label_img_loc = ""
 
                 # Verify the existence of the file
                 if (
@@ -119,320 +128,26 @@ class GreenhouseRGBD(torch.utils.data.Dataset):
                     assert os.path.isfile(label_img_loc)
                 self.labels.append(label_img_loc)
 
-        if isinstance(size, tuple):
-            self.size = size
-        else:
-            self.size = (size, size)
 
-        (self.train_transforms, self.val_transforms) = self.transforms()
-
-    def transforms(self):
-        """Get transforms
-
-        Returns:
-            Tuple: set of transforms for train data and test data
+    def label_preprocess(self, label_img):
+        """Pre-processing of the label
+        
         """
-        train_transforms = A.Compose(
-            [
-                A.RandomResizedCrop(
-                    width=self.size[1], height=self.size[0], scale=(0.7, 1.0)
-                ),
-                A.HorizontalFlip(p=0.5),
-                A.GaussNoise(p=0.5),
-                A.GaussianBlur(p=0.5),
-                A.RGBShift(p=0.5),
-                A.RandomBrightnessContrast(
-                    p=1.0, brightness_limit=0.3, contrast_limit=0.3
-                ),
-            ]
-        )
-        val_transforms = A.Compose(
-            [
-                A.Resize(width=480, height=256),
-            ]
-        )
-
-        return train_transforms, val_transforms
-
-    def set_label_list(self, label_list):
-        """Set label list
-
-        Args:
-            real_noise (torch.Tensor): A tensor of original noisy images
-            real_denoise (torch.Tensor): A tensor of original not noisy images
-            tri_denoise (torch.Tensor): A tensor of images converted back to the denoised domain
-
-        Returns:
-            Dictionary: A dictionary that stores the losses
-        """
-        self.labels = copy.deepcopy(label_list)
-
-    def set_soft_pseudo_label_list(self, soft_pseudo_label_list):
-        """Set label list
-
-        Args:
-            real_noise (torch.Tensor): A tensor of original noisy images
-            real_denoise (torch.Tensor): A tensor of original not noisy images
-            tri_denoise (torch.Tensor): A tensor of images converted back to the denoised domain
-
-        Returns:
-            Dictionary: A dictionary that stores the losses
-        """
-        self.soft_pseudo_labels = copy.deepcopy(soft_pseudo_label_list)
-
-    def __len__(self):
-        """Get length
-
-        Returns:
-            Int: The length of the dataset
-        """
-        return len(self.images)
-
-    def __getitem__(self, index):
-        """Initialize
-
-        Args:
-            index (Int): An index
-
-        Returns:
-            Dictionary: A dictionary that stores data
-        """
-        rgb_img = Image.open(self.images[index]).convert("RGB")
-        orig_img = None
-        label_img = None
-
         #
         # Segmentation label
         #
-        if self.labels and self.labels[index]:
-            if self.is_hard_label:
-                label_img = Image.open(self.labels[index])
+        if not self.rough_plant and not self.is_old_label:
+            return label_img
 
-                if self.rough_plant:
-                    label_np = np.array(label_img, np.uint8)
-                    # 5: rough plant -> 1: other plant
-                    label_np[label_np == 5] = 1 if self.is_old_label else 0
-                    label_img = Image.fromarray(label_np)
+        label_np = np.array(label_img, np.uint8)
+        if self.rough_plant:
+            # 5: rough plant -> 1: other plant
+            label_np[label_np == 5] = 1 if self.is_old_label else 0
 
-                if self.is_old_label:
-                    label_np = np.array(label_img, np.uint8)
-                    label_np[label_np == 0] = 1
-                    label_np -= 1
-                    label_img = Image.fromarray(label_np)
+        if self.is_old_label:
+            label_np[label_np == 0] = 1
+            label_np -= 1
 
-                label_img = label_img.resize(rgb_img.size, Image.NEAREST)
-            else:
-                label_img = Image.new("L", rgb_img.size)
-                pass
-        else:
-            label_img = Image.new("L", rgb_img.size)
-            in_batch_mask_label = 0
+        label_img = Image.fromarray(label_np)
 
-        #
-        # Soft pseudo-label
-        #
-        if self.soft_pseudo_labels:
-            soft_pseudo_label = torch.load(self.soft_pseudo_labels[index]).to(
-                torch.float
-            )
-            soft_pseudo_path = self.soft_pseudo_labels[index]
-        else:
-            soft_pseudo_label = torch.zeros((1, self.size[0], self.size[1]))
-            soft_pseudo_path = ""
-
-        # Pre-processing of the data
-        rgb_cv_img = np.array(rgb_img)
-        label_cv_img = np.array(label_img)
-        if self.mode == "train":
-            transformed = self.train_transforms(image=rgb_cv_img, mask=label_cv_img)
-        else:
-            transformed = self.val_transforms(image=rgb_cv_img, mask=label_cv_img)
-
-        rgb_img_orig = F.to_tensor(transformed["image"])
-        label_img = torch.LongTensor(transformed["mask"].astype(np.int64))
-
-        # Normalize the pixel values
-        rgb_img = F.normalize(
-            rgb_img_orig, (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
-        )
-
-        return {
-            "image": rgb_img,
-            "image_orig": rgb_img_orig,
-            "image_path": self.images[index],
-            "label": label_img,
-            "label_path": self.labels[index],
-            "name": self.images[index].rsplit("/", 1)[1],
-        }
-
-
-class GreenhouseRGBDSoftLabel(torch.utils.data.Dataset):
-    def __init__(
-        self,
-        list_name,
-        label_root="",
-        mode="train",
-        size=(256, 480),
-    ):
-        """Initialize a dataset
-
-        Each line of a data list must be formatted as follows:
-            rgb_image_path, depth_image_path, label_path, trav_mask_path, start_point_x, start_point_y, end_point_x, end_point_y
-
-        Parameters
-        ----------
-        list_name: `str`
-            File name of the data list
-        root: `str`
-            Name of the directory where the data list is stored
-        train: `bool`
-            True if the dataset is for training
-        size: `list`
-            Image size to which the image is resized
-        """
-        data_file = list_name
-
-        self.mode = mode
-
-        # Initialize the lists
-        self.images = []
-        self.labels = []
-        self.soft_pseudo_labels = []  # Not loaded here
-        with open(data_file, "r") as lines:
-            for line in lines:
-                # Split a line
-                line_split = line.split(",")
-
-                #
-                # RGB
-                #
-                rgb_img_loc = line_split[0].rstrip()
-                # Chieck the first character. If it's '%', the line is not read
-                if rgb_img_loc == "" or rgb_img_loc[0] == "%":
-                    continue
-                # Verify the existence of the file
-                if rgb_img_loc != "" and not os.path.isfile(rgb_img_loc):
-                    print("Not found : " + rgb_img_loc)
-                    assert os.path.isfile(rgb_img_loc)
-                self.images.append(rgb_img_loc)
-
-                #
-                # Segmentation label
-                #
-                if label_root:
-                    label_img_loc = os.path.join(label_root, line_split[1].rstrip())
-                else:
-                    label_img_loc = line_split[1].rstrip()
-
-                label_img_loc = label_img_loc.replace("png", "pt")
-                # Verify the existence of the file
-                if label_img_loc != "" and not os.path.isfile(label_img_loc):
-                    print("Not found : " + label_img_loc)
-                    assert os.path.isfile(label_img_loc)
-                self.labels.append(label_img_loc)
-
-        if isinstance(size, tuple):
-            self.size = size
-        else:
-            self.size = (size, size)
-
-        (self.train_transforms, self.val_transforms) = self.transforms()
-
-    def transforms(self):
-        """Get transforms
-
-        Returns:
-            Tuple: set of transforms for train data and test data
-        """
-        train_transforms = A.Compose(
-            [
-                # A.RandomResizedCrop(
-                #     width=self.size[1], height=self.size[0], scale=(0.7, 1.0)
-                # ),
-                A.Resize(width=self.size[1], height=self.size[0]),
-                A.HorizontalFlip(p=0.5),
-                A.GaussNoise(p=0.5),
-                A.GaussianBlur(p=0.5),
-                A.RGBShift(p=0.5),
-                A.RandomBrightnessContrast(
-                    p=1.0, brightness_limit=0.3, contrast_limit=0.3
-                ),
-            ]
-        )
-        val_transforms = A.Compose(
-            [
-                A.Resize(width=480, height=256),
-            ]
-        )
-
-        return train_transforms, val_transforms
-
-    def set_label_list(self, label_list):
-        """Set label list
-
-        Args:
-            real_noise (torch.Tensor): A tensor of original noisy images
-            real_denoise (torch.Tensor): A tensor of original not noisy images
-            tri_denoise (torch.Tensor): A tensor of images converted back to the denoised domain
-
-        Returns:
-            Dictionary: A dictionary that stores the losses
-        """
-        self.labels = copy.deepcopy(label_list)
-
-    def __len__(self):
-        """Get length
-
-        Returns:
-            Int: The length of the dataset
-        """
-        return len(self.images)
-
-    def __getitem__(self, index):
-        """Initialize
-
-        Args:
-            index (Int): An index
-
-        Returns:
-            Dictionary: A dictionary that stores data
-        """
-        rgb_img = Image.open(self.images[index]).convert("RGB")
-        orig_img = None
-        label_img = None
-
-        #
-        # Soft pseudo-label
-        #
-        if self.labels:
-            label = torch.load(self.labels[index]).to(torch.float)
-            label_path = self.labels[index]
-        else:
-            label = torch.zeros((1, self.size[0], self.size[1]))
-            label_path = ""
-
-        # Pre-processing of the data
-        rgb_cv_img = np.array(rgb_img)
-        label_cv_img = label.numpy().transpose(1, 2, 0)
-        # print(rgb_cv_img.shape, label_cv_img.shape)
-        if self.mode == "train":
-            transformed = self.train_transforms(image=rgb_cv_img, mask=label_cv_img)
-        else:
-            transformed = self.val_transforms(image=rgb_cv_img, mask=label_cv_img)
-
-        rgb_img_orig = F.to_tensor(transformed["image"])
-        label_img = F.to_tensor(transformed["mask"])
-
-        # Normalize the pixel values
-        rgb_img = F.normalize(
-            rgb_img_orig, (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
-        )
-
-        return {
-            "image": rgb_img,
-            "image_orig": rgb_img_orig,
-            "image_path": self.images[index],
-            "label": label_img,
-            "label_path": self.labels[index],
-            "name": self.images[index].rsplit("/", 1)[1],
-        }
+        return label_img

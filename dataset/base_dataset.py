@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from torchvision.transforms import functional as F
 import albumentations as A
-
+import copy
 
 class BaseDataset(data.Dataset):
     def __init__(
@@ -118,3 +118,154 @@ class BaseDataset(data.Dataset):
         )
 
         return {"image": rgb_img, "image_orig": rgb_img_orig, "label": label_img}
+
+
+class BaseTargetDataset(data.Dataset):
+    def __init__(
+        self,
+        label_root="",
+        mode="train",
+        size=(256, 480),
+        is_hard_label=False,
+        load_labels=True,
+        transform=None,
+    ):
+        """Base class of dataset
+
+        Parameter
+        ---------
+        root : str
+            Root directory of datasets
+        mode : str
+            Mode of the dataset ['train', 'val', 'test']
+        ignore_idx : int
+            Label index for the pixels ignored in training
+        transform : albumentations
+
+        """
+        self.mode = mode
+        self.is_hard_label = is_hard_label
+        self.load_labels = load_labels
+        self.label_root = label_root
+
+        if isinstance(size, tuple):
+            self.size = size
+        else:
+            self.size = (size, size)
+
+        # Declare an augmentation pipeline
+        if transform is not None:
+            self.transform = transform
+        else:
+            self.transform = (
+                A.Compose(
+                    [
+                        # A.Resize(width=480, height=256),
+                        # A.RandomCrop(width=480, height=256),
+                        A.Resize(width=self.size[1], height=self.size[0]),
+                        A.HorizontalFlip(p=0.5),
+                        A.GaussNoise(p=0.2),
+                        A.GaussianBlur(p=0.2),
+                        A.RGBShift(p=0.5),
+                        A.RandomBrightnessContrast(p=0.2),
+                        A.ChannelShuffle(p=0.1),
+                    ]
+                )
+                if self.mode == "train"
+                else A.Compose(
+                    [
+                        A.Resize(width=self.size[1], height=self.size[0]),
+                    ]
+                )
+            )
+
+        self.images = []
+        self.labels = []
+
+    def initialize(self):
+        raise NotImplementedError
+
+    def label_preprocess(self, label):
+        """Pre-processing of the label
+        
+        """
+        raise NotImplementedError
+
+    def set_label_list(self, label_list):
+        """Set label list
+
+        Args:
+            real_noise (torch.Tensor): A tensor of original noisy images
+            real_denoise (torch.Tensor): A tensor of original not noisy images
+            tri_denoise (torch.Tensor): A tensor of images converted back to the denoised domain
+
+        Returns:
+            Dictionary: A dictionary that stores the losses
+        """
+        self.labels = copy.deepcopy(label_list)
+
+    def __len__(self):
+        """Get length
+
+        Returns:
+            Int: The length of the dataset
+        """
+        return len(self.images)
+
+    def __getitem__(self, index):
+        """Initialize
+
+        Args:
+            index (Int): An index
+
+        Returns:
+            Dictionary: A dictionary that stores data
+        """
+
+        rgb_img = Image.open(self.images[index]).convert("RGB")
+        rgb_cv_img = np.array(rgb_img)
+        label_img = None
+
+        #
+        # Segmentation label
+        #
+        if self.labels and self.labels[index]:
+            label_path = self.labels[index]
+            if self.is_hard_label:
+                label_img = Image.open(self.labels[index])
+
+                label_img = self.label_preprocess(label_img)
+
+                label_img = label_img.resize(rgb_img.size, Image.NEAREST)
+                label_cv_img = np.array(label_img)
+            else:
+                label = torch.load(self.labels[index]).to(torch.float)
+                label_cv_img = label.numpy().transpose(1, 2, 0)
+        else:
+            label_img = Image.new("L", rgb_img.size)
+            label_cv_img = np.array(label_img)
+            in_batch_mask_label = 0
+
+        # print(rgb_cv_img.shape, label_cv_img.shape)
+        transformed = self.transform(image=rgb_cv_img, mask=label_cv_img)
+
+        rgb_img_orig = F.to_tensor(transformed["image"])
+        if self.is_hard_label:
+            label_img = torch.LongTensor(transformed["mask"].astype(np.int64))
+        else:
+            label_img = F.to_tensor(transformed["mask"])
+
+        # Normalize the pixel values
+        rgb_img = F.normalize(
+            rgb_img_orig, (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+        )
+
+        return {
+            "image": rgb_img,
+            "image_orig": rgb_img_orig,
+            "image_path": self.images[index],
+            "label": label_img,
+            "label_path": self.labels[index],
+            "name": self.images[index].rsplit("/", 1)[1],
+        }
+

@@ -44,10 +44,12 @@ fi
 
 python generate_pseudo_labels.py \
     --device cuda \
+    --target oxfordrobot \
+    --ignore-index 0 \
     --target-data-list ./dataset/data_list/train_greenhouse_a.lst \
-    --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
-    --source-dataset-names camvid,cityscapes,forest \
-    --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
+    --source-model-names ${camvid_model},${cityscapes_model} \
+    --source-dataset-names camvid,cityscapes \
+    --source-weight-names ${camvid_weight},${cityscapes_weight} \
     --batch-size 12 \
     --is-hard false \
     --use-domain-gap true \
