@@ -45,25 +45,6 @@ color_encoding = OrderedDict(
 )
 
 
-id_camvid_to_greenhouse = np.array(
-    [
-        3,  # Sky
-        1,  # Building
-        1,  # Pole
-        2,  # Road
-        2,  # Pavement
-        0,  # Tree
-        1,  # SignSymbol
-        1,  # Fence
-        1,  # Car
-        3,  # Pedestrian
-        3,  # Bicyclist
-        1,  # Road_marking(?)
-        3,  # Unlabeled
-    ]
-)
-
-
 class CamVidSegmentation(BaseDataset):
     def __init__(
         self,

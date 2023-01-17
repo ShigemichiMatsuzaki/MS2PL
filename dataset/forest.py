@@ -34,10 +34,6 @@ color_to_id = {
     (255, 255, 255): 255,
 }
 
-id_forest_to_greenhouse = np.array(
-    [2, 0, 0, 1, 1], dtype=np.uint8  # road  # grass  # tree  # sky  # obstacle
-)
-
 color_palette = [170, 170, 170, 0, 255, 0, 102, 102, 51, 0, 120, 255, 0, 0, 0]
 
 

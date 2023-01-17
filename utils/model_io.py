@@ -204,7 +204,13 @@ def import_model(
             and "depth" not in k
         }
 
-        print(non_overlap_dict.keys())
+        for k, v in state_dict.items():
+            if k.replace("module.", "") in model_dict and model_dict[k.replace("module.", "")].size() != v.size():
+                print(v.size(), model_dict[k.replace("module.", "")].size())
+            elif k.replace("module.", "") not in model_dict:
+                print("{} not in model_dict".format(k.replace("module.", "")))
+
+        # print(non_overlap_dict.keys())
         # print(state_dict["module.bu_dec_l4.merge_layer.3.weight"].size())
         # print(model_dict["bu_dec_l4.merge_layer.3.weight"].size())
 

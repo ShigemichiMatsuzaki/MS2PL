@@ -61,18 +61,45 @@ def main():
         pseudo_dataset = GreenhouseRGBD(
             list_name=args.target_data_list, mode="val", load_labels=False
         )
-        pseudo_loader = torch.utils.data.DataLoader(
-            pseudo_dataset,
-            batch_size=args.batch_size,
-            shuffle=False,
-            pin_memory=args.pin_memory,
-            num_workers=args.num_workers,
+        num_classes = 3
+    elif args.target == "imo":
+        from dataset.imo import Imo, color_encoding
+
+        pseudo_dataset = Imo(
+            list_name=args.target_data_list, 
+            mode="pseudo", 
+            load_labels=False
         )
         num_classes = 3
+    elif args.target == "sakaki":
+        from dataset.sakaki import SakakiDataset, color_encoding
+
+        pseudo_dataset = SakakiDataset(
+            list_name=args.target_data_list, 
+            mode="pseudo", 
+            load_labels=False
+        )
+        num_classes = 3
+    elif args.target == "oxfordrobot":
+        from dataset.oxford_robot import OxfordRobot, color_encoding
+
+        pseudo_dataset = OxfordRobot(
+            dataset_root="/tmp/dataset", mode="pseudo", load_labels=False
+        )
+        num_classes = 19
     else:
         print("Target {} is not supported.".format(args.target))
         raise ValueError
 
+    pseudo_loader = torch.utils.data.DataLoader(
+        pseudo_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        pin_memory=args.pin_memory,
+        num_workers=args.num_workers,
+    )
+
+    args.save_path = os.path.join(args.save_path, args.target)
     if not os.path.isdir(args.save_path):
         os.makedirs(args.save_path)
 
@@ -83,7 +110,7 @@ def main():
         class_wts = generate_pseudo_label_multi_model(
             model_list=source_model_list,
             source_dataset_name_list=source_dataset_name_list,
-            target_dataset_name="greenhouse",
+            target_dataset_name=args.target,
             data_loader=pseudo_loader,
             num_classes=num_classes,
             device=args.device,
@@ -96,7 +123,7 @@ def main():
             model_list=source_model_list,
             dg_model_list=dg_model_list,
             source_dataset_name_list=source_dataset_name_list,
-            target_dataset_name="greenhouse",
+            target_dataset_name=args.target,
             data_loader=pseudo_loader,
             num_classes=num_classes,
             save_path=args.save_path,

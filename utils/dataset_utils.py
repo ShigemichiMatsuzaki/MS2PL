@@ -1,3 +1,5 @@
+import sys
+import traceback
 import torch
 from tqdm import tqdm
 from typing import Optional
@@ -239,3 +241,111 @@ def import_dataset(
         class_wts = torch.ones(num_classes) / num_classes
 
     return dataset, num_classes, color_encoding, class_wts
+
+def import_target_dataset(
+    dataset_name: str,
+    mode: str = "train",
+    data_list_path: str = "",
+    pseudo_label_dir: str = "",
+    is_hard: bool = False,
+    is_old_label: bool = False,
+):
+    """Import a designated dataset
+
+    Parameters
+    ----------
+    dataset_name: `str`
+        Name of the dataset to import
+    mode: `str`
+        Mode of the dataset. ['train', 'val', 'test']
+    data_list_path: `str`
+        Path to data list (for Greenhouse and Imo). Default: `""`
+    pseudo_label_dir: `str`
+        Path to pseudo labels. Default: `""`
+    is_hard: `bool`
+        `True` to load hard (one-hot) label. Default: `False`
+    is_old_label: `bool`
+        `True` to use old label style. Valid only for Greenhouse.
+        Default: `False`
+
+    Returns
+    -------
+    dataset: `torch.utils.data.Dataset`
+        Imported dataset
+    num_classes: `int`
+        The number of classes in the imported dataset
+    color_encoding: `collection.OrderedDict`
+        Label color encoding of the imported dataset
+    """
+    # max_iter = 3000
+    if dataset_name == "greenhouse":
+        from dataset.greenhouse import GreenhouseRGBD, color_encoding
+        num_classes = 3
+        try:
+            if mode == "train":
+                dataset_ret = GreenhouseRGBD(
+                    list_name=data_list_path,
+                    label_root=pseudo_label_dir,
+                    mode="train",
+                    is_hard_label=is_hard,
+                    is_old_label=is_old_label,
+                )
+            elif mode == "pseudo":
+                dataset_ret = GreenhouseRGBD(
+                    list_name=data_list_path,
+                    label_root=pseudo_label_dir,
+                    mode="pseudo",
+                    is_hard_label=True,
+                    load_labels=False,
+                )
+            elif mode == "val":
+                dataset_ret = GreenhouseRGBD(
+                    list_name=data_list_path,
+                    mode="val",
+                    is_hard_label=True,
+                    is_old_label=True,
+                )
+        except Exception as e:
+            t, v, tb = sys.exc_info()
+            print(traceback.format_exception(t, v, tb))
+            print(traceback.format_tb(e.__traceback__))
+            print("Failed to load dataset '{}'.".format(dataset_name))
+            sys.exit(1)
+    elif dataset_name == "imo":
+        from dataset.imo import Imo, color_encoding
+        num_classes = 3
+        try:
+            if mode == "train":
+                dataset_ret = Imo(
+                    list_name=data_list_path,
+                    label_root=pseudo_label_dir,
+                    mode="train",
+                    is_hard_label=is_hard,
+                )
+            elif mode == "pseudo":
+                dataset_ret = Imo(
+                    list_name=data_list_path,
+                    label_root=pseudo_label_dir,
+                    mode="pseudo",
+                    is_hard_label=True,
+                    load_labels=False,
+                )
+            elif mode == "val":
+                dataset_ret = Imo(
+                    list_name=data_list_path,
+                    mode="val",
+                    is_hard_label=True,
+                )
+            else:
+                raise ValueError
+        except Exception as e:
+            t, v, tb = sys.exc_info()
+            print(traceback.format_exception(t, v, tb))
+            print(traceback.format_tb(e.__traceback__))
+            print("Failed to load dataset '{}'.".format(dataset_name))
+            sys.exit(1)
+    else:
+        print("Target dataset '{}' is not supported.".format(dataset_name))
+        raise ValueError
+
+    return dataset_ret, num_classes, color_encoding

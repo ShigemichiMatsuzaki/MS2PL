@@ -59,30 +59,6 @@ color_encoding = OrderedDict(
         ("background", (0, 0, 0)),
     ]
 )
-id_cityscapes_to_greenhouse = np.array(
-    [
-        2,  # Road
-        2,  # Sidewalk
-        1,  # Building
-        1,  # Wall
-        1,  # Fence
-        1,  # Pole
-        1,  # Traffic light
-        1,  # Traffic sign
-        0,  # Vegetation
-        2,  # Terrain
-        3,  # Sky
-        3,  # Person
-        3,  # Rider
-        1,  # Car
-        1,  # Truck
-        1,  # Bus
-        1,  # Train
-        1,  # Motorcycle
-        1,  # Bicycle
-        3,  # Background
-    ]
-)
 
 
 class CityscapesSegmentation(BaseDataset):

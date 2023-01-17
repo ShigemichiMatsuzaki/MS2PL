@@ -42,7 +42,7 @@ fi
 
 python evaluate_source_models.py \
     --device cuda \
-    --target greenhouse \
+    --target oxfordrobot \
     --target-data-list ./dataset/data_list/val_greenhouse_a.lst \
     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
     --source-dataset-names camvid,cityscapes,forest \

@@ -22,6 +22,7 @@ from utils.model_io import import_model
 from utils.optim_opt import get_optimizer, get_scheduler
 from utils.pseudo_label_generator import generate_pseudo_label
 from utils.visualization import add_images_to_tensorboard, assign_label_on_features
+from utils.dataset_utils import import_target_dataset
 from warmup_scheduler import GradualWarmupScheduler
 
 class Arguments(object):
@@ -343,41 +344,25 @@ class PseudoTrainer(object):
         # Import datasets
         #
         try:
-            from dataset.greenhouse import GreenhouseRGBD, color_encoding
-    
-            if self.params.is_hard:
-                self.dataset_train = GreenhouseRGBD(
-                    list_name=self.train_data_list_path,
-                    label_root=self.pseudo_label_dir,
-                    mode="train",
-                    is_hard_label=self.params.is_hard,
-                    is_old_label=self.is_old_label,
-                )
-            else:
-                from dataset.greenhouse import GreenhouseRGBDSoftLabel, color_encoding
-    
-                self.dataset_train = GreenhouseRGBDSoftLabel(
-                    list_name=self.train_data_list_path,
-                    label_root=self.pseudo_label_dir,
-                    mode="train",
-                )
-
-            self.color_encoding = color_encoding
-    
-            self.dataset_pseudo = GreenhouseRGBD(
-                list_name=self.train_data_list_path,
-                label_root=self.pseudo_label_dir,
-                mode="val",
-                is_hard_label=True,
-                load_labels=False,
+            self.dataset_train, self.num_classes, self.color_encoding = import_target_dataset(
+                dataset_name=self.target_name,
+                mode="train",
+                data_list_path=self.train_data_list_path,
+                pseudo_label_dir=self.pseudo_label_dir,
+                is_hard=self.params.is_hard,
+                is_old_label=self.is_old_label,
             )
-            self.dataset_val = GreenhouseRGBD(
-                list_name=self.val_data_list_path,
-                mode="val",
-                is_hard_label=True,
-                is_old_label=True,
+            self.dataset_pseudo, _, _ = import_target_dataset(
+                dataset_name=self.target_name,
+                mode="pseudo",
+                data_list_path=self.train_data_list_path,
+                pseudo_label_dir=self.pseudo_label_dir,
             )
-    
+            self.dataset_val, _, _ =  import_target_dataset(
+                dataset_name="greenhouse",
+                mode="val",
+                data_list_path=self.val_data_list_path,
+            )
             self.batch_size = min(self.batch_size, len(self.dataset_train))
 
         except Exception as e:

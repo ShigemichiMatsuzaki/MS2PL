@@ -1,23 +1,9 @@
-import os
-import torch
-from PIL import Image
-from PIL import ImageDraw
-
-# from transforms.segmentation.data_transforms import (
-#     RandomFlip,
-#     Normalize,
-#     Resize,
-#     Compose,
-# )
-import albumentations as A
-from torchvision.transforms import functional as F
 from collections import OrderedDict
-import numpy as np
-import copy
+import os
 
 from dataset.base_dataset import BaseTargetDataset
 
-GREENHOUSE_CLASS_LIST = ["plant", "artificial", "ground", "other"]
+IMO_CLASS_LIST = ["plant", "artificial", "ground", "other"]
 
 color_encoding = OrderedDict(
     [
@@ -31,17 +17,15 @@ color_encoding = OrderedDict(
 color_palette = [0, 255, 255, 255, 0, 0, 255, 255, 0, 0, 0, 0]
 
 
-class GreenhouseRGBD(BaseTargetDataset):
+class Imo(BaseTargetDataset):
     def __init__(
         self,
         list_name,
         label_root="",
         mode="train",
         size=(256, 480),
-        rough_plant=True,
         is_hard_label=False,
         load_labels=True,
-        is_old_label=False,
     ):
         """Initialize a dataset
 
@@ -82,8 +66,6 @@ class GreenhouseRGBD(BaseTargetDataset):
         )
 
         self.data_file = list_name
-        self.rough_plant = rough_plant
-        self.is_old_label = is_old_label
 
         # Initialize the lists
         with open(self.data_file, "r") as lines:
@@ -136,18 +118,4 @@ class GreenhouseRGBD(BaseTargetDataset):
         #
         # Segmentation label
         #
-        if not self.rough_plant and not self.is_old_label:
-            return label_img
-
-        label_np = np.array(label_img, np.uint8)
-        if self.rough_plant:
-            # 5: rough plant -> 1: other plant
-            label_np[label_np == 5] = 1 if self.is_old_label else 0
-
-        if self.is_old_label:
-            label_np[label_np == 0] = 1
-            label_np -= 1
-
-        label_img = Image.fromarray(label_np)
-
         return label_img
