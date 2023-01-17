@@ -62,6 +62,24 @@ def main():
             list_name=args.target_data_list, mode="val", load_labels=False
         )
         num_classes = 3
+    elif args.target == "imo":
+        from dataset.imo import Imo, color_encoding
+
+        pseudo_dataset = Imo(
+            list_name=args.target_data_list, 
+            mode="pseudo", 
+            load_labels=False
+        )
+        num_classes = 3
+    elif args.target == "sakaki":
+        from dataset.sakaki import SakakiDataset, color_encoding
+
+        pseudo_dataset = SakakiDataset(
+            list_name=args.target_data_list, 
+            mode="pseudo", 
+            load_labels=False
+        )
+        num_classes = 3
     elif args.target == "oxfordrobot":
         from dataset.oxford_robot import OxfordRobot, color_encoding
 

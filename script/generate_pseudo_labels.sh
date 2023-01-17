@@ -42,19 +42,20 @@ elif [ ${model} = "deeplabv3_mobilenet_v3_large" ]; then
     forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20220728-160250/${forest_model}_forest_best_iou.pth"
 fi
 
+    #--target-data-list ./dataset/data_list/train_greenhouse_a.lst \
 python generate_pseudo_labels.py \
     --device cuda \
-    --target oxfordrobot \
-    --ignore-index 0 \
-    --target-data-list ./dataset/data_list/train_greenhouse_a.lst \
+    --target sakaki \
+    --ignore-index 3 \
+    --target-data-list ./dataset/data_list/train_sakaki.lst \
     --source-model-names ${camvid_model},${cityscapes_model} \
     --source-dataset-names camvid,cityscapes \
     --source-weight-names ${camvid_weight},${cityscapes_weight} \
     --batch-size 12 \
-    --is-hard false \
+    --is-hard true \
     --use-domain-gap true \
     --is-softmax-normalize true \
-    --is-per-sample false \
+    --is-per-sample true \
     --is-per-pixel false \
     --sp-label-min-portion 0.9 \
     --save-path ./pseudo_labels/${camvid_model}/

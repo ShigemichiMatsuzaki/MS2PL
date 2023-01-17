@@ -229,7 +229,7 @@ def generate_pseudo_label(
 
     Returns
     --------
-    class_weights: `torch.Tensor`
+    class_wts: `torch.Tensor`
         Calculated class weights
     label_path_list: `list`
         List of the generated pseudo-labels
@@ -312,8 +312,9 @@ def generate_pseudo_label(
     class_array /= class_array.sum()  # normalized
     class_wts = 1 / (class_array + 1e-10)
 
-    print("class_weights : {}".format(class_wts))
+    print("class_wts : {}".format(class_wts))
     class_wts = torch.from_numpy(class_wts).float().to(device)
+    class_wts = torch.clamp(class_wts, min=0.0, max=1e2)
 
     return class_wts, label_path_list
 
@@ -338,6 +339,10 @@ def generate_pseudo_label_multi_model(
 
     if target_dataset_name == "greenhouse":
         from dataset.greenhouse import color_palette
+    elif target_dataset_name == "imo":
+        from dataset.imo import color_palette
+    elif target_dataset_name == "sakaki":
+        from dataset.sakaki import color_palette
     elif target_dataset_name == "oxfordrobot":
         from dataset.oxford_robot import color_palette
     else:
@@ -359,7 +364,7 @@ def generate_pseudo_label_multi_model(
                     amax_output = output.argmax(dim=1)
 
                     # Visualize pseudo labels
-                    if target_dataset_name == "greenhouse":
+                    if target_dataset_name == "greenhouse" or target_dataset_name == "imo" or target_dataset_name == "sakaki":
                         # save visualized seg maps & predication prob map
                         if os_data == "camvid":
                             label_conversion = id_camvid_to_greenhouse
@@ -423,24 +428,25 @@ def generate_pseudo_label_multi_model(
                     label.putpalette(color_palette)
                     # Save the predicted images (+ colorred images for visualization)
                     # label.save("%s/%s.png" % (save_pred_path, image_name))
-                    label.save(os.path.join(save_path, filename))
+                    label.save(os.path.join(save_path, filename.replace('.jpg', '.png')))
 
     #    update_image_list(tgt_train_lst, image_path_list, label_path_list, depth_path_list)
 
     if class_weighting == "normal":
         class_array /= class_array.sum()  # normalized
-        class_weights = 1 / (class_array + 1e-10)
+        class_wts = 1 / (class_array + 1e-10)
     #        if args.dataset == 'greenhouse' and not args.use_traversable:
-    #            class_weights[0] = 0.0
+    #            class_wts[0] = 0.0
     else:
-        class_weights = np.ones(num_classes) / num_classes
+        class_wts = np.ones(num_classes) / num_classes
 
-    print("class_weights : {}".format(class_weights))
-    class_weights = torch.from_numpy(class_weights).float().to(device)
+    print("class_wts : {}".format(class_wts))
+    class_wts = torch.from_numpy(class_wts).float().to(device)
+    class_wts = torch.clamp(class_wts, min=0.0, max=1e2)
 
     # return the dictionary containing all the class-wise confidence vectors,
-    # and the class_weights for loss weighting
-    return class_weights
+    # and the class_wts for loss weighting
+    return class_wts
 
 
 def generate_pseudo_label_multi_model_domain_gap(
@@ -516,7 +522,11 @@ def generate_pseudo_label_multi_model_domain_gap(
 
     if target_dataset_name == "greenhouse":
         from dataset.greenhouse import color_palette
-    if target_dataset_name == "oxfordrobot":
+    elif target_dataset_name == "imo":
+        from dataset.imo import color_palette
+    elif target_dataset_name == "sakaki":
+        from dataset.sakaki import color_palette
+    elif target_dataset_name == "oxfordrobot":
         from dataset.oxford_robot import color_palette
     else:
         print("Target {} is not supported.".format(target_dataset_name))
@@ -568,7 +578,7 @@ def generate_pseudo_label_multi_model_domain_gap(
                          output.size(2), output.size(3))
                     ).to(device)
 
-                    if target_dataset_name == "greenhouse":
+                    if target_dataset_name == "greenhouse" or target_dataset_name == "imo" or target_dataset_name == "sakaki":
                         if os_data == "camvid":
                             label_conversion = id_camvid_to_greenhouse
                         elif os_data == "cityscapes":
@@ -586,7 +596,6 @@ def generate_pseudo_label_multi_model_domain_gap(
                             label_conversion = id_forest_to_oxford
                         else:
                             raise ValueError
-
 
                     label_conversion = torch.Tensor(
                         label_conversion).to(device)
@@ -667,7 +676,8 @@ def generate_pseudo_label_multi_model_domain_gap(
     else:
         class_wts = np.ones(num_classes) / num_classes
 
-    print("class_weights : {}".format(class_wts))
+    print("class_wts : {}".format(class_wts))
     class_wts = torch.from_numpy(class_wts).float().to(device)
+    class_wts = torch.clamp(class_wts, min=0.0, max=1e2)
 
     return class_wts
