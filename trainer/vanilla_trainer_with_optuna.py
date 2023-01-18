@@ -450,7 +450,11 @@ class PseudoTrainer(object):
         now = datetime.datetime.now() + datetime.timedelta(hours=9)
         condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
         self.save_path = os.path.join(
-            self.save_path_root, condition, self.model_name, now.strftime("%Y%m%d-%H%M%S")
+            self.save_path_root, 
+            self.target_name, 
+            condition, 
+            self.model_name, 
+            now.strftime("%Y%m%d-%H%M%S")
         )
         self.pseudo_save_path = os.path.join(self.save_path, "pseudo_labels")
         # If the directory not found, create it
