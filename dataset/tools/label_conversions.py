@@ -3,6 +3,11 @@ import numpy as np
 ##############
 # Greenhouse #
 ##############
+# Target label
+#   0: plant (trees)
+#   1: artificial object
+#   2: ground
+#   3: background (ignored)
 id_camvid_to_greenhouse = np.array(
     [
         3,  # Sky
@@ -49,6 +54,64 @@ id_cityscapes_to_greenhouse = np.array(
 id_forest_to_greenhouse = np.array(
     [2, 0, 0, 1, 1], dtype=np.uint8  # road  # grass  # tree  # sky  # obstacle
 )
+
+##########
+# Sakaki #
+##########
+# Target label
+#   0: plant (trees)
+#   1: vegetation
+#   2: artificial object
+#   3: ground
+#   4: sky
+#   5: background (ignored)
+id_camvid_to_sakaki = np.array(
+    [
+        4,  # Sky
+        2,  # Building
+        2,  # Pole
+        3,  # Road
+        3,  # Pavement
+        0,  # Tree
+        2,  # SignSymbol
+        2,  # Fence
+        2,  # Car
+        5,  # Pedestrian
+        5,  # Bicyclist
+        5,  # Road_marking(?)
+        5,  # Unlabeled
+    ]
+)
+
+id_cityscapes_to_sakaki = np.array(
+    [
+        3,  # Road
+        3,  # Sidewalk
+        2,  # Building
+        2,  # Wall
+        2,  # Fence
+        2,  # Pole
+        2,  # Traffic light
+        2,  # Traffic sign
+        0,  # Vegetation (in Cityscapes trees etc.)
+        1,  # Terrain (in Cityscapes, grass etc.)
+        4,  # Sky
+        5,  # Person
+        5,  # Rider
+        2,  # Car
+        2,  # Truck
+        2,  # Bus
+        2,  # Train
+        2,  # Motorcycle
+        2,  # Bicycle
+        5,  # Background
+    ]
+)
+
+id_forest_to_sakaki = np.array(
+    [3, 1, 0, 4, 2], dtype=np.uint8  # road  # grass  # tree  # sky  # obstacle
+)
+
 
 ###############
 # OxfordRobot #
