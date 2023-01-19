@@ -3,18 +3,27 @@ import os
 
 from dataset.base_dataset import BaseTargetDataset
 
-IMO_CLASS_LIST = ["plant", "artificial", "ground", "other"]
+SAKAKI_CLASS_LIST = ["plant", "vegetation,", "artificial", "ground", "sky", "background"]
 
 color_encoding = OrderedDict(
     [
         ("plant", (0, 255, 255)),
+        ("terrain", (152, 251, 152)),
         ("artificial_objects", (255, 0, 0)),
         ("ground", (255, 255, 0)),
+        ("sky", (70, 130, 180)),
         ("background", (0, 0, 0)),
     ]
 )
 
-color_palette = [0, 255, 255, 255, 0, 0, 255, 255, 0, 0, 0, 0]
+color_palette = [
+    0, 255, 255, 
+    152, 251, 152,
+    255, 0, 0, 
+    255, 255, 0, 
+    70, 130, 180,
+    0, 0, 0
+]
 
 
 class SakakiDataset(BaseTargetDataset):

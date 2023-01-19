@@ -347,7 +347,7 @@ def import_target_dataset(
 
     elif dataset_name == "sakaki":
         from dataset.sakaki import SakakiDataset, color_encoding
-        num_classes = 3
+        num_classes = 5
         try:
             if mode == "train":
                 dataset_ret = SakakiDataset(

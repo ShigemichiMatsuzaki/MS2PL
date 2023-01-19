@@ -75,9 +75,9 @@ class PseudoTrainer(object):
         self.device = args.device
         self.pin_memory = args.pin_memory
         self.num_workers = args.num_workers
-        self.num_classes = 3
-        self.model_name = args.model
         self.target_name = args.target
+        self.num_classes = 5 if self.target_name == "sakaki" else 3
+        self.model_name = args.model
         self.resume_epoch = args.resume_epoch
         self.train_data_list_path = args.train_data_list_path
         self.val_data_list_path = args.val_data_list_path
@@ -700,18 +700,26 @@ class PseudoTrainer(object):
                 self.params.is_hard = self.seg_loss.is_hard = True
                 self.seg_loss.is_kld = False
 
-                from dataset.greenhouse import GreenhouseRGBD, color_encoding
-                dataset_train = GreenhouseRGBD(
-                    list_name=self.train_data_list_path,
+                #from dataset.greenhouse import GreenhouseRGBD, color_encoding
+                #dataset_train = GreenhouseRGBD(
+                #    list_name=self.train_data_list_path,
+                #    mode="train",
+                #    is_hard_label=self.params.is_hard,
+                #    load_labels=False,
+                #)
+                self.dataset_train, self.num_classes, self.color_encoding = import_target_dataset(
+                    dataset_name=self.target_name,
                     mode="train",
-                    is_hard_label=self.params.is_hard,
-                    load_labels=False,
+                    data_list_path=self.train_data_list_path,
+                    pseudo_label_dir=self.pseudo_label_dir,
+                    is_hard=self.params.is_hard,
+                    is_old_label=self.is_old_label,
                 )
 
-                dataset_train.set_label_list(label_path_list)
+                self.dataset_train.set_label_list(label_path_list)
 
                 self.train_loader = torch.utils.data.DataLoader(
-                    dataset_train,
+                    self.dataset_train,
                     batch_size=self.batch_size,
                     shuffle=True,
                     pin_memory=self.pin_memory,

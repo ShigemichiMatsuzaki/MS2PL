@@ -91,6 +91,16 @@ def main():
             root="/tmp/dataset/freiburg_forest_annotated", 
             mode="val",
         )
+    elif args.target == "sakaki":
+        from dataset.sakaki import SakakiDataset, color_encoding
+
+        target_dataset = SakakiDataset(
+            list_name=args.target_data_list,
+            mode="val", 
+            load_labels=False,
+            is_hard_label=True,
+        )
+
     elif args.target == "oxfordrobot":
         from dataset.oxford_robot import OxfordRobot, color_encoding
 
