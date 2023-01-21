@@ -2,16 +2,20 @@ import argparse
 from distutils.util import strtobool
 
 
-class BaseOptions:
+class BaseOptions(object):
     """General options used in training, test, and pseudo-label generation in general."""
 
     def __init__(self):
         self.parser = argparse.ArgumentParser(
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+            conflict_handler='resolve',
         )
-        self.initialized = False
 
-    def initialize(self):
+        super(BaseOptions, self).__init__()
+#        self.initialized = False
+        print("Base option")
+
+#    def initialize(self):
         # Directory
         self.parser.add_argument(
             "--save-path", help="Save path (tensorboard etc.)")
@@ -81,7 +85,7 @@ class BaseOptions:
         self.initialized = True
 
     def parse(self):
-        if not self.initialized:
-            self.initialize()
+        # if not self.initialized:
+        #     self.initialize()
 
         return self.parser.parse_args()

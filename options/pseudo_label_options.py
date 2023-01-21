@@ -3,8 +3,9 @@ from distutils.util import strtobool
 
 
 class PseudoLabelOptions(BaseOptions):
-    def initialize(self):
-        super().initialize()
+    def __init__(self):
+        super(PseudoLabelOptions, self).__init__()
+        print("PseudoLabel option")
 
         # Source
         self.parser.add_argument(

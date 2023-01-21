@@ -642,7 +642,6 @@ def generate_pseudo_label_multi_model_domain_gap(
                         gap_total += domain_gap_w
                     else:
                         output_total += output_target * domain_gap_weight[ds_index]
-                        print(domain_gap_list)
                         ds_index += 1
 
                 if is_per_sample:
