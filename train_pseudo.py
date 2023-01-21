@@ -20,10 +20,9 @@ def main():
     args = PseudoLabelAndTrainOptions().parse()
     print(args)
 
-
-    # 
+    #
     # Train
-    # 
+    #
     torch.autograd.set_detect_anomaly(True)
 
     trainer = PseudoTrainer(args)
@@ -31,7 +30,13 @@ def main():
     if args.use_optuna:
         trainer.optuna_optimize(n_trials=500)
     else:
+        if trainer.args.generate_pseudo_labels:
+            print("Generate pseudo-labels")
+            trainer.import_datasets(pseudo_only=True)
+            trainer.generate_pseudo_labels()
+
         trainer.fit()
+
 
 if __name__ == "__main__":
     main()
