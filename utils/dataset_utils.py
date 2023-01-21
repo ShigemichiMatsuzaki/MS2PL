@@ -344,6 +344,41 @@ def import_target_dataset(
             print(traceback.format_tb(e.__traceback__))
             print("Failed to load dataset '{}'.".format(dataset_name))
             sys.exit(1)
+
+    elif dataset_name == "sakaki":
+        from dataset.sakaki import SakakiDataset, color_encoding
+        num_classes = 5
+        try:
+            if mode == "train":
+                dataset_ret = SakakiDataset(
+                    list_name=data_list_path,
+                    label_root=pseudo_label_dir,
+                    mode="train",
+                    is_hard_label=is_hard,
+                )
+            elif mode == "pseudo":
+                dataset_ret = SakakiDataset(
+                    list_name=data_list_path,
+                    label_root=pseudo_label_dir,
+                    mode="pseudo",
+                    is_hard_label=True,
+                    load_labels=False,
+                )
+            elif mode == "val":
+                dataset_ret = SakakiDataset(
+                    list_name=data_list_path,
+                    mode="val",
+                    is_hard_label=True,
+                )
+            else:
+                raise ValueError
+
+        except Exception as e:
+            t, v, tb = sys.exc_info()
+            print(traceback.format_exception(t, v, tb))
+            print(traceback.format_tb(e.__traceback__))
+            print("Failed to load dataset '{}'.".format(dataset_name))
+            sys.exit(1)
     else:
         print("Target dataset '{}' is not supported.".format(dataset_name))
         raise ValueError

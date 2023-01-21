@@ -20,7 +20,7 @@ from utils.logger import log_metrics, log_training_conditions
 from utils.metrics import MIOU, AverageMeter
 from utils.model_io import import_model
 from utils.optim_opt import get_optimizer, get_scheduler
-from utils.pseudo_label_generator import generate_pseudo_label
+from utils.pseudo_label_generator import generate_pseudo_label, generate_pseudo_label_multi_model, generate_pseudo_label_multi_model_domain_gap
 from utils.visualization import add_images_to_tensorboard, assign_label_on_features
 from utils.dataset_utils import import_target_dataset
 from warmup_scheduler import GradualWarmupScheduler
@@ -45,6 +45,8 @@ class PseudoTrainer(object):
         #
         # Parameters
         #
+        self.args = args
+
         self.params = Arguments()
         self.params.epochs = args.epochs
         self.params.is_hard = args.is_hard
@@ -66,6 +68,10 @@ class PseudoTrainer(object):
         self.params.momentum = args.momentum
         # Scheduler
         self.params.scheduler_name = args.scheduler
+        # Pseudo-label
+        self.params.label_normalize = "softmax" if args.is_softmax_normalize else "L1"
+        self.params.is_per_pixel = args.is_per_pixel
+        self.params.is_per_sample = args.is_per_sample
 
         self.rand_seed = args.rand_seed
         self.resume_from = args.resume_from
@@ -75,9 +81,9 @@ class PseudoTrainer(object):
         self.device = args.device
         self.pin_memory = args.pin_memory
         self.num_workers = args.num_workers
-        self.num_classes = 3
-        self.model_name = args.model
         self.target_name = args.target
+        self.num_classes = 5 if self.target_name == "sakaki" else 3
+        self.model_name = args.model
         self.resume_epoch = args.resume_epoch
         self.train_data_list_path = args.train_data_list_path
         self.val_data_list_path = args.val_data_list_path
@@ -96,6 +102,124 @@ class PseudoTrainer(object):
             self.optuna_study_name = args.optuna_resume_from
         else:
             self.optuna_study_name = condition + "_" + self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
+
+        self.args.pseudo_label_save_path = os.path.join(
+            self.args.pseudo_label_save_path, self.args.target
+        )
+        if not os.path.isdir(self.args.pseudo_label_save_path):
+            os.makedirs(self.args.pseudo_label_save_path)
+
+
+    def generate_pseudo_labels(self,) -> None:
+        """Generate pseudo-labels
+        
+        """
+        #
+        # Generate pseudo-labels
+        #
+        #
+        # Load pre-trained models
+        #
+        source_model_name_list = self.args.source_model_names.split(",")
+        source_weight_name_list = self.args.source_weight_names.split(",")
+        source_dataset_name_list = self.args.source_dataset_names.split(",")
+
+        assert (len(source_model_name_list) == len(source_weight_name_list)) and (
+            len(source_weight_name_list) == len(source_dataset_name_list)
+        )
+
+        source_model_list = []
+        dg_model_list = []
+        for os_m, os_w, os_d in zip(
+            source_model_name_list, source_weight_name_list, source_dataset_name_list
+        ):
+            if os_d == "camvid":
+                os_seg_classes = 13
+            elif os_d == "cityscapes":
+                # os_seg_classes = 19
+                os_seg_classes = 20
+            elif os_d == "forest" or os_d == "greenhouse":
+                os_seg_classes = 5
+            else:
+                print("{} is not supported.".format(os_d))
+                raise ValueError
+
+            os_model = import_model(
+                model_name=os_m,
+                num_classes=os_seg_classes,
+                weights=os_w,
+                aux_loss=True,
+                device=self.args.device,
+            )
+            os_model_dg = import_model(
+                model_name=os_m,
+                num_classes=os_seg_classes,
+                weights=os_w.replace("best_iou", "best_ent_loss"),
+                aux_loss=True,
+                device=self.args.device,
+            )
+
+            # Model to evaluate domain gap
+            source_model_list.append(os_model)
+            dg_model_list.append(os_model_dg)
+
+        if self.args.target == "greenhouse":
+            num_classes = 3
+        elif self.args.target == "imo":
+            num_classes = 3
+        elif self.args.target == "sakaki":
+            num_classes = 5
+        elif self.args.target == "oxfordrobot":
+            num_classes = 19
+        else:
+            print("Target {} is not supported.".format(self.args.target))
+            raise ValueError
+
+        # pseudo_loader = torch.utils.data.DataLoader(
+        #     pseudo_dataset,
+        #     batch_size=self.args.batch_size,
+        #     shuffle=False,
+        #     pin_memory=self.args.pin_memory,
+        #     num_workers=self.args.num_workers,
+        # )
+
+
+        #
+        # Generate pseudo-labels
+        #
+        if self.args.is_hard:
+            class_wts = generate_pseudo_label_multi_model(
+                model_list=source_model_list,
+                source_dataset_name_list=source_dataset_name_list,
+                target_dataset_name=self.args.target,
+                data_loader=self.pseudo_loader,
+                num_classes=num_classes,
+                device=self.args.device,
+                save_path=self.args.pseudo_label_save_path,
+                min_portion=self.args.sp_label_min_portion,
+                ignore_index=self.args.ignore_index,
+            )
+        else:
+            class_wts = generate_pseudo_label_multi_model_domain_gap(
+                model_list=source_model_list,
+                dg_model_list=dg_model_list,
+                source_dataset_name_list=source_dataset_name_list,
+                target_dataset_name=self.args.target,
+                data_loader=self.pseudo_loader,
+                num_classes=num_classes,
+                save_path=self.args.pseudo_label_save_path,
+                device=self.args.device,
+                use_domain_gap=self.args.use_domain_gap,
+                label_normalize=self.params.label_normalize,
+                is_per_pixel=self.params.is_per_pixel,
+                is_per_sample=self.params.is_per_sample,
+                ignore_index=self.args.ignore_index,
+            )
+
+        # class_wts = torch.Tensor(class_wts)
+        filename = "class_weights_{}.pt".format("hard" if self.args.is_hard else "soft")
+        torch.save(class_wts, os.path.join(self.args.pseudo_label_save_path, filename))
+
     
     def train(self, epoch: int = -1,) -> None:
         """Main training process for one epoch
@@ -274,6 +398,73 @@ class PseudoTrainer(object):
                                 "train/pixelwise_weight",
                             )
 
+    def import_datasets(self, pseudo_only=False):
+        """
+        
+        """
+        #
+        # Import datasets
+        #
+        try:
+            self.dataset_pseudo, _, _ = import_target_dataset(
+                dataset_name=self.target_name,
+                mode="pseudo",
+                data_list_path=self.train_data_list_path,
+                pseudo_label_dir=self.pseudo_label_dir,
+            )
+
+            if not pseudo_only:
+                self.dataset_train, self.num_classes, self.color_encoding = import_target_dataset(
+                    dataset_name=self.target_name,
+                    mode="train",
+                    data_list_path=self.train_data_list_path,
+                    pseudo_label_dir=self.pseudo_label_dir,
+                    is_hard=self.params.is_hard,
+                    is_old_label=self.is_old_label,
+                )
+
+                self.dataset_val, _, _ =  import_target_dataset(
+                    dataset_name="greenhouse",
+                    mode="val",
+                    data_list_path=self.val_data_list_path,
+                )
+                self.batch_size = min(self.batch_size, len(self.dataset_train))
+
+        except Exception as e:
+            t, v, tb = sys.exc_info()
+            print(traceback.format_exception(t, v, tb))
+            print(traceback.format_tb(e.__traceback__))
+            print("Dataset '{}' not found".format(self.target_name))
+            sys.exit(1)
+
+        #
+        # Dataloader
+        #
+        self.pseudo_loader = torch.utils.data.DataLoader(
+            self.dataset_pseudo,
+            batch_size=self.batch_size,
+            shuffle=False,
+            pin_memory=self.pin_memory,
+            num_workers=self.num_workers,
+        )
+
+        if not pseudo_only:
+            self.train_loader = torch.utils.data.DataLoader(
+                self.dataset_train,
+                batch_size=self.batch_size,
+                shuffle=True,
+                pin_memory=self.pin_memory,
+                num_workers=self.num_workers,
+                drop_last=True,
+            )
+            self.val_loader = torch.utils.data.DataLoader(
+                self.dataset_val,
+                batch_size=64,
+                shuffle=False,
+                pin_memory=self.pin_memory,
+                num_workers=self.num_workers,
+            )
+
     def init_training(self, trial=None):
         """Initialize model, optimizer, and scheduler for one training process
         
@@ -340,38 +531,6 @@ class PseudoTrainer(object):
     
         self.model.to(self.device)
 
-        #
-        # Import datasets
-        #
-        try:
-            self.dataset_train, self.num_classes, self.color_encoding = import_target_dataset(
-                dataset_name=self.target_name,
-                mode="train",
-                data_list_path=self.train_data_list_path,
-                pseudo_label_dir=self.pseudo_label_dir,
-                is_hard=self.params.is_hard,
-                is_old_label=self.is_old_label,
-            )
-            self.dataset_pseudo, _, _ = import_target_dataset(
-                dataset_name=self.target_name,
-                mode="pseudo",
-                data_list_path=self.train_data_list_path,
-                pseudo_label_dir=self.pseudo_label_dir,
-            )
-            self.dataset_val, _, _ =  import_target_dataset(
-                dataset_name="greenhouse",
-                mode="val",
-                data_list_path=self.val_data_list_path,
-            )
-            self.batch_size = min(self.batch_size, len(self.dataset_train))
-
-        except Exception as e:
-            t, v, tb = sys.exc_info()
-            print(traceback.format_exception(t, v, tb))
-            print(traceback.format_tb(e.__traceback__))
-            print("Dataset '{}' not found".format(self.target_name))
-            sys.exit(1)
-    
         if self.class_wts_type == "normal" or self.class_wts_type == "inverse":
             try:
                 self.class_wts = torch.load(
@@ -401,32 +560,6 @@ class PseudoTrainer(object):
         self.class_wts.to(self.device)
     
         #
-        # Dataloader
-        #
-        self.train_loader = torch.utils.data.DataLoader(
-            self.dataset_train,
-            batch_size=self.batch_size,
-            shuffle=True,
-            pin_memory=self.pin_memory,
-            num_workers=self.num_workers,
-            drop_last=True,
-        )
-        self.pseudo_loader = torch.utils.data.DataLoader(
-            self.dataset_pseudo,
-            batch_size=self.batch_size,
-            shuffle=False,
-            pin_memory=self.pin_memory,
-            num_workers=self.num_workers,
-        )
-        self.val_loader = torch.utils.data.DataLoader(
-            self.dataset_val,
-            batch_size=64,
-            shuffle=False,
-            pin_memory=self.pin_memory,
-            num_workers=self.num_workers,
-        )
-    
-        #
         # Loss
         #
         self.seg_loss = UncertaintyWeightedSegmentationLoss(
@@ -450,7 +583,11 @@ class PseudoTrainer(object):
         now = datetime.datetime.now() + datetime.timedelta(hours=9)
         condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
         self.save_path = os.path.join(
-            self.save_path_root, condition, self.model_name, now.strftime("%Y%m%d-%H%M%S")
+            self.save_path_root, 
+            self.target_name, 
+            condition, 
+            self.model_name, 
+            now.strftime("%Y%m%d-%H%M%S")
         )
         self.pseudo_save_path = os.path.join(self.save_path, "pseudo_labels")
         # If the directory not found, create it
@@ -466,7 +603,6 @@ class PseudoTrainer(object):
     
         # Save the training parameters
         log_training_conditions(self.params, save_dir=self.save_path)
-
 
     def val(self, epoch: int = -1, visualize=False) -> dict:
         """Validation
@@ -696,18 +832,26 @@ class PseudoTrainer(object):
                 self.params.is_hard = self.seg_loss.is_hard = True
                 self.seg_loss.is_kld = False
 
-                from dataset.greenhouse import GreenhouseRGBD, color_encoding
-                dataset_train = GreenhouseRGBD(
-                    list_name=self.train_data_list_path,
+                #from dataset.greenhouse import GreenhouseRGBD, color_encoding
+                #dataset_train = GreenhouseRGBD(
+                #    list_name=self.train_data_list_path,
+                #    mode="train",
+                #    is_hard_label=self.params.is_hard,
+                #    load_labels=False,
+                #)
+                self.dataset_train, self.num_classes, self.color_encoding = import_target_dataset(
+                    dataset_name=self.target_name,
                     mode="train",
-                    is_hard_label=self.params.is_hard,
-                    load_labels=False,
+                    data_list_path=self.train_data_list_path,
+                    pseudo_label_dir=self.pseudo_label_dir,
+                    is_hard=self.params.is_hard,
+                    is_old_label=self.is_old_label,
                 )
 
-                dataset_train.set_label_list(label_path_list)
+                self.dataset_train.set_label_list(label_path_list)
 
                 self.train_loader = torch.utils.data.DataLoader(
-                    dataset_train,
+                    self.dataset_train,
                     batch_size=self.batch_size,
                     shuffle=True,
                     pin_memory=self.pin_memory,
@@ -742,7 +886,6 @@ class PseudoTrainer(object):
 
         return (best_miou + metrics["miou"]) / 2
 
-
     def optuna_init_parameters(self, trial: optuna.trial.Trial):
         """Initialize the training parameters
 
@@ -752,23 +895,20 @@ class PseudoTrainer(object):
             A process of evaluating an objective function.
         
         """
-        # self.params.use_kld_class_loss = trial.suggest_categorical('use_kld_class_loss', [True, False])
-        # self.params.use_label_ent_weight = trial.suggest_categorical('use_label_ent_weight', [True, False])
+        #
+        # Pseudo-label
+        #
+        self.params.label_normalize = trial.suggest_categorical('label_normalize', ["softmax", "L1"])
+        self.params.is_per_pixel = trial.suggest_categorical('is_per_pixel', [True, False])
+        self.params.is_per_sample = trial.suggest_categorical('is_per_sample', [True, False])
+
+        #
+        # Training
+        #
         self.params.label_weight_temperature = trial.suggest_float('label_weight_temperature', 2.0, 10.0)
         self.params.kld_loss_weight = trial.suggest_float('kld_loss_weight', 0.0, 1.0)
         self.params.entropy_loss_weight = trial.suggest_float('entropy_loss_weight', 0.0, 1.0)
-        # self.params.use_lr_warmup = trial.suggest_categorical('use_lr_warmup', [True, False])
-        # self.params.label_update_epoch = [trial.suggest_int('label_update_epoch', 5, self.params.epochs * 2 // 3)]
         self.params.conf_thresh = [trial.suggest_float('conf_thresh', 0.75, 0.99)]
-        # self.params.use_prototype_denoising = trial.suggest_categorical('use_prototype_denoising', [True, False])
-        # self.params.sp_label_min_portion = trial.suggest_float('sp_label_min_portion', 0.75, 1.0)
-
-        # from utils.optim_opt import SUPPORTED_OPTIMIZERS, SUPPORTED_SCHEDULERS
-        # Optimizer
-        # self.params.optimizer_name = trial.suggest_categorical('optimizer_name', SUPPORTED_OPTIMIZERS)
-        # Scheduler
-        # self.params.scheduler_name = trial.suggest_categorical('scheduler_name', ['constant', 'cyclic'])
-
 
     def optuna_objective(self, trial: optuna.trial.Trial):
         """Objective function for hyper-parameter tuning by Optuna
@@ -779,6 +919,14 @@ class PseudoTrainer(object):
             A process of evaluating an objective function.
 
         """
+
+        # Pseudo-label generation
+        if self.args.generate_pseudo_labels:
+            self.import_datasets(pseudo_only=True)
+            self.generate_pseudo_labels()
+
+        # Training
+        self.import_datasets(pseudo_only=False)
         self.init_training(trial)
 
         best_miou = self.fit(trial)

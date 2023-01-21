@@ -82,8 +82,10 @@ def calc_entropy(pred: torch.Tensor, is_prob: bool = False, reduction: str = "me
 
     if reduction == "none":
         return pixel_ent
+    elif reduction == "per_sample":
+        return pixel_ent.mean(dim=3, keepdim=True).mean(dim=2, keepdim=True)
     else:
-        return pixel_ent.mean()  # per image
+        return pixel_ent.mean()  # per batch
 
 
 def calc_norm_ent(
