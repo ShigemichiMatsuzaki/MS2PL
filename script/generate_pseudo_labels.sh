@@ -53,14 +53,14 @@ fi
     #--target-data-list ./dataset/data_list/train_greenhouse_a.lst \
 python generate_pseudo_labels.py \
     --device cuda \
-    --target ${TARGET} \
-    --ignore-index ${IGNORE_INDEX} \
-    --target-data-list ./dataset/data_list/train_imo.lst \
+    --target greenhouse \
+    --ignore-index 3 \
+    --target-data-list ./dataset/data_list/train_greenhouse_20230119.lst \
     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
-    --batch-size 16 \
-    --is-hard false \
+    --batch-size 12 \
+    --is-hard true \
     --use-domain-gap true \
     --is-softmax-normalize true \
     --is-per-sample true \

@@ -1,6 +1,6 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
-RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
+# RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
 # RESUME_FROM=""
 
 # Parameters
@@ -17,13 +17,12 @@ use_label_ent_weight=false
 is_hard=false
 python train_pseudo.py \
     --device cuda \
-    --train-data-list-path dataset/data_list/train_greenhouse_a.lst \
+    --train-data-list-path dataset/data_list/train_greenhouse_20230119.lst \
     --val-data-list-path dataset/data_list/val_greenhouse_a.lst \
     --model ${MODEL} \
-    --resume-from ${RESUME_FROM} \
     --use-cosine true \
     --target greenhouse \
-    --batch-size 128 \
+    --batch-size 40 \
     --epoch 20 \
     --lr 0.019 \
     --label-update-epoch ${label_update_epoch} \

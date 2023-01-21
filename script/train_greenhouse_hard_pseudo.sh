@@ -1,11 +1,13 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
-# RESUME_FROM="/tmp/runs/domain_gap/camvid/espnetv2/20221123-214211/espnetv2_camvid_best_iou.pth"
+RESUME_FROM="/tmp/runs/domain_gap/camvid/espnetv2/20221123-214211/espnetv2_camvid_best_iou.pth"
 RESUME_FROM=./pretrained_weights/espdnetue_2.0_480_best_camvid.pth
 python train_pseudo.py \
     --device cuda \
     --model ${MODEL} \
     --target greenhouse \
+    --train-data-list-path dataset/data_list/train_greenhouse_20230119.lst \
+    --val-data-list-path dataset/data_list/val_greenhouse_a.lst \
     --batch-size 64 \
     --epoch 30 \
     --lr 0.009 \
