@@ -22,6 +22,9 @@ from domain_gap_evaluator.domain_gap_evaluator import calculate_domain_gap, calc
 from dataset.tools.label_conversions import id_camvid_to_greenhouse
 from dataset.tools.label_conversions import id_cityscapes_to_greenhouse
 from dataset.tools.label_conversions import id_forest_to_greenhouse
+from dataset.tools.label_conversions import id_camvid_to_sakaki
+from dataset.tools.label_conversions import id_cityscapes_to_sakaki
+from dataset.tools.label_conversions import id_forest_to_sakaki
 from dataset.tools.label_conversions import id_camvid_to_oxford
 from dataset.tools.label_conversions import id_cityscapes_to_oxford
 from dataset.tools.label_conversions import id_forest_to_oxford
@@ -238,6 +241,7 @@ def generate_pseudo_label(
     model.eval()
     model.to(device)
 
+    print("Ignore idx = {}".format(ignore_index))
     # evaluation process
     label_path_list = []
     class_array = np.zeros(num_classes)
@@ -364,7 +368,7 @@ def generate_pseudo_label_multi_model(
                     amax_output = output.argmax(dim=1)
 
                     # Visualize pseudo labels
-                    if target_dataset_name == "greenhouse" or target_dataset_name == "imo" or target_dataset_name == "sakaki":
+                    if target_dataset_name == "greenhouse" or target_dataset_name == "imo":
                         # save visualized seg maps & predication prob map
                         if os_data == "camvid":
                             label_conversion = id_camvid_to_greenhouse
@@ -372,6 +376,13 @@ def generate_pseudo_label_multi_model(
                             label_conversion = id_cityscapes_to_greenhouse
                         elif os_data == "forest":
                             label_conversion = id_forest_to_greenhouse
+                    elif target_dataset_name == "sakaki":
+                        if os_data == "camvid":
+                            label_conversion = id_camvid_to_sakaki
+                        elif os_data == "cityscapes":
+                            label_conversion = id_cityscapes_to_sakaki
+                        elif os_data == "forest":
+                            label_conversion = id_forest_to_sakaki
 
                     elif target_dataset_name == "oxfordrobot":
                         # save visualized seg maps & predication prob map
@@ -566,6 +577,8 @@ def generate_pseudo_label_multi_model_domain_gap(
                 name = batch["name"]
 
                 output_list = []
+                gap_total = 0.0
+                gap_list = []
                 output_total = 0
                 ds_index = 0
                 for m, os_data in zip(model_list, source_dataset_name_list):
@@ -578,7 +591,7 @@ def generate_pseudo_label_multi_model_domain_gap(
                          output.size(2), output.size(3))
                     ).to(device)
 
-                    if target_dataset_name == "greenhouse" or target_dataset_name == "imo" or target_dataset_name == "sakaki":
+                    if target_dataset_name == "greenhouse" or target_dataset_name == "imo":
                         if os_data == "camvid":
                             label_conversion = id_camvid_to_greenhouse
                         elif os_data == "cityscapes":
@@ -587,6 +600,14 @@ def generate_pseudo_label_multi_model_domain_gap(
                             label_conversion = id_forest_to_greenhouse
                         else:
                             raise ValueError
+                    elif target_dataset_name == "sakaki":
+                        if os_data == "camvid":
+                            label_conversion = id_camvid_to_sakaki
+                        elif os_data == "cityscapes":
+                            label_conversion = id_cityscapes_to_sakaki
+                        elif os_data == "forest":
+                            label_conversion = id_forest_to_sakaki
+
                     elif target_dataset_name == "oxfordrobot":
                         if os_data == "camvid":
                             label_conversion = id_camvid_to_oxford
@@ -615,12 +636,16 @@ def generate_pseudo_label_multi_model_domain_gap(
                     elif is_per_sample:
                         domain_gap_w = calc_norm_ent(
                             output_target, 
-                            reduction="none" if is_per_pixel else "mean"
+                            reduction="none" if is_per_pixel else "per_sample"
                         )["ent"]
-                        output_total += output_target * domain_gap_w
+                        output_total += output_target / domain_gap_w
+                        gap_total += domain_gap_w
                     else:
                         output_total += output_target * domain_gap_weight[ds_index]
                         ds_index += 1
+
+                if is_per_sample:
+                    output_total *= gap_total
 
                 if label_normalize == "L1":
                     output_total = F.normalize(output_total, p=1)

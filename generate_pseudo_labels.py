@@ -79,7 +79,7 @@ def main():
             mode="pseudo", 
             load_labels=False
         )
-        num_classes = 3
+        num_classes = 5
     elif args.target == "oxfordrobot":
         from dataset.oxford_robot import OxfordRobot, color_encoding
 
