@@ -1,15 +1,39 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
 # RESUME_FROM="/tmp/runs/domain_gap/camvid/espnetv2/20221123-214211/espnetv2_camvid_best_iou.pth"
-RESUME_FROM=./pretrained_weights/espdnetue_2.0_480_best_camvid.pth
+RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
+TARGET=sakaki
+if [ ${TARGET} = "greenhouse" ]; then
+IGNORE_INDEX=3
+elif [ ${TARGET} = "imo" ]; then
+IGNORE_INDEX=3
+elif [ ${TARGET} = "sakaki" ]; then
+IGNORE_INDEX=5
+fi
 python train_pseudo.py \
     --device cuda \
+    # Pseudo-label
+    --generate-pseudo-labels false \
+    --target-data-list ./dataset/data_list/train_imo.lst \
+    --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
+    --source-dataset-names camvid,cityscapes,forest \
+    --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
+    --pseudo-label-batch-size 16 \
+    --is-hard false \
+    --use-domain-gap true \
+    --is-softmax-normalize true \
+    --is-per-sample true \
+    --is-per-pixel true \
+    --sp-label-min-portion 0.9 \
+    --pseudo-label-save-path ./pseudo_labels/${camvid_model}/ \
+    # Training
     --model ${MODEL} \
-    --target greenhouse \
+    --target ${TARGET} \
+    --train-data-list-path ./dataset/data_list/train_sakaki.lst \
     --batch-size 64 \
     --epoch 30 \
     --lr 0.009 \
-    --label-update-epoch 5 \
+    --label-update-epoch 20 \
     --save-path /tmp/runs/domain_gap/ \
     --scheduler constant \
     --class-wts-type uniform \
@@ -19,5 +43,5 @@ python train_pseudo.py \
     --label-weight-temperature 2.0 \
     --sp-label-min-portion 0.9 \
     --conf-thresh 0.95 \
-    --pseudo-label-dir ./pseudo_labels/${SOURCE_MODEL}/ \
-    --ignore-index 3 
+    --pseudo-label-dir ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
+    --ignore-index ${IGNORE_INDEX} 
