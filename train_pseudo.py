@@ -35,6 +35,9 @@ def main():
             trainer.import_datasets(pseudo_only=True)
             trainer.generate_pseudo_labels()
 
+        trainer.import_datasets(pseudo_only=False)
+        trainer.init_training()
+
         trainer.fit()
 
 
