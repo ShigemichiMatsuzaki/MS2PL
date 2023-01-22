@@ -25,14 +25,17 @@ from utils.visualization import add_images_to_tensorboard, assign_label_on_featu
 from utils.dataset_utils import import_target_dataset
 from warmup_scheduler import GradualWarmupScheduler
 
+
 class Arguments(object):
     pass
 
+
 class PseudoTrainer(object):
     """Wrapper of training, validation and hyper-parameter optimization
-    
-    
+
+
     """
+
     def __init__(self, args,):
         """Initialize the trainer
 
@@ -40,7 +43,7 @@ class PseudoTrainer(object):
         ----------
         args: `Namespace`
             A set of parameters from command line arguments
-        
+
         """
         #
         # Parameters
@@ -89,11 +92,11 @@ class PseudoTrainer(object):
         self.val_data_list_path = args.val_data_list_path
         self.pseudo_label_dir = args.pseudo_label_dir
         self.is_old_label = args.is_old_label
-        self.val_every_epochs = args.val_every_epochs 
+        self.val_every_epochs = args.val_every_epochs
         self.vis_every_vals = args.vis_every_vals
         self.save_path_root = args.save_path
         self.class_wts_type = args.class_wts_type
-    
+
         now = datetime.datetime.now() + datetime.timedelta(hours=9)
         condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
         self.optuna_storage_name = condition + "_" + self.model_name
@@ -101,7 +104,8 @@ class PseudoTrainer(object):
         if args.optuna_resume_from:
             self.optuna_study_name = args.optuna_resume_from
         else:
-            self.optuna_study_name = condition + "_" + self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
+            self.optuna_study_name = condition + "_" + \
+                self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
 
         self.args.pseudo_label_save_path = os.path.join(
             self.args.pseudo_label_save_path, self.args.target
@@ -109,10 +113,9 @@ class PseudoTrainer(object):
         if not os.path.isdir(self.args.pseudo_label_save_path):
             os.makedirs(self.args.pseudo_label_save_path)
 
-
     def generate_pseudo_labels(self,) -> None:
         """Generate pseudo-labels
-        
+
         """
         #
         # Generate pseudo-labels
@@ -183,7 +186,6 @@ class PseudoTrainer(object):
         #     num_workers=self.args.num_workers,
         # )
 
-
         #
         # Generate pseudo-labels
         #
@@ -217,28 +219,29 @@ class PseudoTrainer(object):
             )
 
         # class_wts = torch.Tensor(class_wts)
-        filename = "class_weights_{}.pt".format("hard" if self.args.is_hard else "soft")
-        torch.save(class_wts, os.path.join(self.args.pseudo_label_save_path, filename))
+        filename = "class_weights_{}.pt".format(
+            "hard" if self.args.is_hard else "soft")
+        torch.save(class_wts, os.path.join(
+            self.args.pseudo_label_save_path, filename))
 
-    
     def train(self, epoch: int = -1,) -> None:
         """Main training process for one epoch
-    
+
         Parameters
         ----
         epoch: `int`
             Current epoch number
-    
+
         Returns
         -------
         `None`
         """
         # Set the model to 'train' mode
         self.model.train()
-    
+
         # Initialize the optimizer
         self.optimizer.zero_grad()
-    
+
         #
         # Training loop
         #
@@ -249,30 +252,30 @@ class PseudoTrainer(object):
                 image = batch["image"].to(self.device)
                 image_orig = batch["image_orig"]
                 label = batch["label"].to(self.device)
-    
+
                 # Get output
                 if self.use_cosine and self.params.is_hard:
                     output = self.model(image, label)
                 else:
                     output = self.model(image,)
-    
+
                 output_main = output["out"]
                 output_aux = output["aux"]
                 output_total = output_main + 0.5 * output_aux
                 amax = output_total.argmax(dim=1)
                 amax_main = output_main.argmax(dim=1)
                 amax_aux = output_aux.argmax(dim=1)
-    
+
                 # Calculate output probability etc.
                 output_main_prob = F.softmax(output_main, dim=1)
                 output_aux_logprob = F.log_softmax(output_aux, dim=1)
                 kld_loss_value = self.kld_loss(
                     output_aux_logprob, output_main_prob).sum(dim=1)
-    
+
                 # Weight by KLD between main and aux, and label entropy
                 if not self.params.is_hard and self.params.use_label_ent_weight:
                     label_ent = self.entropy(label)
-    
+
                     kld_weight = torch.exp(-kld_loss_value.detach())
                     label_ent_weight = torch.exp(-label_ent.detach()
                                                  * self.params.label_weight_temperature)
@@ -280,7 +283,7 @@ class PseudoTrainer(object):
                     u_weight = kld_weight * label_ent_weight
                 else:
                     u_weight = torch.exp(-kld_loss_value.detach())
-    
+
                 # Classification loss
                 seg_loss_value = self.seg_loss(
                     output_total,
@@ -290,20 +293,21 @@ class PseudoTrainer(object):
                 # Entropy loss
                 output_ent = self.entropy(F.softmax(output_total, dim=1))
                 entropy_loss_weight = self.params.entropy_loss_weight if self.params.is_hard else 0.0
-                loss_val = seg_loss_value + self.params.kld_loss_weight * kld_loss_value.mean() + entropy_loss_weight * output_ent.mean()
-    
+                loss_val = seg_loss_value + self.params.kld_loss_weight * \
+                    kld_loss_value.mean() + entropy_loss_weight * output_ent.mean()
+
                 # Update model weights
                 loss_val.backward()
                 self.optimizer.step()
                 self.optimizer.zero_grad()
-    
+
                 # Update tqdm
                 pbar_loader.set_postfix(
-                    cls="{:.4f}".format(seg_loss_value.item()), 
+                    cls="{:.4f}".format(seg_loss_value.item()),
                     ent="{:.5f}".format(kld_loss_value.mean().item()),
                 )
                 pbar_loader.update()
-                
+
                 if self.writer is not None:
                     self.writer.add_scalar(
                         "train/cls_loss", seg_loss_value.item(), epoch * len(self.train_loader) + i
@@ -318,13 +322,13 @@ class PseudoTrainer(object):
                         seg_loss_value.item() + kld_loss_value.mean().item(),
                         epoch * len(self.train_loader) + i,
                     )
-    
+
                     if i == 0:
                         add_images_to_tensorboard(
                             self.writer, image_orig, epoch, "train/image")
                         if not self.params.is_hard:
                             label = torch.argmax(label, dim=1)
-    
+
                         add_images_to_tensorboard(
                             self.writer,
                             label,
@@ -349,7 +353,7 @@ class PseudoTrainer(object):
                             is_label=True,
                             color_encoding=self.color_encoding,
                         )
-    
+
                         add_images_to_tensorboard(
                             self.writer,
                             amax_aux,
@@ -358,7 +362,7 @@ class PseudoTrainer(object):
                             is_label=True,
                             color_encoding=self.color_encoding,
                         )
-    
+
                         kld = (
                             torch.exp(-kld_loss_value)
                             # -kld_loss_value / torch.max(kld_loss_value).item() + 1
@@ -371,7 +375,7 @@ class PseudoTrainer(object):
                             epoch,
                             "train/kld",
                         )
-    
+
                         output_ent = torch.reshape(
                             output_ent, (output_ent.size(0), 1, output_ent.size(1), output_ent.size(2)))
                         add_images_to_tensorboard(
@@ -380,7 +384,7 @@ class PseudoTrainer(object):
                             epoch,
                             "train/output_ent",
                         )
-    
+
                         if not self.params.is_hard and self.params.use_label_ent_weight:
                             label_ent_weight = torch.reshape(
                                 label_ent_weight,
@@ -400,7 +404,7 @@ class PseudoTrainer(object):
 
     def import_datasets(self, pseudo_only=False):
         """
-        
+
         """
         #
         # Import datasets
@@ -423,7 +427,7 @@ class PseudoTrainer(object):
                     is_old_label=self.is_old_label,
                 )
 
-                self.dataset_val, _, _ =  import_target_dataset(
+                self.dataset_val, _, _ = import_target_dataset(
                     dataset_name="greenhouse",
                     mode="val",
                     data_list_path=self.val_data_list_path,
@@ -467,7 +471,7 @@ class PseudoTrainer(object):
 
     def init_training(self, trial=None):
         """Initialize model, optimizer, and scheduler for one training process
-        
+
         Parameters
         ----------
         trial:
@@ -495,24 +499,24 @@ class PseudoTrainer(object):
             device=self.device,
             use_cosine=self.use_cosine,
         )
-    
+
         #
         # Optimizer: Updates
         #
         self.optimizer = get_optimizer(
-            optim_name=self.params.optimizer_name, 
-            model_name=self.model_name, 
+            optim_name=self.params.optimizer_name,
+            model_name=self.model_name,
             model=self.model,
             lr=self.params.lr,
             weight_decay=self.params.weight_decay,
             momentum=self.params.momentum,
         )
-    
+
         #
         # Scheduler: Gradually changes the learning rate
         #
         self.scheduler = get_scheduler(
-            scheduler_name=self.params.scheduler_name, 
+            scheduler_name=self.params.scheduler_name,
             optim_name=self.params.optimizer_name,
             optimizer=self.optimizer,
             epochs=self.params.epochs,
@@ -523,12 +527,12 @@ class PseudoTrainer(object):
             self.scheduler = GradualWarmupScheduler(
                 self.optimizer, multiplier=1, total_epoch=5, after_scheduler=self.scheduler
             )
-    
+
         if self.device == "cuda":
             self.model = torch.nn.DataParallel(self.model)  # make parallel
             torch.backends.cudnn.enabled = True
             torch.backends.cudnn.benchmark = True
-    
+
         self.model.to(self.device)
 
         if self.class_wts_type == "normal" or self.class_wts_type == "inverse":
@@ -554,11 +558,12 @@ class PseudoTrainer(object):
         elif self.class_wts_type == "uniform":
             self.class_wts = torch.ones(self.num_classes).to(self.device)
         else:
-            print("Class weight type {} is not supported.".format(self.class_wts_type))
+            print("Class weight type {} is not supported.".format(
+                self.class_wts_type))
             raise ValueError
 
         self.class_wts.to(self.device)
-    
+
         #
         # Loss
         #
@@ -576,17 +581,17 @@ class PseudoTrainer(object):
         # (KLD between main and aux branches)
         self.kld_loss = torch.nn.KLDivLoss(reduction="none")
         self.entropy = Entropy(num_classes=self.num_classes)
-    
+
         #
         # Tensorboard writer
         #
         now = datetime.datetime.now() + datetime.timedelta(hours=9)
         condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
         self.save_path = os.path.join(
-            self.save_path_root, 
-            self.target_name, 
-            condition, 
-            self.model_name, 
+            self.save_path_root,
+            self.target_name,
+            condition,
+            self.model_name,
             now.strftime("%Y%m%d-%H%M%S")
         )
         self.pseudo_save_path = os.path.join(self.save_path, "pseudo_labels")
@@ -594,13 +599,13 @@ class PseudoTrainer(object):
         if not os.path.isdir(self.save_path):
             os.makedirs(self.save_path)
             os.makedirs(self.pseudo_save_path)
-    
+
         # SummaryWriter for Tensorboard
-        if trial is None: # If not optuna
+        if trial is None:  # If not optuna
             self.writer = SummaryWriter(self.save_path)
         else:
             self.writer = None
-    
+
         # Save the training parameters
         log_training_conditions(self.params, save_dir=self.save_path)
 
@@ -656,7 +661,8 @@ class PseudoTrainer(object):
                 amax_main = main_output.argmax(dim=1)
                 amax_aux = aux_output.argmax(dim=1)
                 amax_total = (main_output + 0.5 * aux_output).argmax(dim=1)
-                inter, union = miou_class.get_iou(amax_total.cpu(), label.cpu())
+                inter, union = miou_class.get_iou(
+                    amax_total.cpu(), label.cpu())
 
                 inter_meter.update(inter)
                 union_meter.update(union)
@@ -734,11 +740,11 @@ class PseudoTrainer(object):
 
     def test(self,):
         """
-        
+
         """
         pass
 
-    def fit(self, trial: Optional[optuna.trial.Trial]=None):
+    def fit(self, trial: Optional[optuna.trial.Trial] = None):
         """Fit the model to the training data
 
         Parameters
@@ -748,7 +754,7 @@ class PseudoTrainer(object):
             When given, this function works as an objective of Optuna optimization.
             Otherwise, it works as a normal wrapper of the whole training process.
             Default: `None`
-        
+
         """
 
         self.init_training()
@@ -773,7 +779,8 @@ class PseudoTrainer(object):
             #
             if ep % self.val_every_epochs == 0:
                 num_val = ep // self.val_every_epochs
-                metrics = self.val(epoch=ep, visualize=(num_val % self.vis_every_vals == 0))
+                metrics = self.val(epoch=ep, visualize=(
+                    num_val % self.vis_every_vals == 0))
 
                 # Optuna
                 if trial is not None:
@@ -833,12 +840,12 @@ class PseudoTrainer(object):
                 self.seg_loss.is_kld = False
 
                 #from dataset.greenhouse import GreenhouseRGBD, color_encoding
-                #dataset_train = GreenhouseRGBD(
+                # dataset_train = GreenhouseRGBD(
                 #    list_name=self.train_data_list_path,
                 #    mode="train",
                 #    is_hard_label=self.params.is_hard,
                 #    load_labels=False,
-                #)
+                # )
                 self.dataset_train, self.num_classes, self.color_encoding = import_target_dataset(
                     dataset_name=self.target_name,
                     mode="train",
@@ -859,7 +866,8 @@ class PseudoTrainer(object):
                     drop_last=True,
                 )
 
-            self.writer.add_scalar("learning_rate", self.optimizer.param_groups[0]["lr"], ep)
+            self.writer.add_scalar(
+                "learning_rate", self.optimizer.param_groups[0]["lr"], ep)
 
             #
             # Training step
@@ -893,22 +901,29 @@ class PseudoTrainer(object):
         ----------
         trial: `optuna.trial.Trial`
             A process of evaluating an objective function.
-        
+
         """
         #
         # Pseudo-label
         #
-        self.params.label_normalize = trial.suggest_categorical('label_normalize', ["softmax", "L1"])
-        self.params.is_per_pixel = trial.suggest_categorical('is_per_pixel', [True, False])
-        self.params.is_per_sample = trial.suggest_categorical('is_per_sample', [True, False])
+        self.params.label_normalize = trial.suggest_categorical(
+            'label_normalize', ["softmax", "L1"])
+        self.params.is_per_pixel = trial.suggest_categorical(
+            'is_per_pixel', [True, False])
+        self.params.is_per_sample = trial.suggest_categorical(
+            'is_per_sample', [True, False])
 
         #
         # Training
         #
-        self.params.label_weight_temperature = trial.suggest_float('label_weight_temperature', 2.0, 10.0)
-        self.params.kld_loss_weight = trial.suggest_float('kld_loss_weight', 0.0, 1.0)
-        self.params.entropy_loss_weight = trial.suggest_float('entropy_loss_weight', 0.0, 1.0)
-        self.params.conf_thresh = [trial.suggest_float('conf_thresh', 0.75, 0.99)]
+        self.params.label_weight_temperature = trial.suggest_float(
+            'label_weight_temperature', 2.0, 10.0)
+        self.params.kld_loss_weight = trial.suggest_float(
+            'kld_loss_weight', 0.0, 1.0)
+        self.params.entropy_loss_weight = trial.suggest_float(
+            'entropy_loss_weight', 0.0, 1.0)
+        self.params.conf_thresh = [
+            trial.suggest_float('conf_thresh', 0.75, 0.99)]
 
     def optuna_objective(self, trial: optuna.trial.Trial):
         """Objective function for hyper-parameter tuning by Optuna
@@ -920,8 +935,10 @@ class PseudoTrainer(object):
 
         """
 
+        print("Optuna objective")
         # Pseudo-label generation
         if self.args.generate_pseudo_labels:
+            print("Generate pseudo-labels")
             self.import_datasets(pseudo_only=True)
             self.generate_pseudo_labels()
 
@@ -933,7 +950,7 @@ class PseudoTrainer(object):
 
         return best_miou
 
-    def optuna_optimize(self, n_trials: int=100, timeout: Optional[float]=None):
+    def optuna_optimize(self, n_trials: int = 100, timeout: Optional[float] = None):
         """Optimize hyper-parameters by Optuna
 
         Parameters
@@ -942,9 +959,10 @@ class PseudoTrainer(object):
             Number of trials
         timeout: `Optional[float]`
             Stop study after the given number of second(s).
-        
+
         """
-        optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+        optuna.logging.get_logger("optuna").addHandler(
+            logging.StreamHandler(sys.stdout))
 
         self.is_optuna = True
 
@@ -955,10 +973,13 @@ class PseudoTrainer(object):
             direction="maximize",
             load_if_exists=True,
         )
-        study.optimize(self.optuna_objective, n_trials=n_trials, timeout=timeout)
+        study.optimize(self.optuna_objective,
+                       n_trials=n_trials, timeout=timeout)
 
-        pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
-        complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
+        pruned_trials = study.get_trials(
+            deepcopy=False, states=[TrialState.PRUNED])
+        complete_trials = study.get_trials(
+            deepcopy=False, states=[TrialState.COMPLETE])
 
         print("Study statistics: ")
         print("  Number of finished trials: ", len(study.trials))

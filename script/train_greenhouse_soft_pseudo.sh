@@ -1,6 +1,6 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
-RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
+# RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
 # RESUME_FROM=""
 TARGET=greenhouse
 if [ ${TARGET} = "greenhouse" ]; then
@@ -38,7 +38,7 @@ python train_pseudo.py \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
     --pseudo-label-batch-size 16 \
-    --is-hard false \
+    --is-hard true \
     --use-domain-gap true \
     --is-softmax-normalize true \
     --is-per-sample true \
@@ -46,11 +46,11 @@ python train_pseudo.py \
     --sp-label-min-portion 0.9 \
     --pseudo-label-save-path ./pseudo_labels/${camvid_model}/ \
     --target ${TARGET} \
-    --train-data-list-path dataset/data_list/train_greenhouse_a.lst \
+    --train-data-list-path dataset/data_list/train_greenhouse_20230119.lst \
     --val-data-list-path dataset/data_list/val_greenhouse_a.lst \
     --model ${MODEL} \
     --use-cosine true \
-    --batch-size 64 \
+    --batch-size 40 \
     --epoch 30 \
     --lr 0.009 \
     --label-update-epoch ${label_update_epoch} \
@@ -69,5 +69,5 @@ python train_pseudo.py \
     --sp-label-min-portion 0.9 \
     --pseudo-label-dir ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
     --ignore-index ${IGNORE_INDEX} \
-    --use-optuna true 
+    --use-optuna false 
 #    --optuna-resume-from ./pseudo_soft_espnetv2_20230103-111856.db

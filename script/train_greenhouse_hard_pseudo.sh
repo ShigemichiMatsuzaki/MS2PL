@@ -1,7 +1,6 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
 # RESUME_FROM="/tmp/runs/domain_gap/camvid/espnetv2/20221123-214211/espnetv2_camvid_best_iou.pth"
-RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
 TARGET=sakaki
 if [ ${TARGET} = "greenhouse" ]; then
 IGNORE_INDEX=3
@@ -14,7 +13,6 @@ python train_pseudo.py \
     --device cuda \
     # Pseudo-label
     --generate-pseudo-labels false \
-    --target-data-list ./dataset/data_list/train_imo.lst \
     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
@@ -28,8 +26,9 @@ python train_pseudo.py \
     --pseudo-label-save-path ./pseudo_labels/${camvid_model}/ \
     # Training
     --model ${MODEL} \
-    --target ${TARGET} \
-    --train-data-list-path ./dataset/data_list/train_sakaki.lst \
+    --target greenhouse \
+    --train-data-list-path dataset/data_list/train_greenhouse_20230119.lst \
+    --val-data-list-path dataset/data_list/val_greenhouse_a.lst \
     --batch-size 64 \
     --epoch 30 \
     --lr 0.009 \
