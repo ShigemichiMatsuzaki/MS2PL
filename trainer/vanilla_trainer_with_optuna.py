@@ -224,6 +224,13 @@ class PseudoTrainer(object):
         torch.save(class_wts, os.path.join(
             self.args.pseudo_label_save_path, filename))
 
+        # Free models for pseudo-label generation
+        for m in source_model_list:
+            del m 
+        
+        for m in dg_model_list:
+            del m
+
     def train(self, epoch: int = -1,) -> None:
         """Main training process for one epoch
 
@@ -469,6 +476,19 @@ class PseudoTrainer(object):
                 num_workers=self.num_workers,
             )
 
+        # Class list used in embedding visualization
+        if self.target_name == "greenhouse":
+            from dataset.greenhouse import GREENHOUSE_CLASS_LIST as CLASS_LIST
+        elif self.target_name == "sakaki":
+            from dataset.sakaki import SAKAKI_CLASS_LIST as CLASS_LIST
+        elif self.target_name == "imo":
+            from dataset.imo import IMO_CLASS_LIST as CLASS_LIST
+        else:
+            print("Invalid target type {}".format(self.target_name))
+            raise ValueError
+
+        self.class_list = CLASS_LIST
+
     def init_training(self, trial=None):
         """Initialize model, optimizer, and scheduler for one training process
 
@@ -674,6 +694,7 @@ class PseudoTrainer(object):
                     label_type='object',
                     scale_factor=16,
                     ignore_index=self.ignore_index,
+                    class_list=self.class_list,   
                 )
                 feature_list += features
                 label_list += labels
@@ -850,7 +871,8 @@ class PseudoTrainer(object):
                     dataset_name=self.target_name,
                     mode="train",
                     data_list_path=self.train_data_list_path,
-                    pseudo_label_dir=self.pseudo_label_dir,
+                    # pseudo_label_dir=self.pseudo_label_dir,
+                    pseudo_label_dir=self.pseudo_save_path,
                     is_hard=self.params.is_hard,
                     is_old_label=self.is_old_label,
                 )
