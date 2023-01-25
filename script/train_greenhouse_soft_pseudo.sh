@@ -1,6 +1,7 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
-# RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
+RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
+USE_OPTUNA=false
 # RESUME_FROM=""
 TARGET=greenhouse
 if [ ${TARGET} = "greenhouse" ]; then
@@ -22,11 +23,11 @@ forest_weight="./pretrained_weights/espdnetue_2.0_480_best_forest.pth"
 # Parameters
 conf_thresh=0.95
 entropy_loss_weight=1.0
-kld_loss_weight=0.21879
-label_update_epoch=30
-label_weight_temp=3.536898
+kld_loss_weight=0.2
+label_update_epoch=11
+label_weight_temp=5.000000
 optimizer_name=SGD
-scheduler_name=cyclic
+scheduler_name=constant
 label_weight_threshold=0.1
 use_kld_class_loss=false
 use_label_ent_weight=true
@@ -38,21 +39,21 @@ python train_pseudo.py \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
     --pseudo-label-batch-size 16 \
-    --is-hard true \
     --use-domain-gap true \
     --is-softmax-normalize true \
     --is-per-sample true \
-    --is-per-pixel true \
+    --is-per-pixel false \
+    --resume-from ${RESUME_FROM} \
     --sp-label-min-portion 0.9 \
     --pseudo-label-save-path ./pseudo_labels/${camvid_model}/ \
     --target ${TARGET} \
-    --train-data-list-path dataset/data_list/train_greenhouse_20230119.lst \
-    --val-data-list-path dataset/data_list/val_greenhouse_a.lst \
+    --train-data-list-path dataset/data_list/train_greenhouse_a.lst \
+    --val-data-list-path dataset/data_list/test_greenhouse_a.lst \
     --model ${MODEL} \
     --use-cosine true \
-    --batch-size 40 \
+    --batch-size 64 \
     --epoch 30 \
-    --lr 0.009 \
+    --lr 0.019 \
     --label-update-epoch ${label_update_epoch} \
     --save-path /tmp/runs/domain_gap/ \
     --optim ${optimizer_name} \
@@ -69,5 +70,5 @@ python train_pseudo.py \
     --sp-label-min-portion 0.9 \
     --pseudo-label-dir ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
     --ignore-index ${IGNORE_INDEX} \
-    --use-optuna false 
+    --use-optuna ${USE_OPTUNA} 
 #    --optuna-resume-from ./pseudo_soft_espnetv2_20230103-111856.db

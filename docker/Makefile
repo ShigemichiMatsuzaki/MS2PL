@@ -142,6 +142,20 @@ train-greenhouse-pseudo-soft:
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/train_greenhouse_soft_pseudo.sh
 
+train-greenhouse-pseudo-soft-2:
+	docker run -it \
+		--gpus '"device=${GPU_ID}"' \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-greenhouse-pseudo-soft-2 \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/train_greenhouse_soft_pseudo.sh
+
+
 generate-pseudo-labels:
 	docker run -it \
 		--gpus="device=${GPU_ID}" \
