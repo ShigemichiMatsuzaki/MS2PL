@@ -35,18 +35,40 @@ def main():
     ):
         if os_d == "camvid":
             os_seg_classes = 13
-            from dataset.tools.label_conversions import id_camvid_to_greenhouse as label_conversion
+            if args.target == "greenhouse" or args.target == "imo":
+                from dataset.tools.label_conversions import id_camvid_to_greenhouse as label_conversion
+            elif args.target == "sakaki":
+                from dataset.tools.label_conversions import id_camvid_to_sakaki as label_conversion
+            else:
+                print("Target {} is not supported.".format(args.target))
+                raise ValueError
+
             from dataset.camvid import color_encoding
         elif os_d == "cityscapes":
             # os_seg_classes = 19
             os_seg_classes = 20
-            from dataset.tools.label_conversions import (
-                id_cityscapes_to_greenhouse as label_conversion,
-            )
+            if args.target == "greenhouse" or args.target == "imo":
+                from dataset.tools.label_conversions import (
+                    id_cityscapes_to_greenhouse as label_conversion,
+                )
+            elif args.target == "sakaki":
+                from dataset.tools.label_conversions import (
+                    id_cityscapes_to_sakaki as label_conversion,
+                )
+            else:
+                print("Target {} is not supported.".format(args.target))
+                raise ValueError
             from dataset.cityscapes import color_encoding
         elif os_d == "forest" or os_d == "greenhouse":
             os_seg_classes = 5
-            from dataset.tools.label_conversions import id_forest_to_greenhouse as label_conversion
+            if args.target == "greenhouse" or args.target == "imo":
+                from dataset.tools.label_conversions import id_forest_to_greenhouse as label_conversion
+            elif args.target == "sakaki":
+                from dataset.tools.label_conversions import id_forest_to_sakaki as label_conversion
+            else:
+                print("Target {} is not supported.".format(args.target))
+                raise ValueError
+
             from dataset.forest import color_encoding
         else:
             print("{} is not supported.".format(os_d))
@@ -71,6 +93,7 @@ def main():
         target_dataset = GreenhouseRGBD(
             list_name=args.target_data_list,
             mode="val",
+            load_labels=False,
             is_hard_label=True,
             is_old_label=True,
         )
@@ -92,9 +115,18 @@ def main():
             mode="val",
         )
     elif args.target == "sakaki":
-        from dataset.sakaki import SakakiDataset, color_encoding
+        from dataset.sakaki import SakakiDataset, color_encoding, color_palette
 
         target_dataset = SakakiDataset(
+            list_name=args.target_data_list,
+            mode="val", 
+            load_labels=False,
+            is_hard_label=True,
+        )
+    elif args.target == "imo":
+        from dataset.imo import Imo, color_encoding, color_palette
+
+        target_dataset = Imo(
             list_name=args.target_data_list,
             mode="val", 
             load_labels=False,
@@ -138,7 +170,8 @@ def main():
                 for j, model in enumerate(source_model_list):
                     pred = get_output(model, image, aux_weight=0.5, device=args.device)
                     amax = torch.argmax(pred, dim=1).squeeze().cpu().numpy()
-                    # amax = label_conversions[j][amax]
+                    amax = label_conversions[j][amax]
+                    # amax = label_conversion[amax]
 
                     inter, union = miou_class.get_iou(
                         torch.from_numpy(copy.deepcopy(amax)), label_t
@@ -150,8 +183,8 @@ def main():
                     # File name ('xxx.png')
                     filename = name[0].split("/")[-1].replace(".png", "")
                     label = Image.fromarray(amax.astype(np.uint8)).convert("P")
-                    # label.putpalette(color_palette)
-                    label.putpalette(color_palettes[j])
+                    label.putpalette(color_palette)
+                    # label.putpalette(color_palettes[j])
                     # Save the predicted images (+ colorred images for visualization)
                     # label.save("%s/%s.png" % (save_pred_path, image_name))
                     label.save(
