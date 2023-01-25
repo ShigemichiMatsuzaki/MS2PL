@@ -240,6 +240,7 @@ def assign_label_on_features(
     label_type: str='', 
     scale_factor: int=4,
     ignore_index: int=-1,
+    class_list: list=[],
 ):
     """Create lists of features and the corresponding labels with a specified label type
 
@@ -298,7 +299,12 @@ def assign_label_on_features(
                     l = labels[n,i,j].detach().cpu().numpy()
                     if l != ignore_index:
                         feature_list.append(feature[n,:,i,j].detach().cpu().numpy())
-                        label_list.append(GREENHOUSE_CLASS_LIST[l])
+
+                        if class_list and l < len(class_list):
+                            label_list.append(class_list[l])
+                        else:
+                            label_list.append(GREENHOUSE_CLASS_LIST[l])
+
                 elif label_type == 'traversability':
                     # Consider only plant regions
                     if labels[n,i,j].detach().cpu().numpy() in [0, 1]:
