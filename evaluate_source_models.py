@@ -181,7 +181,7 @@ def main():
                     union_meter_list[j].update(union)
 
                     # File name ('xxx.png')
-                    filename = name[0].split("/")[-1].replace(".png", "")
+                    filename = name[0].split("/")[-1].replace(".png", "").replace(".jpg", "")
                     label = Image.fromarray(amax.astype(np.uint8)).convert("P")
                     label.putpalette(color_palette)
                     # label.putpalette(color_palettes[j])

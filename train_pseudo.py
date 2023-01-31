@@ -40,6 +40,8 @@ def main():
 
         trainer.fit()
 
+        trainer.test()
+
 
 if __name__ == "__main__":
     main()

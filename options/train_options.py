@@ -184,6 +184,13 @@ class TrainOptions(TrainBaseOptions):
             default="dataset/data_list/val_greenhouse_a.lst",
             help="Target validation dataset",
         )
+        self.parser.add_argument(
+            "--test-data-list-path",
+            type=str,
+            default="dataset/data_list/test_greenhouse_a.lst",
+            help="Target test dataset",
+        )
+
 
         # Label type
         self.parser.add_argument(

@@ -7,6 +7,7 @@ import sys
 import traceback
 from tqdm import tqdm
 from typing import Optional
+from PIL import Image
 from loss_fns.segmentation_loss import Entropy, UncertaintyWeightedSegmentationLoss
 import optuna
 from optuna.trial import TrialState
@@ -90,6 +91,7 @@ class PseudoTrainer(object):
         self.resume_epoch = args.resume_epoch
         self.train_data_list_path = args.train_data_list_path
         self.val_data_list_path = args.val_data_list_path
+        self.test_data_list_path = args.test_data_list_path
         self.pseudo_label_dir = args.pseudo_label_dir
         self.is_old_label = args.is_old_label
         self.val_every_epochs = args.val_every_epochs
@@ -417,7 +419,7 @@ class PseudoTrainer(object):
         # Import datasets
         #
         try:
-            self.dataset_pseudo, _, _ = import_target_dataset(
+            self.dataset_pseudo, _, _, _ = import_target_dataset(
                 dataset_name=self.target_name,
                 mode="pseudo",
                 data_list_path=self.train_data_list_path,
@@ -425,7 +427,7 @@ class PseudoTrainer(object):
             )
 
             if not pseudo_only:
-                self.dataset_train, self.num_classes, self.color_encoding = import_target_dataset(
+                self.dataset_train, self.num_classes, self.color_encoding, self.color_palette = import_target_dataset(
                     dataset_name=self.target_name,
                     mode="train",
                     data_list_path=self.train_data_list_path,
@@ -434,11 +436,18 @@ class PseudoTrainer(object):
                     is_old_label=self.is_old_label,
                 )
 
-                self.dataset_val, _, _ = import_target_dataset(
+                self.dataset_val, _, _, _ = import_target_dataset(
                     dataset_name="greenhouse",
                     mode="val",
                     data_list_path=self.val_data_list_path,
                 )
+
+                self.dataset_test, _, _, _ = import_target_dataset(
+                    dataset_name="greenhouse",
+                    mode="test",
+                    data_list_path=self.test_data_list_path,
+                )
+
                 self.batch_size = min(self.batch_size, len(self.dataset_train))
 
         except Exception as e:
@@ -475,6 +484,14 @@ class PseudoTrainer(object):
                 pin_memory=self.pin_memory,
                 num_workers=self.num_workers,
             )
+            self.test_loader = torch.utils.data.DataLoader(
+                self.dataset_test,
+                batch_size=1,
+                shuffle=False,
+                pin_memory=self.pin_memory,
+                num_workers=self.num_workers,
+            )
+
 
         # Class list used in embedding visualization
         if self.target_name == "greenhouse":
@@ -760,10 +777,88 @@ class PseudoTrainer(object):
         }
 
     def test(self,):
-        """
+        """Validation
 
+        Parameters
+        ----------
+        epoch: `int`
+            Current epoch number
+
+        Returns
+        -------
+        metrics: `dict`
+            A dictionary that stores metrics as follows:
+                "miou": Mean IoU
+                "cls_loss": Average classification loss (cross entropy)
+                "ent_loss": Average entropy loss (KLD with a uniform dist.)
         """
-        pass
+        # Load the best weights
+        state_dict = torch.load(
+            os.path.join(
+                self.save_path,
+                "pseudo_{}_{}_best_iou.pth".format(
+                    self.model_name, self.target_name),
+            ),
+        )
+        self.model.load_state_dict(state_dict)
+        self.model.to(self.device)
+        # Set the model to 'eval' mode
+        self.model.eval()
+
+        inter_meter = AverageMeter()
+        union_meter = AverageMeter()
+        miou_class = MIOU(num_classes=self.num_classes)
+        # Classification for S1
+        class_total_loss = 0.0
+        test_save_path = os.path.join(
+            self.save_path,
+            "test",
+        )
+        with torch.no_grad():
+            for i, batch in enumerate(self.test_loader):
+                # Get input image and label batch
+                image = batch["image"].to(self.device)
+                label = batch["label"].to(self.device)
+                name = batch["name"]
+
+                # Get output
+                output = self.model(image)
+                main_output = output["out"]
+                aux_output = output["aux"]
+
+                amax_total = (main_output + 0.5 * aux_output).argmax(dim=1)
+                inter, union = miou_class.get_iou(
+                    amax_total.cpu(), label.cpu())
+
+                inter_meter.update(inter)
+                union_meter.update(union)
+
+                amax_total_np = amax_total[0].cpu().numpy().astype(np.uint8)
+                # File name ('xxx.png')
+                filename = name[0].split("/")[-1].replace(".png", "").replace(".jpg", "")
+                label = Image.fromarray(amax_total_np).convert("P")
+                label.putpalette(self.color_palette)
+                label.save(
+                    os.path.join(test_save_path, filename + ".png",)
+                )
+
+        iou = inter_meter.sum / (union_meter.sum + 1e-10)
+        class_avg_loss = class_total_loss / len(self.val_loader)
+        avg_iou = iou.mean()
+
+        log_metrics(
+            metrics={
+                "miou": avg_iou,
+                "plant_iou": iou[0],
+                "artificial_iou": iou[1],
+                "ground_iou": iou[2],
+                "cls_loss": class_avg_loss,
+            },
+            epoch=0,
+            save_dir=test_save_path,
+            write_header=True
+        )
+        
 
     def fit(self, trial: Optional[optuna.trial.Trial] = None):
         """Fit the model to the training data
@@ -867,7 +962,7 @@ class PseudoTrainer(object):
                 #    is_hard_label=self.params.is_hard,
                 #    load_labels=False,
                 # )
-                self.dataset_train, self.num_classes, self.color_encoding = import_target_dataset(
+                self.dataset_train, self.num_classes, self.color_encoding, _ = import_target_dataset(
                     dataset_name=self.target_name,
                     mode="train",
                     data_list_path=self.train_data_list_path,

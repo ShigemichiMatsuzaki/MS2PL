@@ -23,11 +23,11 @@ forest_weight="./pretrained_weights/espdnetue_2.0_480_best_forest.pth"
 # Parameters
 conf_thresh=0.95
 entropy_loss_weight=1.0
-kld_loss_weight=0.2
-label_update_epoch=11
-label_weight_temp=5.000000
+kld_loss_weight=0.21879
+label_update_epoch=5
+label_weight_temp=3.536898
 optimizer_name=SGD
-scheduler_name=constant
+scheduler_name=cyclic
 label_weight_threshold=0.1
 use_kld_class_loss=false
 use_label_ent_weight=true
@@ -48,12 +48,13 @@ python train_pseudo.py \
     --pseudo-label-save-path ./pseudo_labels/${camvid_model}/ \
     --target ${TARGET} \
     --train-data-list-path dataset/data_list/train_greenhouse_a.lst \
-    --val-data-list-path dataset/data_list/test_greenhouse_a.lst \
+    --val-data-list-path dataset/data_list/val_greenhouse_a.lst \
+    --test-data-list-path dataset/data_list/test_greenhouse_a.lst \
     --model ${MODEL} \
     --use-cosine true \
     --batch-size 64 \
     --epoch 30 \
-    --lr 0.019 \
+    --lr 0.009 \
     --label-update-epoch ${label_update_epoch} \
     --save-path /tmp/runs/domain_gap/ \
     --optim ${optimizer_name} \

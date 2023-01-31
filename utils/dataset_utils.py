@@ -279,7 +279,7 @@ def import_target_dataset(
     """
     # max_iter = 3000
     if dataset_name == "greenhouse":
-        from dataset.greenhouse import GreenhouseRGBD, color_encoding
+        from dataset.greenhouse import GreenhouseRGBD, color_encoding, color_palette
         num_classes = 3
         try:
             if mode == "train":
@@ -305,6 +305,14 @@ def import_target_dataset(
                     is_hard_label=True,
                     is_old_label=True,
                 )
+            elif mode == "test":
+                dataset_ret = GreenhouseRGBD(
+                    list_name=data_list_path,
+                    mode="test",
+                    is_hard_label=True,
+                    is_old_label=True,
+                )
+
         except Exception as e:
             t, v, tb = sys.exc_info()
             print(traceback.format_exception(t, v, tb))
@@ -312,7 +320,7 @@ def import_target_dataset(
             print("Failed to load dataset '{}'.".format(dataset_name))
             sys.exit(1)
     elif dataset_name == "imo":
-        from dataset.imo import Imo, color_encoding
+        from dataset.imo import Imo, color_encoding, color_palette
         num_classes = 3
         try:
             if mode == "train":
@@ -336,6 +344,13 @@ def import_target_dataset(
                     mode="val",
                     is_hard_label=True,
                 )
+            elif mode == "test":
+                dataset_ret = Imo(
+                    list_name=data_list_path,
+                    mode="test",
+                    is_hard_label=True,
+                )
+
             else:
                 raise ValueError
         except Exception as e:
@@ -346,7 +361,7 @@ def import_target_dataset(
             sys.exit(1)
 
     elif dataset_name == "sakaki":
-        from dataset.sakaki import SakakiDataset, color_encoding
+        from dataset.sakaki import SakakiDataset, color_encoding, color_palette
         num_classes = 5
         try:
             if mode == "train":
@@ -370,6 +385,13 @@ def import_target_dataset(
                     mode="val",
                     is_hard_label=True,
                 )
+            elif mode == "test":
+                dataset_ret = SakakiDataset(
+                    list_name=data_list_path,
+                    mode="test",
+                    is_hard_label=True,
+                )
+
             else:
                 raise ValueError
 
@@ -383,4 +405,4 @@ def import_target_dataset(
         print("Target dataset '{}' is not supported.".format(dataset_name))
         raise ValueError
 
-    return dataset_ret, num_classes, color_encoding
+    return dataset_ret, num_classes, color_encoding, color_palette
