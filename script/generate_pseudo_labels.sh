@@ -42,7 +42,7 @@ elif [ ${model} = "deeplabv3_mobilenet_v3_large" ]; then
     forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20220728-160250/${forest_model}_forest_best_iou.pth"
 fi
 
-TARGET=imo
+TARGET=sakaki
 if [ ${TARGET} = "greenhouse" ]; then
 IGNORE_INDEX=3
 elif [ ${TARGET} = "imo" ]; then
@@ -53,9 +53,9 @@ fi
     #--target-data-list ./dataset/data_list/train_greenhouse_a.lst \
 python generate_pseudo_labels.py \
     --device cuda \
-    --target greenhouse \
-    --ignore-index 3 \
-    --target-data-list ./dataset/data_list/train_greenhouse_20230119.lst \
+    --target ${TARGET} \
+    --ignore-index ${IGNORE_INDEX} \
+    --target-data-list ./dataset/data_list/train_sakaki.lst \
     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
