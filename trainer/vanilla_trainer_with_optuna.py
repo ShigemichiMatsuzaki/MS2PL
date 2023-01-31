@@ -437,13 +437,13 @@ class PseudoTrainer(object):
                 )
 
                 self.dataset_val, _, _, _ = import_target_dataset(
-                    dataset_name="greenhouse",
+                    dataset_name=self.target_name,
                     mode="val",
                     data_list_path=self.val_data_list_path,
                 )
 
                 self.dataset_test, _, _, _ = import_target_dataset(
-                    dataset_name="greenhouse",
+                    dataset_name=self.target_name,
                     mode="test",
                     data_list_path=self.test_data_list_path,
                 )
