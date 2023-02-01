@@ -68,7 +68,7 @@ def import_dataset(
     height: int = 256,
     width: int = 480,
     scale: list = (0.5, 2.0),
-    transform: Optional[A.Compose]=None,
+    transform: Optional[A.Compose] = None,
     max_iter: Optional[int] = None,
     label_conversion: bool = False,
 ):
@@ -150,7 +150,6 @@ def import_dataset(
         )
 
         num_classes = 19 if not label_conversion else 3
-
 
     elif dataset_name == DATASET_LIST[2]:
         from dataset.forest import FreiburgForestDataset, color_encoding
@@ -242,6 +241,7 @@ def import_dataset(
 
     return dataset, num_classes, color_encoding, class_wts
 
+
 def import_target_dataset(
     dataset_name: str,
     mode: str = "train",
@@ -280,6 +280,7 @@ def import_target_dataset(
     # max_iter = 3000
     if dataset_name == "greenhouse":
         from dataset.greenhouse import GreenhouseRGBD, color_encoding, color_palette
+        from dataset.greenhouse import GREENHOUSE_CLASS_LIST as class_list
         num_classes = 3
         try:
             if mode == "train":
@@ -321,6 +322,7 @@ def import_target_dataset(
             sys.exit(1)
     elif dataset_name == "imo":
         from dataset.imo import Imo, color_encoding, color_palette
+        from dataset.imo import IMO_CLASS_LIST as class_list
         num_classes = 3
         try:
             if mode == "train":
@@ -362,6 +364,7 @@ def import_target_dataset(
 
     elif dataset_name == "sakaki":
         from dataset.sakaki import SakakiDataset, color_encoding, color_palette
+        from dataset.sakaki import SAKAKI_CLASS_LIST as class_list
         num_classes = 5
         try:
             if mode == "train":
@@ -405,4 +408,4 @@ def import_target_dataset(
         print("Target dataset '{}' is not supported.".format(dataset_name))
         raise ValueError
 
-    return dataset_ret, num_classes, color_encoding, color_palette
+    return dataset_ret, num_classes, color_encoding, color_palette, class_list
