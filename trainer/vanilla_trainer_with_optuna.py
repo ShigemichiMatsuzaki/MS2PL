@@ -228,8 +228,8 @@ class PseudoTrainer(object):
 
         # Free models for pseudo-label generation
         for m in source_model_list:
-            del m 
-        
+            del m
+
         for m in dg_model_list:
             del m
 
@@ -419,7 +419,7 @@ class PseudoTrainer(object):
         # Import datasets
         #
         try:
-            self.dataset_pseudo, _, _, _ = import_target_dataset(
+            self.dataset_pseudo, _, _, _, _ = import_target_dataset(
                 dataset_name=self.target_name,
                 mode="pseudo",
                 data_list_path=self.train_data_list_path,
@@ -427,7 +427,7 @@ class PseudoTrainer(object):
             )
 
             if not pseudo_only:
-                self.dataset_train, self.num_classes, self.color_encoding, self.color_palette = import_target_dataset(
+                self.dataset_train, self.num_classes, self.color_encoding, self.color_palette, self.class_list = import_target_dataset(
                     dataset_name=self.target_name,
                     mode="train",
                     data_list_path=self.train_data_list_path,
@@ -436,13 +436,13 @@ class PseudoTrainer(object):
                     is_old_label=self.is_old_label,
                 )
 
-                self.dataset_val, _, _, _ = import_target_dataset(
+                self.dataset_val, _, _, _, _ = import_target_dataset(
                     dataset_name=self.target_name,
                     mode="val",
                     data_list_path=self.val_data_list_path,
                 )
 
-                self.dataset_test, _, _, _ = import_target_dataset(
+                self.dataset_test, _, _, _, _ = import_target_dataset(
                     dataset_name=self.target_name,
                     mode="test",
                     data_list_path=self.test_data_list_path,
@@ -492,19 +492,18 @@ class PseudoTrainer(object):
                 num_workers=self.num_workers,
             )
 
-
-        # Class list used in embedding visualization
-        if self.target_name == "greenhouse":
-            from dataset.greenhouse import GREENHOUSE_CLASS_LIST as CLASS_LIST
-        elif self.target_name == "sakaki":
-            from dataset.sakaki import SAKAKI_CLASS_LIST as CLASS_LIST
-        elif self.target_name == "imo":
-            from dataset.imo import IMO_CLASS_LIST as CLASS_LIST
-        else:
-            print("Invalid target type {}".format(self.target_name))
-            raise ValueError
-
-        self.class_list = CLASS_LIST
+#        # Class list used in embedding visualization
+#        if self.target_name == "greenhouse":
+#            from dataset.greenhouse import GREENHOUSE_CLASS_LIST as CLASS_LIST
+#        elif self.target_name == "sakaki":
+#            from dataset.sakaki import SAKAKI_CLASS_LIST as CLASS_LIST
+#        elif self.target_name == "imo":
+#            from dataset.imo import IMO_CLASS_LIST as CLASS_LIST
+#        else:
+#            print("Invalid target type {}".format(self.target_name))
+#            raise ValueError
+#
+#        self.class_list = CLASS_LIST
 
     def init_training(self, trial=None):
         """Initialize model, optimizer, and scheduler for one training process
@@ -711,7 +710,7 @@ class PseudoTrainer(object):
                     label_type='object',
                     scale_factor=16,
                     ignore_index=self.ignore_index,
-                    class_list=self.class_list,   
+                    class_list=self.class_list,
                 )
                 feature_list += features
                 label_list += labels
@@ -814,6 +813,10 @@ class PseudoTrainer(object):
             self.save_path,
             "test",
         )
+
+        if not os.path.isdir(test_save_path):
+            os.makedirs(test_save_path)
+
         with torch.no_grad():
             for i, batch in enumerate(self.test_loader):
                 # Get input image and label batch
@@ -835,7 +838,8 @@ class PseudoTrainer(object):
 
                 amax_total_np = amax_total[0].cpu().numpy().astype(np.uint8)
                 # File name ('xxx.png')
-                filename = name[0].split("/")[-1].replace(".png", "").replace(".jpg", "")
+                filename = name[0].split(
+                    "/")[-1].replace(".png", "").replace(".jpg", "")
                 label = Image.fromarray(amax_total_np).convert("P")
                 label.putpalette(self.color_palette)
                 label.save(
@@ -846,19 +850,16 @@ class PseudoTrainer(object):
         class_avg_loss = class_total_loss / len(self.val_loader)
         avg_iou = iou.mean()
 
+        # Logging
+        metrics = {self.class_list[i]: iou[i] for i in range(iou.shape[0])}
+        metrics["miou"] = avg_iou
+        metrics["cls_loss"] = class_avg_loss
         log_metrics(
-            metrics={
-                "miou": avg_iou,
-                "plant_iou": iou[0],
-                "artificial_iou": iou[1],
-                "ground_iou": iou[2],
-                "cls_loss": class_avg_loss,
-            },
+            metrics=metrics,
             epoch=0,
             save_dir=test_save_path,
             write_header=True
         )
-        
 
     def fit(self, trial: Optional[optuna.trial.Trial] = None):
         """Fit the model to the training data
