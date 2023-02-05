@@ -851,8 +851,8 @@ class PseudoTrainer(object):
         avg_iou = iou.mean()
 
         # Logging
-        metrics = {self.class_list[i]: iou[i] for i in range(iou.shape[0])}
         metrics["miou"] = avg_iou
+        metrics = {self.class_list[i]: iou[i] for i in range(iou.shape[0])}
         metrics["cls_loss"] = class_avg_loss
         log_metrics(
             metrics=metrics,
