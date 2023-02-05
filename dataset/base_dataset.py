@@ -5,7 +5,9 @@ import torch.utils.data as data
 from PIL import Image
 import cv2
 import numpy as np
+import torchvision
 from torchvision.transforms import functional as F
+from torchvision.transforms import InterpolationMode
 import albumentations as A
 import copy
 
@@ -126,6 +128,7 @@ class BaseTargetDataset(data.Dataset):
         label_root="",
         mode="train",
         size=(256, 480),
+        scale=(0.70, 1.0),
         is_hard_label=False,
         load_labels=True,
         transform=None,
@@ -152,6 +155,8 @@ class BaseTargetDataset(data.Dataset):
             self.size = size
         else:
             self.size = (size, size)
+        
+        self.scale = scale
 
         # Declare an augmentation pipeline
         if transform is not None:
@@ -164,11 +169,11 @@ class BaseTargetDataset(data.Dataset):
                         # A.RandomCrop(width=480, height=256),
                         A.Resize(width=self.size[1], height=self.size[0]),
                         A.HorizontalFlip(p=0.5),
-                        A.GaussNoise(p=0.2),
-                        A.GaussianBlur(p=0.2),
-                        A.RGBShift(p=0.5),
-                        A.RandomBrightnessContrast(p=0.2),
-                        A.ChannelShuffle(p=0.1),
+                        A.GaussNoise(p=0.1),
+                        A.GaussianBlur(p=0.1),
+                        A.RGBShift(p=0.1),
+                        A.RandomBrightnessContrast(p=0.3),
+                        A.ChannelShuffle(p=0.05),
                     ]
                 )
                 if self.mode == "train"
@@ -259,6 +264,31 @@ class BaseTargetDataset(data.Dataset):
         rgb_img = F.normalize(
             rgb_img_orig, (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
         )
+
+        # Spacial transform
+        if self.mode == "train":
+            i, j, h, w = torchvision.transforms.RandomResizedCrop.get_params(
+                rgb_img, 
+                scale=self.scale,
+                ratio=(0.75, 1.3333333333333333),
+            )
+
+            rgb_img = F.crop(rgb_img, i, j, h, w)
+            rgb_img = F.resize(
+                rgb_img, self.size, 
+                interpolation=InterpolationMode.BILINEAR)
+
+            rgb_img_orig = F.crop(rgb_img_orig, i, j, h, w)
+            rgb_img_orig = F.resize(
+                rgb_img_orig, self.size, 
+                interpolation=InterpolationMode.BILINEAR)
+
+            label_img = torch.unsqueeze(label_img, dim=0)
+            label_img = F.crop(label_img, i, j, h, w)
+            label_img = F.resize(
+                label_img, self.size, 
+                interpolation=InterpolationMode.NEAREST)
+            label_img = torch.squeeze(label_img)
 
         return {
             "image": rgb_img,
