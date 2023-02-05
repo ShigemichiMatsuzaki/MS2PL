@@ -128,7 +128,7 @@ class BaseTargetDataset(data.Dataset):
         label_root="",
         mode="train",
         size=(256, 480),
-        scale=(0.25, 1.0),
+        scale=(0.70, 1.0),
         is_hard_label=False,
         load_labels=True,
         transform=None,
@@ -169,11 +169,11 @@ class BaseTargetDataset(data.Dataset):
                         # A.RandomCrop(width=480, height=256),
                         A.Resize(width=self.size[1], height=self.size[0]),
                         A.HorizontalFlip(p=0.5),
-                        A.GaussNoise(p=0.2),
-                        A.GaussianBlur(p=0.2),
-                        A.RGBShift(p=0.5),
-                        A.RandomBrightnessContrast(p=0.2),
-                        A.ChannelShuffle(p=0.1),
+                        A.GaussNoise(p=0.1),
+                        A.GaussianBlur(p=0.1),
+                        A.RGBShift(p=0.1),
+                        A.RandomBrightnessContrast(p=0.3),
+                        A.ChannelShuffle(p=0.05),
                     ]
                 )
                 if self.mode == "train"
@@ -287,7 +287,7 @@ class BaseTargetDataset(data.Dataset):
             label_img = F.crop(label_img, i, j, h, w)
             label_img = F.resize(
                 label_img, self.size, 
-                interpolation=InterpolationMode.BILINEAR)
+                interpolation=InterpolationMode.NEAREST)
             label_img = torch.squeeze(label_img)
 
         return {
