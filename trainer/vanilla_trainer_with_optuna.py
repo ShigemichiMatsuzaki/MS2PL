@@ -963,7 +963,7 @@ class PseudoTrainer(object):
                 #    is_hard_label=self.params.is_hard,
                 #    load_labels=False,
                 # )
-                self.dataset_train, self.num_classes, self.color_encoding, _ = import_target_dataset(
+                self.dataset_train, self.num_classes, self.color_encoding, _, _ = import_target_dataset(
                     dataset_name=self.target_name,
                     mode="train",
                     data_list_path=self.train_data_list_path,
