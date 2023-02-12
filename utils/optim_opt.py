@@ -2,9 +2,10 @@ import torch
 
 SUPPORTED_OPTIMIZERS = ['SGD', 'Adam']
 SUPPORTED_SCHEDULERS = (['step', 'multistep', 'exponential', 'polynomial', 'cyclic', 'constant']
-    if torch.__version__ >= '1.13.0'
-    else ['step', 'multistep', 'exponential', 'cyclic', 'constant']
-)
+                        if torch.__version__ >= '1.13.0'
+                        else ['step', 'multistep', 'exponential', 'cyclic', 'constant']
+                        )
+
 
 class ConstantLR:
     def __init__(self):
@@ -15,9 +16,9 @@ class ConstantLR:
 
 
 def get_optimizer(
-    optim_name: str, 
-    model_name: str, 
-    model: torch.nn.Module, 
+    optim_name: str,
+    model_name: str,
+    model: torch.nn.Module,
     lr: float,
     weight_decay: float,
     momentum: float,
@@ -86,7 +87,7 @@ def get_optimizer(
 
 
 def get_scheduler(
-    scheduler_name: str, 
+    scheduler_name: str,
     optim_name: str,
     optimizer: torch.optim.Optimizer,
     epochs: int,
@@ -165,7 +166,7 @@ def get_encoder_weights(model: torch.nn.Module, model_name: str):
                     jj += 1
                     if k.requires_grad:
                         yield k
-    elif model_name == "espnetv2":
+    elif model_name == "espnetv2" or model_name == "esptnet":
         for w in model.get_basenet_params():
             yield w
     else:
@@ -189,6 +190,12 @@ def get_decoder_weights(model: torch.nn.Module, model_name: str):
                         yield k
     elif model_name == "espnetv2":
         for w in model.get_segment_params():
+            yield w
+    elif model_name == "esptnet":
+        for w in model.get_segment_params():
+            yield w
+
+        for w in model.get_traversability_module_params():
             yield w
     else:
         raise ValueError

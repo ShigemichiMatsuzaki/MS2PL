@@ -84,40 +84,40 @@ class TrainBaseOptions(BaseOptions):
 
         # Parameters related to cosine-based softmax
         self.parser.add_argument(
-            '--use-cosine', 
-            default=False, 
+            '--use-cosine',
+            default=False,
             type=strtobool,
             help='True to use cosine-based loss (ArcFace). Valid only when "model"=="espnetv2"'
         )
         self.parser.add_argument(
-            '--cos-margin', 
-            default=0.1, 
+            '--cos-margin',
+            default=0.1,
             type=float,
             help='Angle margin'
         )
         self.parser.add_argument(
-            '--cos-logit-scale', 
-            default=30.0, 
+            '--cos-logit-scale',
+            default=30.0,
             type=float,
             help='Scale factor for the final logits'
         )
         self.parser.add_argument(
-            '--is-easy-margin', 
-            default=False, 
+            '--is-easy-margin',
+            default=False,
             type=strtobool,
             help='Whether to use an easy margin'
         )
 
         # Hyperparameter tuning
         self.parser.add_argument(
-            '--use-optuna', 
-            default=False, 
+            '--use-optuna',
+            default=False,
             type=strtobool,
             help='Whether to use automatic hyperparameter tuning by Optuna'
         )
         self.parser.add_argument(
-            '--optuna-resume-from', 
-            default='', 
+            '--optuna-resume-from',
+            default='',
             type=str,
             help='Name of existing study'
         )
@@ -125,7 +125,7 @@ class TrainBaseOptions(BaseOptions):
 
 class PreTrainOptions(TrainBaseOptions):
     def __init__(self):
-        #super().__init__()
+        # super().__init__()
         super(PreTrainOptions, self).__init__()
 
         print("PreTrainBase option")
@@ -190,7 +190,6 @@ class TrainOptions(TrainBaseOptions):
             default="dataset/data_list/test_greenhouse_a.lst",
             help="Target test dataset",
         )
-
 
         # Label type
         self.parser.add_argument(
@@ -353,107 +352,33 @@ class PseudoLabelAndTrainOptions(TrainOptions):
         )
 
 
+class TraversabilityTrainOptions(TrainBaseOptions):
+    def __init__(self):
+        # super().__init__()
+        super(TraversabilityTrainOptions, self).__init__()
 
         # Dataset
-#        self.parser.add_argument(
-#            "--target",
-#            type=str,
-#            default="greenhouse",
-#            help="Target dataset",
-#        )
-#        self.parser.add_argument(
-#            "--train-data-list-path",
-#            type=str,
-#            default="dataset/data_list/train_greenhouse_a.lst",
-#            help="Target training dataset",
-#        )
-#        self.parser.add_argument(
-#            "--val-data-list-path",
-#            type=str,
-#            default="dataset/data_list/val_greenhouse_a.lst",
-#            help="Target validation dataset",
-#        )
-#
-#
-#        # Label type
-#        self.parser.add_argument(
-#            "--is-hard",
-#            type=strtobool,
-#            default=False,
-#            help="If True, generate hard pseudo-labels.",
-#        )
-#
-#        # Loss
-#        self.parser.add_argument(
-#            "--kld-loss-weight",
-#            type=float,
-#            default=0.2,
-#            help="Weight on the KLD loss between main and aux",
-#        )
-#        self.parser.add_argument(
-#            "--entropy-loss-weight",
-#            type=float,
-#            default=0.2,
-#            help="Weight on the entropy loss",
-#        )
-#
-#        self.parser.add_argument(
-#            "--use-kld-class-loss",
-#            type=strtobool,
-#            default=False,
-#            help="True to use KLD loss to train classifier",
-#        )
-#        self.parser.add_argument(
-#            "--use-label-ent-weight",
-#            type=strtobool,
-#            default=True,
-#            help="True to use inverse label entropy as loss weights",
-#        )
-#        self.parser.add_argument(
-#            "--label-weight-temperature",
-#            type=float,
-#            default=1.0,
-#            help="True to use inverse label entropy as loss weights",
-#        )
-#        self.parser.add_argument(
-#            "--label-weight-threshold",
-#            type=float,
-#            default=0.5,
-#            help="Threshold of label weight value. Below this value is set to 0",
-#        )
-#
-#        # Pseudo-label update
-#        self.parser.add_argument(
-#            "--label-update-epoch",
-#            required=True,
-#            nargs="*",
-#            type=int,
-#            help="Epoch at which the pseudo-labels are updated",
-#        )
-#        self.parser.add_argument(
-#            "--conf-thresh",
-#            required=True,
-#            nargs="*",
-#            type=float,
-#            help="Threshold of confidence to be selected as a pseudo-label",
-#        )
-#        self.parser.add_argument(
-#            "--sp-label-min-portion",
-#            type=float,
-#            default=0.7,
-#            help="Threshold of portion of labels of a certain class that dominates a superpixel to be propagated within the entire superpixel",
-#        )
-#        self.parser.add_argument(
-#            "--pseudo-label-dir",
-#            type=str,
-#            default="",
-#            help="Path to the directory where the pre-trained class weight file is",
-#        )
-#        self.parser.add_argument(
-#            "--use-prototype-denoising",
-#            type=strtobool,
-#            default=False,
-#            help="Whether to use prototype-based denoising",
-#        )
-#
-#
+        self.parser.add_argument(
+            "--target",
+            type=str,
+            default="greenhouse",
+            help="Target dataset",
+        )
+        self.parser.add_argument(
+            "--train-data-list-path",
+            type=str,
+            default="dataset/data_list/trav_train_greenhouse_b.lst",
+            help="Target training dataset",
+        )
+        self.parser.add_argument(
+            "--val-data-list-path",
+            type=str,
+            default="dataset/data_list/trav_val_greenhouse_b.lst",
+            help="Target validation dataset",
+        )
+        self.parser.add_argument(
+            "--test-data-list-path",
+            type=str,
+            default="dataset/data_list/test_val_greenhouse_a.lst",
+            help="Target test dataset",
+        )

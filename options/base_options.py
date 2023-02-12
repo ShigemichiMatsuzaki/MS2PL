@@ -36,6 +36,7 @@ class BaseOptions(object):
                 "deeplabv3_resnet50",
                 "deeplabv3_resnet101",
                 "espnetv2",
+                "esptnet",
                 "unet",
             ],
             default="deeplabv3_resnet50",

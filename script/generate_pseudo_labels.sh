@@ -55,15 +55,15 @@ python generate_pseudo_labels.py \
     --device cuda \
     --target ${TARGET} \
     --ignore-index ${IGNORE_INDEX} \
-    --target-data-list ./dataset/data_list/train_sakaki.lst \
+    --target-data-list ./dataset/data_list/test_sakaki.lst \
     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
     --batch-size 12 \
-    --is-hard true \
+    --is-hard false \
     --use-domain-gap true \
     --is-softmax-normalize true \
     --is-per-sample true \
-    --is-per-pixel true \
+    --is-per-pixel false \
     --sp-label-min-portion 0.9 \
     --save-path ./pseudo_labels/${camvid_model}/
