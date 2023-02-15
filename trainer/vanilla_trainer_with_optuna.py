@@ -1008,7 +1008,7 @@ class PseudoTrainer(object):
             )
 
         # Remove the pseudo-labels generated during the training
-        shutil.rmtree(self.pseudo_save_path)
+        # shutil.rmtree(self.pseudo_save_path)
 
         return (best_miou + metrics["miou"]) / 2
 

@@ -10,7 +10,7 @@ import numpy as np
 #   3: background (ignored)
 id_camvid_to_greenhouse = np.array(
     [
-        3,  # Sky
+        1,  # Sky
         1,  # Building
         1,  # Pole
         2,  # Road
@@ -38,7 +38,7 @@ id_cityscapes_to_greenhouse = np.array(
         1,  # Traffic sign
         0,  # Vegetation
         2,  # Terrain
-        3,  # Sky
+        1,  # Sky
         3,  # Person
         3,  # Rider
         1,  # Car
