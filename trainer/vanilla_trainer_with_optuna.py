@@ -99,26 +99,34 @@ class PseudoTrainer(object):
         self.save_path_root = args.save_path
         self.class_wts_type = args.class_wts_type
 
+        #
+        # Tensorboard writer
+        #
         now = datetime.datetime.now() + datetime.timedelta(hours=9)
         condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
-        self.optuna_storage_name = condition + "_" + self.model_name
+        self.save_path = os.path.join(
+            self.save_path_root,
+            self.target_name,
+            condition,
+            self.model_name,
+            now.strftime("%Y%m%d-%H%M%S")
+        )
 
+        self.pseudo_save_path = os.path.join(self.save_path, "pseudo_labels")
+        # If the directory not found, create it
+        if not os.path.isdir(self.save_path):
+            os.makedirs(self.save_path)
+            os.makedirs(self.pseudo_save_path)
+
+        self.optuna_storage_name = condition + "_" + self.model_name
         if args.optuna_resume_from:
             self.optuna_study_name = args.optuna_resume_from
         else:
             self.optuna_study_name = condition + "_" + \
                 self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
 
-        self.args.pseudo_label_save_path = os.path.join(
-            self.args.pseudo_label_save_path, self.args.target
-        )
-        if not os.path.isdir(self.args.pseudo_label_save_path):
-            os.makedirs(self.args.pseudo_label_save_path)
-
     def generate_pseudo_labels(self,) -> None:
-        """Generate pseudo-labels
-
-        """
+        """Generate pseudo-labels"""
         #
         # Generate pseudo-labels
         #
@@ -180,14 +188,6 @@ class PseudoTrainer(object):
             print("Target {} is not supported.".format(self.args.target))
             raise ValueError
 
-        # pseudo_loader = torch.utils.data.DataLoader(
-        #     pseudo_dataset,
-        #     batch_size=self.args.batch_size,
-        #     shuffle=False,
-        #     pin_memory=self.args.pin_memory,
-        #     num_workers=self.args.num_workers,
-        # )
-
         #
         # Generate pseudo-labels
         #
@@ -199,7 +199,7 @@ class PseudoTrainer(object):
                 data_loader=self.pseudo_loader,
                 num_classes=num_classes,
                 device=self.args.device,
-                save_path=self.args.pseudo_label_save_path,
+                save_path=self.pseudo_save_path,
                 min_portion=self.args.sp_label_min_portion,
                 ignore_index=self.args.ignore_index,
             )
@@ -211,7 +211,7 @@ class PseudoTrainer(object):
                 target_dataset_name=self.args.target,
                 data_loader=self.pseudo_loader,
                 num_classes=num_classes,
-                save_path=self.args.pseudo_label_save_path,
+                save_path=self.pseudo_save_path,
                 device=self.args.device,
                 use_domain_gap=self.args.use_domain_gap,
                 label_normalize=self.params.label_normalize,
@@ -220,11 +220,10 @@ class PseudoTrainer(object):
                 ignore_index=self.args.ignore_index,
             )
 
-        # class_wts = torch.Tensor(class_wts)
         filename = "class_weights_{}.pt".format(
             "hard" if self.args.is_hard else "soft")
         torch.save(class_wts, os.path.join(
-            self.args.pseudo_label_save_path, filename))
+            self.pseudo_save_path, filename))
 
         # Free models for pseudo-label generation
         for m in source_model_list:
@@ -286,8 +285,8 @@ class PseudoTrainer(object):
                     label_ent = self.entropy(label)
 
                     kld_weight = torch.exp(-kld_loss_value.detach())
-                    label_ent_weight = torch.exp(-label_ent.detach()
-                                                 * self.params.label_weight_temperature)
+                    label_ent_weight = torch.exp(
+                        -label_ent.detach() * self.params.label_weight_temperature)
                     # label_ent_weight[label_ent_weight < args.label_weight_threshold] = 0.0
                     u_weight = kld_weight * label_ent_weight
                 else:
@@ -319,7 +318,9 @@ class PseudoTrainer(object):
 
                 if self.writer is not None:
                     self.writer.add_scalar(
-                        "train/cls_loss", seg_loss_value.item(), epoch * len(self.train_loader) + i
+                        "train/cls_loss", 
+                        seg_loss_value.item(), 
+                        epoch * len(self.train_loader) + i
                     )
                     self.writer.add_scalar(
                         "train/ent_loss",
@@ -492,19 +493,6 @@ class PseudoTrainer(object):
                 num_workers=self.num_workers,
             )
 
-#        # Class list used in embedding visualization
-#        if self.target_name == "greenhouse":
-#            from dataset.greenhouse import GREENHOUSE_CLASS_LIST as CLASS_LIST
-#        elif self.target_name == "sakaki":
-#            from dataset.sakaki import SAKAKI_CLASS_LIST as CLASS_LIST
-#        elif self.target_name == "imo":
-#            from dataset.imo import IMO_CLASS_LIST as CLASS_LIST
-#        else:
-#            print("Invalid target type {}".format(self.target_name))
-#            raise ValueError
-#
-#        self.class_list = CLASS_LIST
-
     def init_training(self, trial=None):
         """Initialize model, optimizer, and scheduler for one training process
 
@@ -617,24 +605,6 @@ class PseudoTrainer(object):
         # (KLD between main and aux branches)
         self.kld_loss = torch.nn.KLDivLoss(reduction="none")
         self.entropy = Entropy(num_classes=self.num_classes)
-
-        #
-        # Tensorboard writer
-        #
-        now = datetime.datetime.now() + datetime.timedelta(hours=9)
-        condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
-        self.save_path = os.path.join(
-            self.save_path_root,
-            self.target_name,
-            condition,
-            self.model_name,
-            now.strftime("%Y%m%d-%H%M%S")
-        )
-        self.pseudo_save_path = os.path.join(self.save_path, "pseudo_labels")
-        # If the directory not found, create it
-        if not os.path.isdir(self.save_path):
-            os.makedirs(self.save_path)
-            os.makedirs(self.pseudo_save_path)
 
         # SummaryWriter for Tensorboard
         if trial is None:  # If not optuna
@@ -956,13 +926,6 @@ class PseudoTrainer(object):
                 self.params.is_hard = self.seg_loss.is_hard = True
                 self.seg_loss.is_kld = False
 
-                #from dataset.greenhouse import GreenhouseRGBD, color_encoding
-                # dataset_train = GreenhouseRGBD(
-                #    list_name=self.train_data_list_path,
-                #    mode="train",
-                #    is_hard_label=self.params.is_hard,
-                #    load_labels=False,
-                # )
                 self.dataset_train, self.num_classes, self.color_encoding, _, _ = import_target_dataset(
                     dataset_name=self.target_name,
                     mode="train",

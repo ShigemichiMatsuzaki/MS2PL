@@ -216,3 +216,16 @@ train-greenhouse-traversability:
 		--name $(CONTAINER_NAME)-greenhouse-traversability \
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/train_greenhouse_traversability.sh
+
+msdacl-test:
+	docker run -it \
+		--gpus '"device=${GPU_ID}"' \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset/ \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-msdacl-test \
+		$(IMAGE_NAME):$(VERSION) \
+		bash baselines/msdacl_test.sh

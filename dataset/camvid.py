@@ -55,7 +55,7 @@ class CamVidSegmentation(BaseDataset):
         height=512,
         width=1024,
         transform=None,
-        label_conversion=False,
+        label_conversion_to="",
         max_iter=None,
     ):
         super().__init__(
@@ -66,7 +66,7 @@ class CamVidSegmentation(BaseDataset):
             height=height,
             width=width,
             transform=transform,
-            label_conversion=label_conversion,
+            label_conversion_to=label_conversion_to,
             max_iter=max_iter
         )
 
@@ -79,78 +79,21 @@ class CamVidSegmentation(BaseDataset):
         self.images += sorted(glob.glob(os.path.join(data_train_image_dir, "*.png")))
         self.labels += sorted(glob.glob(os.path.join(data_train_label_dir, "*.png")))
 
-        self.label_conversion_map = id_camvid_to_greenhouse
+        self.num_classes = 13
+        if self.label_conversion_to == "greenhouse" or self.label_conversion_to == "imo":
+            from .tools.label_conversions import id_camvid_to_greenhouse as label_conversion
+            self.num_classes = 3
+        elif self.label_conversion_to == "sakaki":
+            from .tools.label_conversions import id_camvid_to_sakaki as label_conversion
+            self.num_classes = 5
+
+        self.label_conversion_map = label_conversion
+
         self.size = (height, width)
 
         if self.max_iter is not None and self.max_iter > len(self.images):
             self.images *= self.max_iter // len(self.images)
             self.labels *= self.max_iter // len(self.labels)
-    #    def __init__(
-    #        self,
-    #        root,
-    #        mode="train",
-    #        scale=(0.5, 2.0),
-    #        size=(360, 480),
-    #        ignore_idx=255,
-    #        normalize=True,
-    #        label_conversion=False,
-    #    ):
-    #
-    #        if mode not in ["train", "val", "test"]:
-    #            print("Invalid dataset mode : {}".format(mode))
-    #            raise ValueError
-    #
-    #        self.mode = mode
-    #        self.normalize = normalize
-    #        self.images = []
-    #        self.labels = []
-    #        self.label_conversion = label_conversion
-    #        self.ignore_idx = 255
-    #
-    #
-    #        if isinstance(size, tuple):
-    #            self.size = size
-    #        else:
-    #            self.size = (size, size)
-    #
-    #        if isinstance(scale, tuple):
-    #            self.scale = scale
-    #        else:
-    #            self.scale = (scale, scale)
-
-    def initialize(self):
-        if self.mode not in ["train", "val", "test"]:
-            print("Invalid dataset mode : {}".format(self.mode))
-            raise ValueError
-
-        data_train_image_dir = os.path.join(self.root, self.mode)
-        data_train_label_dir = os.path.join(self.root, self.mode + "annot")
-        self.images += sorted(glob.glob(os.path.join(data_train_image_dir, "*.png")))
-        self.labels += sorted(glob.glob(os.path.join(data_train_label_dir, "*.png")))
-
-        self.label_conversion_map = id_camvid_to_greenhouse
-        self.size = (256, 480)
 
     def __len__(self):
         return len(self.images)
-
-    # def __getitem__(self, index):
-    #     rgb_img = Image.open(self.images[index]).convert("RGB")
-    #     label_img = Image.open(self.labels[index])
-
-    #     # Resize
-    #     rgb_img = F.resize(rgb_img, self.size)
-    #     label_img = F.resize(label_img, self.size)
-
-    #     # Convert images to tensors
-    #     rgb_img = F.to_tensor(rgb_img)
-    #     label_img = np.array(label_img)
-    #     if self.label_conversion:
-    #         label_img = id_camvid_to_greenhouse[label_img]
-
-    #     label_img = torch.LongTensor(label_img.astype(np.int64))
-
-    #     # Normalize the pixel values
-    #     rgb_img = F.normalize(rgb_img, (0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-
-    #     return {"image": rgb_img, "label": label_img}

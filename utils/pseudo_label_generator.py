@@ -122,7 +122,7 @@ def get_label_from_superpixel(
 def get_output(
     model: torch.nn.Module,
     image: torch.Tensor,
-    device: str="cuda",
+    device: str = "cuda",
 ):
     """Get an output on the given input image from the given model
 
@@ -257,20 +257,23 @@ def generate_pseudo_label(
                 feature = output["feat"]
                 max_output, argmax_output = torch.max(output_prob, dim=1)
 
-                # 
+                #
                 # If the prototypes are given, apply filtering of the labels
                 # (Zhang et al., 2021)
                 #
                 if prototypes is not None:
                     # Class-wise weights based on the distance to the prototype of each class
-                    weights = prototypes.get_prototype_weight(feature).to(device)
+                    weights = prototypes.get_prototype_weight(
+                        feature).to(device)
 
                     # Rectified output probability
                     rectified_prob = weights * output_prob
                     # Normalize the rectified values as probabilities
-                    rectified_prob = rectified_prob / rectified_prob.sum(1, keepdim=True)
+                    rectified_prob = rectified_prob / \
+                        rectified_prob.sum(1, keepdim=True)
                     # Predicted label map after rectification
-                    max_output, argmax_output = rectified_prob.max(1, keepdim=True)
+                    max_output, argmax_output = rectified_prob.max(
+                        1, keepdim=True)
 
                 # Filter out the pixels with a confidence below the threshold
                 argmax_output[max_output < proto_rect_thresh] = ignore_index
@@ -439,7 +442,8 @@ def generate_pseudo_label_multi_model(
                     label.putpalette(color_palette)
                     # Save the predicted images (+ colorred images for visualization)
                     # label.save("%s/%s.png" % (save_pred_path, image_name))
-                    label.save(os.path.join(save_path, filename.replace('.jpg', '.png')))
+                    label.save(os.path.join(
+                        save_path, filename.replace('.jpg', '.png')))
 
     #    update_image_list(tgt_train_lst, image_path_list, label_path_list, depth_path_list)
 
@@ -569,7 +573,7 @@ def generate_pseudo_label_multi_model_domain_gap(
 
         print("Weight: {}".format(domain_gap_weight))
 
-    entropy_layer = Entropy(num_classes=num_classes,) 
+    entropy_layer = Entropy(num_classes=num_classes,)
     with torch.no_grad():
         with tqdm(total=len(data_loader)) as pbar:
             for index, batch in enumerate(tqdm(data_loader)):
@@ -624,7 +628,8 @@ def generate_pseudo_label_multi_model_domain_gap(
                     for i in range(num_classes):
                         indices = torch.where(label_conversion == i)[0]
                         if indices.size(0):
-                            output_target[:, i] = output[:, indices].max(dim=1)[0]
+                            output_target[:, i] = output[:, indices].max(dim=1)[
+                                0]
 
                     # output_target = F.normalize(output_target, p=1)
                     output_target = F.softmax(output_target, dim=1)
@@ -635,13 +640,14 @@ def generate_pseudo_label_multi_model_domain_gap(
                         output_total += output_target
                     elif is_per_sample:
                         domain_gap_w = calc_norm_ent(
-                            output_target, 
+                            output_target,
                             reduction="none" if is_per_pixel else "per_sample"
                         )["ent"]
                         output_total += output_target / domain_gap_w
                         gap_total += domain_gap_w
                     else:
-                        output_total += output_target * domain_gap_weight[ds_index]
+                        output_total += output_target * \
+                            domain_gap_weight[ds_index]
                         ds_index += 1
 
                 if is_per_sample:
@@ -684,7 +690,8 @@ def generate_pseudo_label_multi_model_domain_gap(
                     ent = ent / ent.max()
                     ent = (ent * 255).cpu().byte().numpy()
                     ent = Image.fromarray(ent)
-                    ent.save(os.path.join(save_path, "{}_entropy.png".format(image_name)))
+                    ent.save(os.path.join(
+                        save_path, "{}_entropy.png".format(image_name)))
 
                     label = output_total[i].argmax(dim=0).cpu().byte().numpy()
                     label = Image.fromarray(
@@ -692,8 +699,8 @@ def generate_pseudo_label_multi_model_domain_gap(
                     label.putpalette(color_palette)
                     # Save the predicted images (+ colorred images for visualization)
                     # label.save("%s/%s.png" % (save_pred_path, image_name))
-                    label.save(os.path.join(save_path, "{}_argmax.png".format(image_name)))
-
+                    label.save(os.path.join(
+                        save_path, "{}_argmax.png".format(image_name)))
 
     if class_weighting == "normal":
         class_array /= class_array.sum()  # normalized
@@ -706,3 +713,56 @@ def generate_pseudo_label_multi_model_domain_gap(
     class_wts = torch.clamp(class_wts, min=0.0, max=1e2)
 
     return class_wts
+
+
+def class_balanced_pseudo_label_selection(
+    P: torch.Tensor,
+    num_classes: int,
+    ignore_idx: int,
+    alpha: float,
+    tau: float,
+) -> torch.Tensor:
+    """Select labels per class
+
+    Parameters
+    ----------
+    P : `torch.Tensor`
+        Predicted probability
+    num_classes : `int`
+        The number of classes
+    ignore_idx : `int`
+        Label index to ignore in training
+    alpha : `float`
+        Proportion of labels to be selected per class
+    tau : `float`
+        Minimum confidence threshold
+
+    Returns
+    -------
+    `torch.Tensor`
+        Resulting pseudo-labels
+    """
+    Y = torch.argmax(P, dim=1)
+    # Select the labels
+    for c in range(num_classes):
+        # P_c = sorted(P[:, c, :, :], reverse=True)[0]
+        P_c = torch.clone(P[:, c, :, :])
+        P_c = torch.reshape(P_c, (-1,))
+        P_c = torch.sort(P_c, descending=True)[0]
+
+        # Number of pixels predicted as class c
+        n_c = (Y == c).sum()
+
+        # Confidence threshold for pseudo-label c
+        th = min(P_c[int(n_c * alpha)], tau)
+
+        # Replace with 'ignore_idx' with the labels
+        # with confidence below the threshold
+        mask1 = (Y == c)
+        mask2 = (P[:, c, :, :] <= th)
+
+        Y[mask1 & mask2] = ignore_idx
+
+        print(Y.size())
+
+    return Y

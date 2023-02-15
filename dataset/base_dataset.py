@@ -11,6 +11,7 @@ from torchvision.transforms import InterpolationMode
 import albumentations as A
 import copy
 
+
 class BaseDataset(data.Dataset):
     def __init__(
         self,
@@ -21,7 +22,7 @@ class BaseDataset(data.Dataset):
         height=256,
         width=480,
         transform=None,
-        label_conversion=False,
+        label_conversion_to="",
         max_iter=None,
     ):
         """Base class of dataset
@@ -40,7 +41,7 @@ class BaseDataset(data.Dataset):
         self.root = root
         self.mode = mode
         self.ignore_idx = ignore_idx
-        self.label_conversion = label_conversion
+        self.label_conversion_to = label_conversion_to
         self.label_conversion_map = None
         # self.transform = transform
 
@@ -103,7 +104,7 @@ class BaseDataset(data.Dataset):
 
         # Convert images to tensors
         # label_img = np.array(label_img)
-        if self.label_conversion and self.label_conversion_map is not None:
+        if self.label_conversion_to and self.label_conversion_map is not None:
             label_np = self.label_conversion_map[label_np]
 
         transformed = self.transform(image=rgb_np, mask=label_np)
@@ -155,7 +156,7 @@ class BaseTargetDataset(data.Dataset):
             self.size = size
         else:
             self.size = (size, size)
-        
+
         self.scale = scale
 
         # Declare an augmentation pipeline
@@ -192,7 +193,7 @@ class BaseTargetDataset(data.Dataset):
 
     def label_preprocess(self, label):
         """Pre-processing of the label
-        
+
         """
         raise NotImplementedError
 
@@ -268,25 +269,25 @@ class BaseTargetDataset(data.Dataset):
         # Spacial transform
         if self.mode == "train":
             i, j, h, w = torchvision.transforms.RandomResizedCrop.get_params(
-                rgb_img, 
+                rgb_img,
                 scale=self.scale,
                 ratio=(0.75, 1.3333333333333333),
             )
 
             rgb_img = F.crop(rgb_img, i, j, h, w)
             rgb_img = F.resize(
-                rgb_img, self.size, 
+                rgb_img, self.size,
                 interpolation=InterpolationMode.BILINEAR)
 
             rgb_img_orig = F.crop(rgb_img_orig, i, j, h, w)
             rgb_img_orig = F.resize(
-                rgb_img_orig, self.size, 
+                rgb_img_orig, self.size,
                 interpolation=InterpolationMode.BILINEAR)
 
             label_img = torch.unsqueeze(label_img, dim=0)
             label_img = F.crop(label_img, i, j, h, w)
             label_img = F.resize(
-                label_img, self.size, 
+                label_img, self.size,
                 interpolation=InterpolationMode.NEAREST)
             label_img = torch.squeeze(label_img)
 
@@ -298,4 +299,3 @@ class BaseTargetDataset(data.Dataset):
             "label_path": self.labels[index],
             "name": self.images[index].rsplit("/", 1)[1],
         }
-

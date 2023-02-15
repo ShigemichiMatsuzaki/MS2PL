@@ -382,3 +382,57 @@ class TraversabilityTrainOptions(TrainBaseOptions):
             default="dataset/data_list/test_val_greenhouse_a.lst",
             help="Target test dataset",
         )
+
+
+class MSDACLTrainOptions(TrainBaseOptions):
+    def __init__(self):
+        # super().__init__()
+        super(MSDACLTrainOptions, self).__init__()
+
+        # Dataset
+        self.parser.add_argument(
+            "--target",
+            type=str,
+            default="greenhouse",
+            help="Target dataset",
+        )
+        self.parser.add_argument(
+            "--train-data-list-path",
+            type=str,
+            default="dataset/data_list/train_greenhouse_a.lst",
+            help="Target training dataset",
+        )
+        self.parser.add_argument(
+            "--val-data-list-path",
+            type=str,
+            default="dataset/data_list/val_greenhouse_a.lst",
+            help="Target validation dataset",
+        )
+        self.parser.add_argument(
+            "--test-data-list-path",
+            type=str,
+            default="dataset/data_list/test_greenhouse_a.lst",
+            help="Target test dataset",
+        )
+
+        self.parser.add_argument(
+            "--pseudo-label-dir",
+            type=str,
+            default="",
+            help="Path to the directory where the pre-trained class weight file is",
+        )
+        # Source
+        self.parser.add_argument(
+            "--source-dataset-names",
+            type=str,
+            help="Source datasets to use. Either 'camvid', 'cityscapes', and 'forest', and must be separated by ',', i.e., 'camvid,forest'.",
+        )
+        self.parser.add_argument(
+            "--source-weight-names",
+            type=str,
+            help="Paths to weight files separated by ','",
+        )
+        self.parser.add_argument(
+            "--source-model-names",
+            help="Paths to weight files separated by ','",
+        )
