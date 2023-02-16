@@ -6,10 +6,19 @@ USE_OPTUNA=false
 TARGET=sakaki
 if [ ${TARGET} = "greenhouse" ]; then
 IGNORE_INDEX=3
+TRAIN_LST=train_greenhouse_a.lst
+VAL_LST=val_greenhouse_a.lst
+TEST_LST=test_greenhouse_a.lst
 elif [ ${TARGET} = "imo" ]; then
 IGNORE_INDEX=3
+TRAIN_LST=train_imo_stabilized.lst
+VAL_LST=test_sakaki.lst
+TEST_LST=test_sakaki.lst
 elif [ ${TARGET} = "sakaki" ]; then
 IGNORE_INDEX=5
+TRAIN_LST=train_sakaki.lst
+VAL_LST=test_sakaki.lst
+TEST_LST=test_sakaki.lst
 fi
 
 # Pseudo-label
@@ -47,9 +56,9 @@ python train_pseudo.py \
     --sp-label-min-portion 0.9 \
     --pseudo-label-save-path ./pseudo_labels/${camvid_model}/ \
     --target ${TARGET} \
-    --train-data-list-path dataset/data_list/train_greenhouse_a.lst \
-    --val-data-list-path dataset/data_list/test_greenhouse_a.lst \
-    --test-data-list-path dataset/data_list/test_greenhouse_a.lst \
+    --train-data-list-path dataset/data_list/${TRAIN_LST} \
+    --val-data-list-path dataset/data_list/${VAL_LST} \
+    --test-data-list-path dataset/data_list/${TEST_LST} \
     --model ${MODEL} \
     --use-cosine true \
     --batch-size 40 \
