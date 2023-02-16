@@ -345,10 +345,10 @@ class PseudoLabelAndTrainOptions(TrainOptions):
             help="Minimum proportion of the majority label in a superpixel to propagate",
         )
         self.parser.add_argument(
-            "--pseudo-label-save-path",
+            "--initial-pseudo-label-path",
             type=str,
             default="",
-            help="Directory to save pseudo-labels",
+            help="Directory where initial pseudo-labels are saved",
         )
 
 

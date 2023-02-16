@@ -92,12 +92,13 @@ class PseudoTrainer(object):
         self.train_data_list_path = args.train_data_list_path
         self.val_data_list_path = args.val_data_list_path
         self.test_data_list_path = args.test_data_list_path
-        self.pseudo_label_dir = args.pseudo_label_dir
         self.is_old_label = args.is_old_label
         self.val_every_epochs = args.val_every_epochs
         self.vis_every_vals = args.vis_every_vals
         self.save_path_root = args.save_path
         self.class_wts_type = args.class_wts_type
+
+        self.initial_pseudo_label_path = args.initial_pseudo_label_path
 
         #
         # Tensorboard writer
@@ -111,12 +112,12 @@ class PseudoTrainer(object):
             self.model_name,
             now.strftime("%Y%m%d-%H%M%S")
         )
-
         self.pseudo_save_path = os.path.join(self.save_path, "pseudo_labels")
         # If the directory not found, create it
         if not os.path.isdir(self.save_path):
             os.makedirs(self.save_path)
             os.makedirs(self.pseudo_save_path)
+
 
         self.optuna_storage_name = condition + "_" + self.model_name
         if args.optuna_resume_from:
@@ -199,7 +200,7 @@ class PseudoTrainer(object):
                 data_loader=self.pseudo_loader,
                 num_classes=num_classes,
                 device=self.args.device,
-                save_path=self.pseudo_save_path,
+                save_path=self.initial_pseudo_label_path,
                 min_portion=self.args.sp_label_min_portion,
                 ignore_index=self.args.ignore_index,
             )
@@ -211,7 +212,7 @@ class PseudoTrainer(object):
                 target_dataset_name=self.args.target,
                 data_loader=self.pseudo_loader,
                 num_classes=num_classes,
-                save_path=self.pseudo_save_path,
+                save_path=self.initial_pseudo_label_path,
                 device=self.args.device,
                 use_domain_gap=self.args.use_domain_gap,
                 label_normalize=self.params.label_normalize,
@@ -223,7 +224,7 @@ class PseudoTrainer(object):
         filename = "class_weights_{}.pt".format(
             "hard" if self.args.is_hard else "soft")
         torch.save(class_wts, os.path.join(
-            self.pseudo_save_path, filename))
+            self.initial_pseudo_label_path, filename))
 
         # Free models for pseudo-label generation
         for m in source_model_list:
@@ -424,7 +425,7 @@ class PseudoTrainer(object):
                 dataset_name=self.target_name,
                 mode="pseudo",
                 data_list_path=self.train_data_list_path,
-                pseudo_label_dir=self.pseudo_label_dir,
+                pseudo_label_dir=self.initial_pseudo_label_path,
             )
 
             if not pseudo_only:
@@ -432,7 +433,7 @@ class PseudoTrainer(object):
                     dataset_name=self.target_name,
                     mode="train",
                     data_list_path=self.train_data_list_path,
-                    pseudo_label_dir=self.pseudo_label_dir,
+                    pseudo_label_dir=self.initial_pseudo_label_path,
                     is_hard=self.params.is_hard,
                     is_old_label=self.is_old_label,
                 )
@@ -563,7 +564,7 @@ class PseudoTrainer(object):
             try:
                 self.class_wts = torch.load(
                     os.path.join(
-                        self.pseudo_label_dir,
+                        self.initial_pseudo_label_path,
                         "class_weights_" +
                         ("hard" if self.params.is_hard else "soft") + ".pt",
                     )
@@ -572,7 +573,7 @@ class PseudoTrainer(object):
                 print(
                     "Class weight '{}' not found".format(
                         os.path.join(
-                            self.pseudo_label_dir,
+                            self.initial_pseudo_label_path,
                             "class_weights_" +
                             ("hard" if self.params.is_hard else "soft") + ".pt",
                         )
@@ -821,6 +822,7 @@ class PseudoTrainer(object):
         avg_iou = iou.mean()
 
         # Logging
+        metrics = {}
         metrics["miou"] = avg_iou
         metrics = {self.class_list[i]: iou[i] for i in range(iou.shape[0])}
         metrics["cls_loss"] = class_avg_loss
@@ -930,7 +932,6 @@ class PseudoTrainer(object):
                     dataset_name=self.target_name,
                     mode="train",
                     data_list_path=self.train_data_list_path,
-                    # pseudo_label_dir=self.pseudo_label_dir,
                     pseudo_label_dir=self.pseudo_save_path,
                     is_hard=self.params.is_hard,
                     is_old_label=self.is_old_label,
