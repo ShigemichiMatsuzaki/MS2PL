@@ -27,7 +27,7 @@ camvid_weight="./pretrained_weights/espdnetue_2.0_480_best_camvid.pth"
 cityscapes_weight="./pretrained_weights/espdnetue_2.0_512_best_city.pth"
 forest_weight="./pretrained_weights/espdnetue_2.0_480_best_forest.pth"
 optimizer_name=SGD
-scheduler_name=cyclic
+scheduler_name=polynomial
 
 # Parameters
 python train_msdacl.py \

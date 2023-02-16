@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
+
 def main():
     args = PseudoLabelOptions().parse()
     print(args)
@@ -119,7 +120,8 @@ def main():
             # Show image
             img_cv = batch["image_orig"][0].permute(1, 2, 0).numpy()
             img_cv = cv2.resize(
-                img_cv, dsize=(img_cv.shape[1] * 2, img_cv.shape[0] * 2), 
+                img_cv,
+                dsize=(img_cv.shape[1] * 2, img_cv.shape[0] * 2),
                 interpolation=cv2.INTER_CUBIC
             )
             plt.subplot(121).imshow(img_cv,)
@@ -131,10 +133,11 @@ def main():
             plt.bar(source_dataset_name_list, weight_list)
             plt.savefig(
                 os.path.join(
-                    args.save_path, 
+                    args.save_path,
                     name[0].replace(".png", "_gap.png")
                 )
             )
+
 
 if __name__ == "__main__":
     main()

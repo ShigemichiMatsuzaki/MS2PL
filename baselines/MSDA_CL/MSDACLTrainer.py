@@ -5,12 +5,13 @@ import sys
 import traceback
 import numpy as np
 import torch
+import torch.nn.functional as F
+from torch.utils.tensorboard import SummaryWriter
 from PIL import Image
 from utils.logger import log_metrics
 from utils.metrics import MIOU, AverageMeter
 from utils.model_io import import_model
 from tqdm import tqdm
-import torch.nn.functional as F
 from utils.optim_opt import get_optimizer, get_scheduler
 from utils.visualization import add_images_to_tensorboard
 from warmup_scheduler import GradualWarmupScheduler
@@ -37,7 +38,6 @@ class MSDACLTrainer(object):
         self.train_data_list_path = args.train_data_list_path
         self.val_data_list_path = args.val_data_list_path
         self.test_data_list_path = args.test_data_list_path
-        self.pseudo_label_dir = args.pseudo_label_dir
         self.val_every_epochs = args.val_every_epochs
         self.vis_every_vals = args.vis_every_vals
         self.save_path_root = args.save_path
@@ -73,8 +73,9 @@ class MSDACLTrainer(object):
         self.use_lr_warmup = args.use_lr_warmup
 
         self.ignore_idx = 3
-        self.max_iter = 250000
-        self.epochs = self.max_iter // self.batch_size
+        self.epochs_source = 20
+        self.epochs_target = 150
+        self.max_iter = self.epochs_target * 3000 / self.batch_size
 
         # Loss
         self.loss_seg = torch.nn.CrossEntropyLoss(
@@ -102,6 +103,8 @@ class MSDACLTrainer(object):
             os.makedirs(self.save_path)
             os.makedirs(self.pseudo_save_path)
 
+        self.writer = SummaryWriter(self.save_path)
+
         # Initialize training
         self._init_training()
 
@@ -115,17 +118,18 @@ class MSDACLTrainer(object):
 
     def source_train(self,):
         """Train the source models"""
-        for ep in range(self.epochs // 2):
+        for ep in range(self.epochs_source):
             for i in range(len(self.models)):
                 with tqdm(self.source_train_loaders[i]) as pbar_loader:
-                    pbar_loader.set_description("Epoch {:<3d}".format(ep+1))
+                    pbar_loader.set_description(
+                        "Epoch {:<3d}/{:<3d}".format(ep+1, self.epochs_source))
 
                     # Data loaders for computing collaborative loss
                     loader_iters = [
                         iter(loader)
                         for loader in self.source_train_loaders
                     ]
-                    for batch_i in self.source_train_loaders[i]:
+                    for iter_i, batch_i in enumerate(self.source_train_loaders[i]):
                         loss = 0.0
                         # Get input image and label batch from dataset i (main dataset)
                         image_i = batch_i["image"].to(self.device)
@@ -169,16 +173,16 @@ class MSDACLTrainer(object):
 
                         if self.writer is not None:
                             self.writer.add_scalar(
-                                "MSDACL/train/{}/loss".format(i), 
-                                loss.item(), 
+                                "MSDACL/train/{}/loss".format(i),
+                                loss.item(),
                                 ep,
                             )
 
-                            if i == 0:
+                            if iter_i == 0:
                                 add_images_to_tensorboard(
-                                    self.writer, 
-                                    image_orig_i, 
-                                    ep, 
+                                    self.writer,
+                                    image_orig_i,
+                                    ep,
                                     "MSDACL/train/{}/image".format(i)
                                 )
 
@@ -241,10 +245,11 @@ class MSDACLTrainer(object):
 
     def target_train(self,):
         """Training using target dataset"""
-        for ep in range(self.epochs // 2, self.epochs):
+        for ep in range(self.epochs_target):
             for i in range(len(self.source_train_loaders)):
                 with tqdm(self.source_train_loaders[i]) as pbar_loader:
-                    pbar_loader.set_description("Epoch {:<3d}".format(ep+1))
+                    pbar_loader.set_description(
+                        "Epoch {:<3d}/{:<3d}".format(ep+1, self.epochs_target))
 
                     # Data loaders for computing collaborative loss
                     iter_t = iter(self.target_train_loader)
@@ -282,16 +287,16 @@ class MSDACLTrainer(object):
 
                         if self.writer is not None:
                             self.writer.add_scalar(
-                                "MSDACL/train/{}/loss".format(i), 
-                                loss.item(), 
+                                "MSDACL/train/{}/loss".format(i),
+                                loss.item(),
                                 ep,
                             )
 
                             if i == 0:
                                 add_images_to_tensorboard(
-                                    self.writer, 
-                                    image_orig_i, 
-                                    ep, 
+                                    self.writer,
+                                    image_orig_i,
+                                    ep,
                                     "MSDACL/train/{}/image".format(i)
                                 )
 
@@ -518,6 +523,8 @@ class MSDACLTrainer(object):
         self.source_train()
         self.generate_pseudo_labels()
         self._load_target_dataset()
+        self._load_optimizers(
+            max_epochs=self.epochs_target)
         self.target_train()
 
     def _init_training(self):
@@ -531,7 +538,17 @@ class MSDACLTrainer(object):
 
         self._load_source_datasets()
         self._load_models()
-        self._load_optimizers()
+        self._load_optimizers(
+            max_epochs=self.epochs_source)
+
+        if self.target_name == "greenhouse" or self.target_name == "imo":
+            from dataset.greenhouse import color_encoding
+        elif self.target_name == "sakaki":
+            from dataset.sakaki import color_encoding
+        else:
+            raise ValueError
+
+        self.color_encoding = color_encoding
 
     def _load_source_datasets(self,):
         """_summary_"""
@@ -588,7 +605,7 @@ class MSDACLTrainer(object):
                 dataset_name=self.target_name,
                 mode="pseudo",
                 data_list_path=self.train_data_list_path,
-                pseudo_label_dir=self.pseudo_label_dir,
+                pseudo_label_dir=self.pseudo_save_path,
             )
 
             if not pseudo_only:
@@ -596,7 +613,7 @@ class MSDACLTrainer(object):
                     dataset_name=self.target_name,
                     mode="train",
                     data_list_path=self.train_data_list_path,
-                    pseudo_label_dir=self.pseudo_label_dir,
+                    pseudo_label_dir=self.pseudo_save_path,
                     is_hard=True,
                     is_old_label=False,
                 )
@@ -658,7 +675,7 @@ class MSDACLTrainer(object):
                 num_workers=self.num_workers,
             )
 
-    def _load_optimizers(self) -> None:
+    def _load_optimizers(self, max_epochs: int) -> None:
         """Import optimizer and scheduler"""
         #
         # Optimizer: Updates
@@ -682,7 +699,7 @@ class MSDACLTrainer(object):
                 scheduler_name=self.scheduler_name,
                 optim_name=self.optimizer_name,
                 optimizer=optimizer,
-                epochs=self.epochs,
+                epochs=max_epochs,
                 lr=self.lr,
                 lr_gamma=self.lr_gamma,
             )
@@ -690,7 +707,7 @@ class MSDACLTrainer(object):
                 scheduler = GradualWarmupScheduler(
                     optimizer,
                     multiplier=1,
-                    total_epoch=5,
+                    total_epoch=max_epochs // 10,
                     after_scheduler=scheduler,
                 )
 
