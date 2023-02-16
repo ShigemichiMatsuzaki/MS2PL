@@ -82,6 +82,8 @@ class FreiburgForestDataset(BaseDataset):
         elif self.label_conversion_to == "sakaki":
             from .tools.label_conversions import id_forest_to_sakaki as label_conversion
             self.num_classes = 5
+        else:
+            label_conversion = None
 
         self.label_conversion_map = label_conversion
 

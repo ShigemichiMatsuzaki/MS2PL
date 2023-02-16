@@ -118,6 +118,8 @@ class CityscapesSegmentation(BaseDataset):
         elif self.label_conversion_to == "sakaki":
             from .tools.label_conversions import id_cityscapes_to_sakaki as label_conversion
             self.num_classes = 5
+        else:
+            label_conversion = None
 
         self.label_conversion_map = label_conversion
 
@@ -152,5 +154,7 @@ class CityscapesSegmentation(BaseDataset):
                 label_img = label_np
             else:
                 label_img = Image.fromarray(label_np)
+        else:
+            label_img = label
 
         return label_img
