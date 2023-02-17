@@ -628,8 +628,7 @@ def generate_pseudo_label_multi_model_domain_gap(
                     for i in range(num_classes):
                         indices = torch.where(label_conversion == i)[0]
                         if indices.size(0):
-                            output_target[:, i] = output[:, indices].max(dim=1)[
-                                0]
+                            output_target[:, i] = output[:, indices].max(dim=1)[0]
 
                     # output_target = F.normalize(output_target, p=1)
                     output_target = F.softmax(output_target, dim=1)
@@ -762,7 +761,5 @@ def class_balanced_pseudo_label_selection(
         mask2 = (P[:, c, :, :] <= th)
 
         Y[mask1 & mask2] = ignore_idx
-
-        print(Y.size())
 
     return Y

@@ -133,6 +133,7 @@ class BaseTargetDataset(data.Dataset):
         is_hard_label=False,
         load_labels=True,
         transform=None,
+        max_iter=None,
     ):
         """Base class of dataset
 
@@ -151,6 +152,7 @@ class BaseTargetDataset(data.Dataset):
         self.is_hard_label = is_hard_label
         self.load_labels = load_labels
         self.label_root = label_root
+        self.max_iter = max_iter
 
         if isinstance(size, tuple):
             self.size = size

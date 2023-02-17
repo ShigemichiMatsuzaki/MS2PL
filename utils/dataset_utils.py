@@ -251,6 +251,7 @@ def import_target_dataset(
     pseudo_label_dir: str = "",
     is_hard: bool = False,
     is_old_label: bool = False,
+    max_iter: int = None,
 ):
     """Import a designated dataset
 
@@ -279,7 +280,6 @@ def import_target_dataset(
     color_encoding: `collection.OrderedDict`
         Label color encoding of the imported dataset
     """
-    # max_iter = 3000
     if dataset_name == "greenhouse":
         from dataset.greenhouse import GreenhouseRGBD, color_encoding, color_palette
         from dataset.greenhouse import GREENHOUSE_CLASS_LIST as class_list
@@ -292,6 +292,7 @@ def import_target_dataset(
                     mode="train",
                     is_hard_label=is_hard,
                     is_old_label=is_old_label,
+                    max_iter=max_iter,
                 )
             elif mode == "pseudo":
                 dataset_ret = GreenhouseRGBD(
@@ -333,6 +334,7 @@ def import_target_dataset(
                     label_root=pseudo_label_dir,
                     mode="train",
                     is_hard_label=is_hard,
+                    max_iter=max_iter,
                 )
             elif mode == "pseudo":
                 dataset_ret = Imo(
@@ -375,6 +377,7 @@ def import_target_dataset(
                     label_root=pseudo_label_dir,
                     mode="train",
                     is_hard_label=is_hard,
+                    max_iter=max_iter,
                 )
             elif mode == "pseudo":
                 dataset_ret = SakakiDataset(

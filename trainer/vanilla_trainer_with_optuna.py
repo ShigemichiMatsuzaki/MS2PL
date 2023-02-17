@@ -868,8 +868,10 @@ class PseudoTrainer(object):
             #
             if ep % self.val_every_epochs == 0:
                 num_val = ep // self.val_every_epochs
-                metrics = self.val(epoch=ep, visualize=(
-                    num_val % self.vis_every_vals == 0))
+                metrics = self.val(
+                    epoch=ep, 
+                    visualize=(num_val % self.vis_every_vals == 0)
+                )
 
                 # Optuna
                 if trial is not None:
