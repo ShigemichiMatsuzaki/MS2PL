@@ -251,7 +251,7 @@ class MSDACLTrainer(object):
     def target_train(self,):
         """Training using target dataset"""
 
-        best_iou = 0.0
+        best_miou = 0.0
 
         for ep in range(self.epochs_target):
             # Validation
@@ -267,15 +267,18 @@ class MSDACLTrainer(object):
             # Update best mIoU
             if best_miou < metrics["miou"]:
                 best_miou = metrics["miou"]
-
-                torch.save(
-                    self.model.state_dict(),
-                    os.path.join(
-                        self.save_path,
-                        "pseudo_{}_{}_best_iou.pth".format(
-                            self.model_name, self.target_name),
-                    ),
-                )
+                for i, source in enumerate(self.source_dataset_name_list):
+                    torch.save(
+                        self.models[i].state_dict(),
+                        os.path.join(
+                            self.save_path,
+                            "pseudo_{}_{}_{}_best_iou.pth".format(
+                                self.model_name, 
+                                self.target_name,
+                                source,
+                            ),
+                        ),
+                    )
 
             # Train
             for i in range(len(self.source_train_loaders)):
@@ -364,30 +367,29 @@ class MSDACLTrainer(object):
                                 )
 
                                 # Targes
-                                if i == 0:
-                                    add_images_to_tensorboard(
-                                        self.writer,
-                                        image_orig_t,
-                                        ep,
-                                        namespace + "/train/target/image".format(i)
-                                    )
+                                add_images_to_tensorboard(
+                                    self.writer,
+                                    image_orig_t,
+                                    ep,
+                                    namespace + "/train/{}/target/image".format(i)
+                                )
 
-                                    add_images_to_tensorboard(
-                                        self.writer,
-                                        label_t,
-                                        ep,
-                                        namespace + "/train/target/label".format(i),
-                                        is_label=True,
-                                        color_encoding=self.color_encoding,
-                                    )
-                                    add_images_to_tensorboard(
-                                        self.writer,
-                                        amax_t,
-                                        ep,
-                                        namespace + "/train/target/pred".format(i),
-                                        is_label=True,
-                                        color_encoding=self.color_encoding,
-                                    )
+                                add_images_to_tensorboard(
+                                    self.writer,
+                                    label_t,
+                                    ep,
+                                    namespace + "/train/{}/target/label".format(i),
+                                    is_label=True,
+                                    color_encoding=self.color_encoding,
+                                )
+                                add_images_to_tensorboard(
+                                    self.writer,
+                                    amax_t,
+                                    ep,
+                                    namespace + "/train/{}/target/pred".format(i),
+                                    is_label=True,
+                                    color_encoding=self.color_encoding,
+                                )
 
                         # Update tqdm
                         pbar_loader.set_postfix(
@@ -412,7 +414,8 @@ class MSDACLTrainer(object):
                 "ent_loss": Average entropy loss (KLD with a uniform dist.)
         """
         # Set the model to 'eval' mode
-        self.model.eval()
+        for model in self.models:
+            model.eval()
 
         # Loss function
         loss_cls_func = torch.nn.CrossEntropyLoss(
@@ -490,6 +493,10 @@ class MSDACLTrainer(object):
         self.writer.add_scalar(namespace + "/val/class_avg_loss", class_avg_loss, epoch)
         self.writer.add_scalar(namespace + "/val/miou", avg_iou, epoch)
 
+        # Set model mode back 
+        for model in self.models:
+            model.train()
+
         return {
             "miou": avg_iou,
             "plant_iou": iou[0],
@@ -515,17 +522,20 @@ class MSDACLTrainer(object):
                 "ent_loss": Average entropy loss (KLD with a uniform dist.)
         """
         # Load the best weights
-        state_dict = torch.load(
-            os.path.join(
-                self.save_path,
-                "pseudo_{}_{}_best_iou.pth".format(
-                    self.model_name, self.target_name),
-            ),
-        )
-        self.model.load_state_dict(state_dict)
-        self.model.to(self.device)
-        # Set the model to 'eval' mode
-        self.model.eval()
+        for i, source in enumerate(self.source_dataset_name_list):
+            state_dict = torch.load(
+                os.path.join(
+                    self.save_path,
+                    "pseudo_{}_{}_{}_best_iou.pth".format(
+                        self.model_name, 
+                        self.target_name),
+                        source,
+                ),
+            )
+            self.models[i].load_state_dict(state_dict)
+            self.models[i].to(self.device)
+            # Set the model to 'eval' mode
+            self.models[i].eval()
 
         inter_meter = AverageMeter()
         union_meter = AverageMeter()
@@ -622,12 +632,12 @@ class MSDACLTrainer(object):
 
     def _load_source_datasets(self,):
         """_summary_"""
-        source_dataset_name_list = self.args.source_dataset_names.split(",")
+        self.source_dataset_name_list = self.args.source_dataset_names.split(",")
 
         #
         # Import source datasets
         #
-        for dataset_name in source_dataset_name_list:
+        for dataset_name in self.source_dataset_name_list:
             try:
                 dataset_s1, _, _, _ = import_dataset(
                     # self.s1_name,
