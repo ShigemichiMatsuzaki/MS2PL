@@ -27,7 +27,7 @@ camvid_weight="./pretrained_weights/espdnetue_2.0_480_best_camvid.pth"
 cityscapes_weight="./pretrained_weights/espdnetue_2.0_512_best_city.pth"
 forest_weight="./pretrained_weights/espdnetue_2.0_480_best_forest.pth"
 optimizer_name=SGD
-scheduler_name=polynomial
+scheduler_name=exponential
 
 # Parameters
 python train_msdacl.py \
@@ -41,7 +41,7 @@ python train_msdacl.py \
     --test-data-list-path dataset/data_list/${TEST_LST} \
     --model ${MODEL} \
     --use-cosine true \
-    --batch-size 20 \
+    --batch-size 40 \
     --epoch 30 \
     --lr 0.009 \
     --save-path /tmp/runs/domain_gap/ \
