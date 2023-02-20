@@ -122,6 +122,14 @@ class TrainBaseOptions(BaseOptions):
             help='Name of existing study'
         )
 
+        # Dataset
+        self.parser.add_argument(
+            "--target",
+            type=str,
+            default="",
+            help="Target dataset",
+        )
+
 
 class PreTrainOptions(TrainBaseOptions):
     def __init__(self):
@@ -165,13 +173,6 @@ class TrainOptions(TrainBaseOptions):
         super(TrainOptions, self).__init__()
         print("Train option")
 
-        # Dataset
-        self.parser.add_argument(
-            "--target",
-            type=str,
-            default="greenhouse",
-            help="Target dataset",
-        )
         self.parser.add_argument(
             "--train-data-list-path",
             type=str,
@@ -307,12 +308,12 @@ class PseudoLabelAndTrainOptions(TrainOptions):
             type=strtobool,
             help="If True, generate hard pseudo-labels.",
         )
-        self.parser.add_argument(
-            "--use-domain-gap",
-            type=strtobool,
-            default=True,
-            help="If True, domain gap-based weights are used for soft pseudo-label generation",
-        )
+        # self.parser.add_argument(
+        #     "--use-domain-gap",
+        #     type=strtobool,
+        #     default=True,
+        #     help="If True, domain gap-based weights are used for soft pseudo-label generation",
+        # )
         self.parser.add_argument(
             "--is-softmax-normalize",
             type=strtobool,
@@ -320,17 +321,22 @@ class PseudoLabelAndTrainOptions(TrainOptions):
             help="If set, normalize the domain gaps using softmax. Otherwise by the sum",
         )
         self.parser.add_argument(
-            "--is-per-sample",
-            type=strtobool,
-            default=False,
-            help="If set, consider the domain gap per sample. Otherwise, per batch",
+            "--domain-gap-type",
+            type=str,
+            help="If True, domain gap-based weights are used for soft pseudo-label generation",
         )
-        self.parser.add_argument(
-            "--is-per-pixel",
-            type=strtobool,
-            default=False,
-            help="If set, consider the domain gap per pixel. Otherwise, per image",
-        )
+        # self.parser.add_argument(
+        #     "--is-per-sample",
+        #     type=strtobool,
+        #     default=False,
+        #     help="If set, consider the domain gap per sample. Otherwise, per batch",
+        # )
+        # self.parser.add_argument(
+        #     "--is-per-pixel",
+        #     type=strtobool,
+        #     default=False,
+        #     help="If set, consider the domain gap per pixel. Otherwise, per image",
+        # )
 
         self.parser.add_argument(
             "--sp-label-min-portion",
