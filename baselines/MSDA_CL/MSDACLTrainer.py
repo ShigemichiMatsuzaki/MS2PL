@@ -55,7 +55,7 @@ class MSDACLTrainer(object):
 
 
         # Parameters
-        self.lambda_col = 0.5
+        self.lambda_col = 1.0
         self.lambda_seg_t = 0.1
         self.device = "cuda"
         self.alpha = 0.5
@@ -71,7 +71,7 @@ class MSDACLTrainer(object):
 
         self.ignore_idx = args.ignore_index
         self.epochs_source = 20
-        self.epochs_target = 150
+        self.epochs_target = 50
         self.max_iter = self.epochs_target * 3000 / self.batch_size
 
         # Loss
@@ -175,7 +175,7 @@ class MSDACLTrainer(object):
                             self.writer.add_scalar(
                                 namespace + "/train/{}/loss".format(i),
                                 loss.item(),
-                                ep,
+                                ep * len(self.source_train_loaders[i]) + iter_i,
                             )
 
                             if iter_i == 0:
@@ -287,7 +287,6 @@ class MSDACLTrainer(object):
                         "Epoch {:<3d}/{:<3d}".format(ep+1, self.epochs_target))
 
                     # Data loaders for computing collaborative loss
-                    print("Target loader: {}".format(len(self.target_train_loader)))
                     iter_t = iter(self.target_train_loader)
                     for iter_i, batch_i in enumerate(self.source_train_loaders[i]):
                         loss = 0.0
@@ -338,7 +337,7 @@ class MSDACLTrainer(object):
                             self.writer.add_scalar(
                                 namespace + "/train/{}/loss".format(i),
                                 loss.item(),
-                                ep,
+                                ep * len(self.source_train_loaders[i]) + iter_i,
                             )
 
                             if iter_i == 0:
@@ -497,13 +496,11 @@ class MSDACLTrainer(object):
         for model in self.models:
             model.train()
 
-        return {
-            "miou": avg_iou,
-            "plant_iou": iou[0],
-            "artificial_iou": iou[1],
-            "ground_iou": iou[2],
-            "cls_loss": class_avg_loss,
-        }
+        metrics = {self.class_list[i]: iou[i] for i in range(iou.shape[0])}
+        metrics["miou"] = avg_iou
+        metrics["cls_loss"] = class_avg_loss
+
+        return metrics
 
     def test(self,):
         """Validation
@@ -528,8 +525,9 @@ class MSDACLTrainer(object):
                     self.save_path,
                     "pseudo_{}_{}_{}_best_iou.pth".format(
                         self.model_name, 
-                        self.target_name),
+                        self.target_name,
                         source,
+                    ),
                 ),
             )
             self.models[i].load_state_dict(state_dict)
@@ -589,14 +587,15 @@ class MSDACLTrainer(object):
         avg_iou = iou.mean()
 
         # Logging
-        metrics["miou"] = avg_iou
         metrics = {self.class_list[i]: iou[i] for i in range(iou.shape[0])}
+        metrics["miou"] = avg_iou
         metrics["cls_loss"] = class_avg_loss
         log_metrics(
             metrics=metrics,
             epoch=0,
             save_dir=test_save_path,
-            write_header=True
+            write_header=True,
+            name="metrics_test.txt",
         )
 
     def msdacl_main(self):
@@ -606,6 +605,7 @@ class MSDACLTrainer(object):
         self._load_optimizers(
             max_epochs=self.epochs_target)
         self.target_train()
+        self.test()
 
     def _init_training(self):
         """Initialize training settings"""

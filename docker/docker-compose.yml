@@ -10,4 +10,5 @@ services:
       - 60009:6006
     mem_limit: 15g
     volumes:
-      - /data/aisl/matsuzaki/runs/domain_gap/sakaki/MSDA_CL/:/tmp/runs/
+      - /data/aisl/matsuzaki/runs/domain_gap/sakaki/:/tmp/runs/
+      # - /data/aisl/matsuzaki/runs/domain_gap/exp/:/tmp/runs/
