@@ -130,9 +130,9 @@ python train_msdacl.py \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
     --target ${TARGET} \
-    --train-data-list-path dataset/data_list/${train_lst} \
-    --val-data-list-path dataset/data_list/${val_lst} \
-    --test-data-list-path dataset/data_list/${test_lst} \
+    --train-data-list-path dataset/data_list/${TRAIN_LST} \
+    --val-data-list-path dataset/data_list/${VAL_LST} \
+    --test-data-list-path dataset/data_list/${TEST_LST} \
     --model ${MODEL} \
     --use-cosine true \
     --batch-size 40 \
@@ -236,9 +236,9 @@ python train_msdacl.py \
     --source-dataset-names cityscapes,forest \
     --source-weight-names ${cityscapes_weight},${forest_weight} \
     --target ${TARGET} \
-    --train-data-list-path dataset/data_list/${train_lst} \
-    --val-data-list-path dataset/data_list/${val_lst} \
-    --test-data-list-path dataset/data_list/${test_lst} \
+    --train-data-list-path dataset/data_list/${TRAIN_LST} \
+    --val-data-list-path dataset/data_list/${VAL_LST} \
+    --test-data-list-path dataset/data_list/${TEST_LST} \
     --model ${MODEL} \
     --use-cosine true \
     --batch-size 40 \
