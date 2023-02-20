@@ -61,9 +61,7 @@ python generate_pseudo_labels.py \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
     --batch-size 12 \
     --is-hard false \
-    --use-domain-gap true \
+    --domain-gap-type "per_sample" \
     --is-softmax-normalize true \
-    --is-per-sample true \
-    --is-per-pixel false \
     --sp-label-min-portion 0.9 \
     --save-path ./pseudo_labels/${camvid_model}/

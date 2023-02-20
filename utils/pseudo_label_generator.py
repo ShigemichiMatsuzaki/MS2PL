@@ -473,9 +473,10 @@ def generate_pseudo_label_multi_model_domain_gap(
     num_classes: int,
     save_path: str,
     device: str = "cuda",
-    use_domain_gap: bool = True,
-    is_per_pixel: bool = False,
-    is_per_sample: bool = False,
+    domain_gap_type: str = "none",
+#    use_domain_gap: bool = True,
+#    is_per_pixel: bool = False,
+#    is_per_sample: bool = False,
     ignore_index: int = 4,
     label_normalize: str = "softmax",
     class_weighting: str = "normal",
@@ -502,13 +503,11 @@ def generate_pseudo_label_multi_model_domain_gap(
         Number of target classes
     device: `str`
         Device on which the computation is done
-    use_domain_gap: `bool`
-        `True` to use domain gap-based weights.
-        If `False`, equal weights are used. Default: `True`
-    is_per_pixel: `bool`
-        True if the domain gap values are computed and
-        considered per pixel.
-        Otherwise, per image.
+    domain_gap_type: `str`
+        "none": Domain gap is not used
+        "per_dataset": A weight is calculated for each dataset
+        "per_sample": A weight is calculated for each sample (image)
+        "per_pixel": A weight is calculated for each image pixel
     ignore_index: `int`,
         Label to be ignored in the target classes
     softmax_normalize: `bool`
@@ -550,10 +549,13 @@ def generate_pseudo_label_multi_model_domain_gap(
     # evaluation process
     class_array = np.zeros(num_classes)
 
+    if domain_gap_type not in ["none", "per_dataset", "per_sample", "per_pixel"]:
+        raise ValueError("Domain gap type '{}' is not supported".format(domain_gap_type))
     #
     # Calculate weights based on the domain gaps
     #
-    if not is_per_sample and use_domain_gap:
+    # if not is_per_sample and use_domain_gap:
+    if domain_gap_type == "per_dataset":
         # Domain gap. Less value means closer -> More importance.
         domain_gap_list = calculate_domain_gap(dg_model_list, data_loader, device)[
             "domain_gap_list"
@@ -572,6 +574,10 @@ def generate_pseudo_label_multi_model_domain_gap(
         domain_gap_weight.to(device)
 
         print("Weight: {}".format(domain_gap_weight))
+    elif domain_gap_type == "none":
+        domain_gap_weight = torch.ones(num_classes)
+
+        domain_gap_weight.to(device)
 
     entropy_layer = Entropy(num_classes=num_classes,)
     with torch.no_grad():
@@ -635,12 +641,19 @@ def generate_pseudo_label_multi_model_domain_gap(
 
                     output_list.append(output_target)
 
-                    if not use_domain_gap:
+                    if domain_gap_type == "none": # No domain gap
                         output_total += output_target
-                    elif is_per_sample:
+                    elif domain_gap_type == "per_sample":
                         domain_gap_w = calc_norm_ent(
                             output_target,
-                            reduction="none" if is_per_pixel else "per_sample"
+                            reduction="per_sample"
+                        )["ent"]
+                        output_total += output_target / domain_gap_w
+                        gap_total += domain_gap_w
+                    elif domain_gap_type == "per_pixel":
+                        domain_gap_w = calc_norm_ent(
+                            output_target,
+                            reduction="none"
                         )["ent"]
                         output_total += output_target / domain_gap_w
                         gap_total += domain_gap_w
@@ -649,7 +662,7 @@ def generate_pseudo_label_multi_model_domain_gap(
                             domain_gap_weight[ds_index]
                         ds_index += 1
 
-                if is_per_sample:
+                if domain_gap_type == "per_sample":
                     output_total *= gap_total
 
                 if label_normalize == "L1":

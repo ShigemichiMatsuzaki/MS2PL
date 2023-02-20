@@ -74,8 +74,9 @@ class PseudoTrainer(object):
         self.params.scheduler_name = args.scheduler
         # Pseudo-label
         self.params.label_normalize = "softmax" if args.is_softmax_normalize else "L1"
-        self.params.is_per_pixel = args.is_per_pixel
-        self.params.is_per_sample = args.is_per_sample
+        # self.params.is_per_pixel = args.is_per_pixel
+        # self.params.is_per_sample = args.is_per_sample
+        self.params.domain_gap_type = args.domain_gap_type
 
         self.rand_seed = args.rand_seed
         self.resume_from = args.resume_from
@@ -214,10 +215,11 @@ class PseudoTrainer(object):
                 num_classes=num_classes,
                 save_path=self.initial_pseudo_label_path,
                 device=self.args.device,
-                use_domain_gap=self.args.use_domain_gap,
+                # use_domain_gap=self.args.use_domain_gap,
                 label_normalize=self.params.label_normalize,
-                is_per_pixel=self.params.is_per_pixel,
-                is_per_sample=self.params.is_per_sample,
+                domain_gap_type=self.params.domain_gap_type,
+                # is_per_pixel=self.params.is_per_pixel,
+                # is_per_sample=self.params.is_per_sample,
                 ignore_index=self.args.ignore_index,
             )
 
@@ -950,6 +952,19 @@ class PseudoTrainer(object):
                     drop_last=True,
                 )
 
+                #
+                # Optimizer: Updates
+                #
+                self.optimizer = get_optimizer(
+                    optim_name=self.params.optimizer_name,
+                    model_name=self.model_name,
+                    model=self.model,
+                    lr=self.params.lr * 0.1,
+                    weight_decay=self.params.weight_decay,
+                    momentum=self.params.momentum,
+                )
+
+
             self.writer.add_scalar(
                 "learning_rate", self.optimizer.param_groups[0]["lr"], ep)
 
@@ -992,10 +1007,14 @@ class PseudoTrainer(object):
         #
         self.params.label_normalize = trial.suggest_categorical(
             'label_normalize', ["softmax", "L1"])
-        self.params.is_per_pixel = trial.suggest_categorical(
-            'is_per_pixel', [True, False])
-        self.params.is_per_sample = trial.suggest_categorical(
-            'is_per_sample', [True, False])
+        # self.params.is_per_pixel = trial.suggest_categorical(
+        #     'is_per_pixel', [True, False])
+        # self.params.is_per_sample = trial.suggest_categorical(
+        #     'is_per_sample', [True, False])
+        self.params.domain_gap_type = trial.suggest_categorical(
+            'domain_gap_type', 
+            ["per_dataset", "per_sample", "per_pixel"],
+        )
 
         #
         # Training

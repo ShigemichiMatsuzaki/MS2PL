@@ -128,10 +128,8 @@ def main():
             num_classes=num_classes,
             save_path=args.save_path,
             device=args.device,
-            use_domain_gap=args.use_domain_gap,
             label_normalize="softmax" if args.is_softmax_normalize else "L1",
-            is_per_pixel=args.is_per_pixel,
-            is_per_sample=args.is_per_sample,
+            domain_gap_type=args.domain_gap_type,
             ignore_index=args.ignore_index,
         )
 
