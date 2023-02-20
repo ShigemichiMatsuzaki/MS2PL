@@ -229,3 +229,19 @@ msdacl-test:
 		--name $(CONTAINER_NAME)-msdacl-test \
 		$(IMAGE_NAME):$(VERSION) \
 		bash baselines/msdacl_test.sh
+
+#
+# Experiment
+#
+comparative-park:
+	docker run -it \
+		--gpus '"device=${GPU_ID}"' \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset/ \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-comparative-park \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/exp/comparative_park.sh
