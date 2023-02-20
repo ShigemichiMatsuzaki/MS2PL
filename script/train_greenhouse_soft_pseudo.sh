@@ -34,7 +34,7 @@ forest_weight="./pretrained_weights/espdnetue_2.0_480_best_forest.pth"
 conf_thresh=0.95
 entropy_loss_weight=1.0
 kld_loss_weight=0.21879
-label_update_epoch=20
+label_update_epoch=30
 label_weight_temp=3.536898
 optimizer_name=SGD
 scheduler_name=cyclic
@@ -60,7 +60,7 @@ python train_pseudo.py \
     --model ${MODEL} \
     --use-cosine true \
     --batch-size 64 \
-    --epoch 30 \
+    --epoch 50 \
     --lr 0.020 \
     --val-every-epochs 1 \
     --vis-every-vals 1 \
@@ -73,6 +73,8 @@ python train_pseudo.py \
     --use-kld-class-loss ${use_kld_class_loss} \
     --use-label-ent-weight ${use_label_ent_weight} \
     --is-sce-loss true \
+    --sce-alpha 0.1 \
+    --sce-beta 1.0 \
     --conf-thresh ${conf_thresh} \
     --use-prototype-denoising false \
     --label-weight-temperature ${label_weight_temp} \

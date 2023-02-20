@@ -244,6 +244,19 @@ class TrainOptions(TrainBaseOptions):
             default=False,
             help="Use symmetric cross entropy as a classification loss",
         )
+        self.parser.add_argument(
+            "--sce-alpha",
+            type=float,
+            default=0.1,
+            help="Alpha for SCELoss (weight on the normal cross entropy)",
+        )
+        self.parser.add_argument(
+            "--sce-beta",
+            type=float,
+            default=1.0,
+            help="Beta for SCELoss (weight on the reverse cross entropy)",
+        )
+
 
 
         # Pseudo-label update
