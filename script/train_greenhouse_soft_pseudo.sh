@@ -72,6 +72,7 @@ python train_pseudo.py \
     --is-hard ${is_hard} \
     --use-kld-class-loss ${use_kld_class_loss} \
     --use-label-ent-weight ${use_label_ent_weight} \
+    --is-sce-loss true \
     --conf-thresh ${conf_thresh} \
     --use-prototype-denoising false \
     --label-weight-temperature ${label_weight_temp} \

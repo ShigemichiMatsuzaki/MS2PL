@@ -55,6 +55,7 @@ class PseudoTrainer(object):
         self.params.epochs = args.epochs
         self.params.is_hard = args.is_hard
         self.params.use_kld_class_loss = args.use_kld_class_loss
+        self.params.is_sce_loss = args.is_sce_loss
         self.params.label_weight_temperature = args.label_weight_temperature
         self.params.use_label_ent_weight = args.use_label_ent_weight
         self.params.kld_loss_weight = args.kld_loss_weight
@@ -603,6 +604,7 @@ class PseudoTrainer(object):
             reduction="mean",
             is_hard=self.params.is_hard,
             is_kld=self.params.use_kld_class_loss,
+            is_sce=self.params.is_sce_loss,
         )
         # For estimating pixel-wise uncertainty
         # (KLD between main and aux branches)

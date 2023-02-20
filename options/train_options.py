@@ -238,6 +238,13 @@ class TrainOptions(TrainBaseOptions):
             default=0.5,
             help="Threshold of label weight value. Below this value is set to 0",
         )
+        self.parser.add_argument(
+            "--is-sce-loss",
+            type=strtobool,
+            default=False,
+            help="Use symmetric cross entropy as a classification loss",
+        )
+
 
         # Pseudo-label update
         self.parser.add_argument(
