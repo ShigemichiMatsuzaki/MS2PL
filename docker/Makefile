@@ -3,7 +3,7 @@ IMAGE_NAME=aisl/ms2pl
 CONTAINER_NAME=domain-gap-eval
 VERSION=22.11-py3
 GPU_ID=all
-DATASET_ROOT=/media/aisl/ExtremeSSD1/dataset
+DATASET_ROOT=/media/aisl/ExtremeSSD/dataset
 RUNS_ROOT=/data/aisl/matsuzaki/runs
 
 build:
@@ -138,11 +138,11 @@ train-greenhouse-pseudo-soft:
 		--rm \
 		--shm-size 15G \
 		--workdir /root/training/ \
-		--name $(CONTAINER_NAME)-greenhouse-pseudo-soft \
+		--name $(CONTAINER_NAME)-greenhouse-pseudo-soft-2 \
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/train_greenhouse_soft_pseudo.sh
 
-train-greenhouse-pseudo-soft-2:
+train-sakaki-pseudo-soft:
 	docker run -it \
 		--gpus '"device=${GPU_ID}"' \
 		-v ${PWD}/../:/root/training/ \
@@ -151,9 +151,9 @@ train-greenhouse-pseudo-soft-2:
 		--rm \
 		--shm-size 15G \
 		--workdir /root/training/ \
-		--name $(CONTAINER_NAME)-greenhouse-pseudo-soft-2 \
+		--name $(CONTAINER_NAME)-sakaki-pseudo-soft \
 		$(IMAGE_NAME):$(VERSION) \
-		bash script/train_greenhouse_soft_pseudo.sh
+		bash script/train_sakaki_soft_pseudo.sh
 
 
 generate-pseudo-labels:
@@ -203,3 +203,45 @@ optuna-dashboard:
 		-w /app \
 		ghcr.io/optuna/optuna-dashboard:v0.9.0b2 \
 		sqlite:///pseudo_soft_espnetv2.db
+
+train-greenhouse-traversability:
+	docker run -it \
+		--gpus '"device=${GPU_ID}"' \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-greenhouse-traversability \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/train_greenhouse_traversability.sh
+
+msdacl-test:
+	docker run -it \
+		--gpus '"device=${GPU_ID}"' \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset/ \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-msdacl-test \
+		$(IMAGE_NAME):$(VERSION) \
+		bash baselines/msdacl_test.sh
+
+#
+# Experiment
+#
+comparative-park:
+	docker run -it \
+		--gpus '"device=${GPU_ID}"' \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset/ \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-comparative-park \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/exp/comparative_park.sh

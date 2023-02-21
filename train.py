@@ -237,6 +237,7 @@ def val(
     epoch: int = -1,
     weight_loss_ent: float = 0.1,
     device: str = "cuda",
+    class_list: list = None,
 ):
     """Validation
 
@@ -321,6 +322,7 @@ def val(
                 label_type='object',
                 scale_factor=16,
                 ignore_index=args.ignore_index,
+                class_list=class_list, 
             )
             feature_list += features
             label_list += labels
@@ -463,7 +465,7 @@ def main():
             A.HorizontalFlip(p=0.5),
         ]
     )
-    max_iter = 3000 if args.use_other_datasets or len(
+    max_num = 3000 if args.use_other_datasets or len(
         args.s1_name) > 1 else None
 
     if len(args.s1_name) > 1:
@@ -482,8 +484,9 @@ def main():
                 height=args.train_image_size_h,
                 width=args.train_image_size_w,
                 transform=transform,
-                max_iter=max_iter,
-                label_conversion=args.use_label_conversion,
+                max_num=max_num,
+                # label_conversion=args.use_label_conversion,
+                label_conversion_to=args.target,
             )
             dataset_s1_val, _, _, _ = import_dataset(
                 # args.s1_name,
@@ -491,7 +494,8 @@ def main():
                 mode="val",
                 height=args.val_image_size_h,
                 width=args.val_image_size_w,
-                label_conversion=args.use_label_conversion,
+                # label_conversion=args.use_label_conversion,
+                label_conversion_to=args.target,
             )
             args.num_classes = num_classes
         except Exception as e:
@@ -528,7 +532,7 @@ def main():
                     height=args.val_image_size_h,
                     width=args.val_image_size_w,
                     transform=transform,
-                    max_iter=max_iter,
+                    max_num=max_num,
                 )
             except Exception as e:
                 t, v, tb = sys.exc_info()
@@ -584,6 +588,13 @@ def main():
     else:
         train_loader_a1 = None
         val_loader_a1 = None
+
+    if args.target == "greenhouse":
+        from dataset.greenhouse import GREENHOUSE_CLASS_LIST as CLASS_LIST
+    elif args.target == "sakaki" or args.target == "imo":
+        from dataset.sakaki import SAKAKI_CLASS_LIST as CLASS_LIST
+    else:
+        CLASS_LIST = []
 
     #
     # Define a model
@@ -686,6 +697,7 @@ def main():
                 writer=writer,
                 color_encoding=color_encoding,
                 epoch=ep,
+                class_list=CLASS_LIST,
             )
 
             if current_miou < metrics["miou"]:

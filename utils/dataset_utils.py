@@ -69,8 +69,8 @@ def import_dataset(
     width: int = 480,
     scale: list = (0.5, 2.0),
     transform: Optional[A.Compose] = None,
-    max_iter: Optional[int] = None,
-    label_conversion: bool = False,
+    max_num: Optional[int] = None,
+    label_conversion_to: str = "",
 ):
     """Import a designated dataset
 
@@ -93,12 +93,12 @@ def import_dataset(
         Scales to be used in data augumentation
     transform: `Optional[albumentations.Compose]`
         Transforms to be used in data loading
-    max_iter: `Optional[int]`
+    max_num: `Optional[int]`
         Maximum iteration. If the number of data in a dataset is below max_iter, 
         the data are multiplied by max_iter // len(dataset) to (approximately) match 
         the number of the data with this value.
-    label_conversion: `bool`
-        `True` to convert the labels to the Greenhouse label map. Default: `False`
+    label_conversion_to: `str`
+        Name of the target dataset
 
     Returns
     -------
@@ -115,17 +115,15 @@ def import_dataset(
     if dataset_name == DATASET_LIST[0]:
         from dataset.camvid import CamVidSegmentation, color_encoding
 
-        num_classes = 13 if not label_conversion else 3
-
         dataset = CamVidSegmentation(
             root="/tmp/dataset/CamVid",
             mode=mode,
-            max_iter=max_iter,
+            max_iter=max_num,
             height=height,
             width=width,
             scale=scale,
             transform=transform,
-            label_conversion=label_conversion,
+            label_conversion_to=label_conversion_to,
         )
         dataset_label = CamVidSegmentation(
             root="/tmp/dataset/CamVid",
@@ -133,23 +131,25 @@ def import_dataset(
             height=height,
             width=width,
             scale=scale,
-            label_conversion=label_conversion,
+            label_conversion_to=label_conversion_to,
         )
+
+        num_classes = dataset.num_classes
     elif dataset_name == DATASET_LIST[1]:
         from dataset.cityscapes import CityscapesSegmentation, color_encoding
 
         dataset = CityscapesSegmentation(
             root="/tmp/dataset/cityscapes",
             mode=mode,
-            max_iter=max_iter,
+            max_iter=max_num,
             height=height,
             width=width,
             scale=scale,
             transform=transform,
-            label_conversion=label_conversion,
+            label_conversion_to=label_conversion_to,
         )
 
-        num_classes = 19 if not label_conversion else 3
+        num_classes = dataset.num_classes
 
     elif dataset_name == DATASET_LIST[2]:
         from dataset.forest import FreiburgForestDataset, color_encoding
@@ -157,12 +157,12 @@ def import_dataset(
         dataset = FreiburgForestDataset(
             root="/tmp/dataset/freiburg_forest_annotated/",
             mode=mode,
-            max_iter=max_iter,
+            max_iter=max_num,
             height=height,
             width=width,
             scale=scale,
             transform=transform,
-            label_conversion=label_conversion,
+            label_conversion_to=label_conversion_to,
         )
         dataset_label = FreiburgForestDataset(
             root="/tmp/dataset/freiburg_forest_annotated/",
@@ -170,9 +170,9 @@ def import_dataset(
             height=height,
             width=width,
             scale=scale,
-            label_conversion=label_conversion,
+            label_conversion_to=label_conversion_to,
         )
-        num_classes = 5 if not label_conversion else 3
+        num_classes = dataset.num_classes
 
     elif dataset_name == DATASET_LIST[3]:
         from dataset.gta5 import GTA5, color_encoding
@@ -180,12 +180,12 @@ def import_dataset(
         dataset = GTA5(
             root="/tmp/dataset/gta5/",
             mode=mode,
-            max_iter=max_iter,
+            max_iter=max_num,
             height=height,
             width=width,
             scale=scale,
             transform=transform,
-            label_conversion=label_conversion,
+            label_conversion_to=label_conversion_to,
         )
         dataset_label = GTA5(
             root="/tmp/dataset/gta5/",
@@ -193,15 +193,17 @@ def import_dataset(
             height=height,
             width=width,
             scale=scale,
-            label_conversion=label_conversion,
+            label_conversion_to=label_conversion_to,
         )
-        num_classes = 19 if not label_conversion else 3
+        num_classes = dataset.num_classes
 
     else:
         raise Exception
 
-    if label_conversion:
+    if label_conversion_to == "greenhouse" or label_conversion_to == "imo":
         from dataset.greenhouse import color_encoding
+    elif label_conversion_to == "sakaki":
+        from dataset.sakaki import color_encoding
 
     if calc_class_wts:
         if dataset_name != DATASET_LIST[1]:
@@ -249,6 +251,8 @@ def import_target_dataset(
     pseudo_label_dir: str = "",
     is_hard: bool = False,
     is_old_label: bool = False,
+    max_iter: int = None,
+    load_labels: bool = True,
 ):
     """Import a designated dataset
 
@@ -277,7 +281,6 @@ def import_target_dataset(
     color_encoding: `collection.OrderedDict`
         Label color encoding of the imported dataset
     """
-    # max_iter = 3000
     if dataset_name == "greenhouse":
         from dataset.greenhouse import GreenhouseRGBD, color_encoding, color_palette
         from dataset.greenhouse import GREENHOUSE_CLASS_LIST as class_list
@@ -290,14 +293,15 @@ def import_target_dataset(
                     mode="train",
                     is_hard_label=is_hard,
                     is_old_label=is_old_label,
+                    max_iter=max_iter,
                 )
             elif mode == "pseudo":
                 dataset_ret = GreenhouseRGBD(
                     list_name=data_list_path,
                     label_root=pseudo_label_dir,
                     mode="pseudo",
-                    is_hard_label=True,
-                    load_labels=False,
+                    is_hard_label=is_hard,
+                    load_labels=load_labels,
                 )
             elif mode == "val":
                 dataset_ret = GreenhouseRGBD(
@@ -331,14 +335,15 @@ def import_target_dataset(
                     label_root=pseudo_label_dir,
                     mode="train",
                     is_hard_label=is_hard,
+                    max_iter=max_iter,
                 )
             elif mode == "pseudo":
                 dataset_ret = Imo(
                     list_name=data_list_path,
                     label_root=pseudo_label_dir,
                     mode="pseudo",
-                    is_hard_label=True,
-                    load_labels=False,
+                    is_hard_label=is_hard,
+                    load_labels=load_labels,
                 )
             elif mode == "val":
                 dataset_ret = Imo(
@@ -373,14 +378,15 @@ def import_target_dataset(
                     label_root=pseudo_label_dir,
                     mode="train",
                     is_hard_label=is_hard,
+                    max_iter=max_iter,
                 )
             elif mode == "pseudo":
                 dataset_ret = SakakiDataset(
                     list_name=data_list_path,
                     label_root=pseudo_label_dir,
                     mode="pseudo",
-                    is_hard_label=True,
-                    load_labels=False,
+                    is_hard_label=is_hard,
+                    load_labels=load_labels,
                 )
             elif mode == "val":
                 dataset_ret = SakakiDataset(

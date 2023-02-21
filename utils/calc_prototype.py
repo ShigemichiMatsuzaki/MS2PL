@@ -8,13 +8,15 @@ import os
 import logging
 import random
 import argparse
+import warnings
+from loss_fns.segmentation_loss import Entropy
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
 from tqdm import tqdm
-from typing import Optional
+from typing import Optional, Union
 
 class ClassFeatures(object):
     """ Manage the prototype feature of each class
@@ -48,6 +50,7 @@ class ClassFeatures(object):
         outputs: torch.Tensor, 
         labels_val: Optional[torch.Tensor]=None, 
         thresh: float=-1,
+        weight: Optional[torch.Tensor]=None,
     ):
         """Calculate the prototype feature of each class
 
@@ -61,6 +64,8 @@ class ClassFeatures(object):
             Ground truth label tensor (B, 1, H, W)
         thresh: `float`
             Threshold of the confidence of pixels used for calculating the mean vector
+        weight: `torch.Tensor`
+            Per-pixel weight for calculating average features
 
         Returns
         --------
@@ -91,6 +96,7 @@ class ClassFeatures(object):
             labels_onehot = self.process_label(labels_val)
 
             # Take AND of the ground truth labels and the predicted labels?
+            # → Extract correctly predicted pixels
             outputs_pred = labels_onehot * outputs_onehot
 
         # Average of the one-hot vectors = probability 
@@ -115,9 +121,14 @@ class ClassFeatures(object):
                 # feat_cls[n]: (K, H, W)
                 # outputs_pred[n][t]: (H, W)
                 # extract features with class t
+                # weight[n]: (H, W)
                 s = feat_cls[n] * outputs_pred[n][t] * mask[n]
-                # if (torch.sum(outputs_pred[n][t] * labels_expanded[n][t]).item() < 30):
-                #     continue
+
+                if weight is not None:
+                    w = weight[n] * outputs_pred[n][t] * mask[n]
+                    w_sum = torch.sum(w)
+                    s = s * w / w_sum
+
                 s = F.adaptive_avg_pool2d(s, 1) / scale_factor[n][t]
 
                 vectors.append(s)
@@ -242,7 +253,8 @@ class ClassFeatures(object):
 
         for i in range(self.num_classes):
             #feat_proto_distance[:, i, :, :] = torch.norm(torch.Tensor(self.objective_vectors[i]).reshape(-1,1,1).expand(-1, H, W).to(feat.device) - feat, 2, dim=1,)
-            feat_proto_distance[:, i, :, :] = torch.norm(self.objective_vectors[i].reshape(-1,1,1).expand(-1, H, W) - feat, 2, dim=1,)
+            feat_proto_distance[:, i, :, :] = torch.norm(
+                self.objective_vectors[i].reshape(-1,1,1).expand(-1, H, W) - feat, 2, dim=1,)
 
         return feat_proto_distance
 
@@ -287,9 +299,11 @@ class ClassFeatures(object):
 
 def calc_prototype(
     model: torch.nn.Module, 
-    dataset: torch.utils.data.Dataset, 
+    dataset: Union[torch.utils.data.Dataset, torch.utils.data.DataLoader], 
     num_classes: int, 
     device: str='cpu',
+    use_soft_label_weight: bool=False,
+    label_weight_temperature: float=5.0,
 ) -> ClassFeatures:
     """Calculate the prototype feature of each class
 
@@ -303,6 +317,12 @@ def calc_prototype(
         The number of classes in the dataset
     device: `str`
         Device for computation
+    use_soft_label_weight: `bool`
+        `True` to use weighted average of features based on soft label entropy.
+        Default: `False`
+    label_weight_temperature: `float`
+        Temperature factor for calculating the entropy-based weights.
+        Default: 5.0
     
     Returns
     --------
@@ -312,12 +332,19 @@ def calc_prototype(
     #
     # Load datasets (source and target)
     #
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
+    if isinstance(dataset, torch.utils.data.Dataset):
+        data_loader = torch.utils.data.DataLoader(
+            dataset, batch_size=1, shuffle=False)
+    else:
+        data_loader = dataset
 
     #
     # Define a class feature object
     #
-    class_features = ClassFeatures(num_classes=num_classes, device=device)
+    class_features = ClassFeatures(
+        num_classes=num_classes, device=device)
+
+    entropy_fn = Entropy(num_classes=num_classes)
 
     model.eval()
 #    model.to('cuda')
@@ -333,16 +360,55 @@ def calc_prototype(
                 prob = (out["out"] + out["aux"] * 0.5).to(device) # segmentation
                 feat = out["feat"].to(device) # feature (32-dimensional in espdnetue)
 
-                batch, w, h = labels.size()
-                newlabels = labels.reshape([batch, 1, w, h]).float()
-                newlabels = F.interpolate(newlabels, size=feat.size()[2:], mode='nearest')
+                if use_soft_label_weight and feat.dim() != 4:
+                    use_soft_label_weight = False
+                    warnings.warn(
+                        "'use_soft_label_weight' is True while label dimension is 3 (B, H, W). \
+                        Expected size is (B, C, H, W). 'use_soft_label_weight' is set to False")
 
-                # Calculate the mean of the features for each class in this batch
-                vectors, ids = class_features.calculate_mean_vector(feat, prob, newlabels)
+                # Weight features by inverse entropy of the corresponding pixel
+                if use_soft_label_weight:
+                    newlabels = F.interpolate(
+                        labels, 
+                        size=labels.size()[2:], 
+                        mode='nearest'
+                    )
+
+                    # Calculate weights
+                    label_ent = entropy_fn(newlabels)
+                    weight = torch.exp(
+                        -label_ent.detach() * label_weight_temperature)
+
+                    # Calculate labels
+                    newlabels = torch.argmax(
+                        newlabels, dim=1, keepdim=True)
+
+                    # Calculate the mean of the features for each class in this batch
+                    vectors, ids = class_features.calculate_mean_vector(
+                        feat, prob, newlabels, weight=weight,
+                    )
+                else:
+                    batch, w, h = labels.size()
+                    newlabels = labels.reshape(
+                        [batch, 1, w, h]).float()
+                    newlabels = F.interpolate(
+                        newlabels, 
+                        size=feat.size()[2:], 
+                        mode='nearest'
+                    )
+
+                    # Calculate the mean of the features for each class in this batch
+                    vectors, ids = class_features.calculate_mean_vector(
+                        feat, prob, newlabels
+                    )
 
                 # Update the overall mean of the features
                 for t in range(len(ids)):
-                    class_features.update_objective_SingleVector(ids[t], vectors[t].detach().to(device), 'mean')
+                    class_features.update_objective_SingleVector(
+                        ids[t], 
+                        vectors[t].detach().to(device), 
+                        'mean',
+                    )
 
     return class_features
 
