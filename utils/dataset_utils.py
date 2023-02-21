@@ -252,6 +252,7 @@ def import_target_dataset(
     is_hard: bool = False,
     is_old_label: bool = False,
     max_iter: int = None,
+    load_labels: bool = True,
 ):
     """Import a designated dataset
 
@@ -300,7 +301,7 @@ def import_target_dataset(
                     label_root=pseudo_label_dir,
                     mode="pseudo",
                     is_hard_label=True,
-                    load_labels=False,
+                    load_labels=load_labels,
                 )
             elif mode == "val":
                 dataset_ret = GreenhouseRGBD(
@@ -342,7 +343,7 @@ def import_target_dataset(
                     label_root=pseudo_label_dir,
                     mode="pseudo",
                     is_hard_label=True,
-                    load_labels=False,
+                    load_labels=load_labels,
                 )
             elif mode == "val":
                 dataset_ret = Imo(
@@ -384,8 +385,8 @@ def import_target_dataset(
                     list_name=data_list_path,
                     label_root=pseudo_label_dir,
                     mode="pseudo",
-                    is_hard_label=True,
-                    load_labels=False,
+                    is_hard_label=is_hard,
+                    load_labels=load_labels,
                 )
             elif mode == "val":
                 dataset_ret = SakakiDataset(

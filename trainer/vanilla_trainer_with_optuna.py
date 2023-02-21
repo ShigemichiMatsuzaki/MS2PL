@@ -1,3 +1,4 @@
+import copy
 import random
 import datetime
 import logging
@@ -104,6 +105,9 @@ class PseudoTrainer(object):
 
         self.initial_pseudo_label_path = args.initial_pseudo_label_path
 
+        self.prototype_init_epoch = args.prototype_init_epoch
+        self.use_prototype_soft_label_weight = args.use_prototype_soft_label_weight
+
         #
         # Tensorboard writer
         #
@@ -129,6 +133,8 @@ class PseudoTrainer(object):
         else:
             self.optuna_study_name = condition + "_" + \
                 self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
+
+        self.prototypes = None
 
     def generate_pseudo_labels(self,) -> None:
         """Generate pseudo-labels"""
@@ -196,7 +202,7 @@ class PseudoTrainer(object):
         #
         # Generate pseudo-labels
         #
-        if self.args.is_hard:
+        if self.params.is_hard:
             class_wts = generate_pseudo_label_multi_model(
                 model_list=source_model_list,
                 source_dataset_name_list=source_dataset_name_list,
@@ -227,7 +233,7 @@ class PseudoTrainer(object):
             )
 
         filename = "class_weights_{}.pt".format(
-            "hard" if self.args.is_hard else "soft")
+            "hard" if self.params.is_hard else "soft")
         torch.save(class_wts, os.path.join(
             self.initial_pseudo_label_path, filename))
 
@@ -286,9 +292,29 @@ class PseudoTrainer(object):
                 kld_loss_value = self.kld_loss(
                     output_aux_logprob, output_main_prob).sum(dim=1)
 
+                # Prototype-based rectification of label
+                if self.params.use_prototype_denoising and not self.params.is_hard: #update prototype
+                    with torch.no_grad():
+                        if self.use_cosine:
+                            ema_output = self.model_ema(image, label.argmax(dim=1))
+                        else:
+                            ema_output = self.model_ema(image,)
+
+                    # Class-wise weights based on the distance to the prototype of each class
+                    weights = self.prototypes.get_prototype_weight(
+                        ema_output["feat"].detach()).to(self.device)
+
+                    # Rectified output probability
+                    rectified_prob = weights * label
+                    # Normalize the rectified values as probabilities
+                    label_rect = rectified_prob / \
+                        rectified_prob.sum(1, keepdim=True)
+                else:
+                    label_rect = copy.deepcopy(label)
+
                 # Weight by KLD between main and aux, and label entropy
                 if not self.params.is_hard and self.params.use_label_ent_weight:
-                    label_ent = self.entropy(label)
+                    label_ent = self.entropy(label_rect)
 
                     kld_weight = torch.exp(-kld_loss_value.detach())
                     label_ent_weight = torch.exp(
@@ -301,7 +327,7 @@ class PseudoTrainer(object):
                 # Classification loss
                 seg_loss_value = self.seg_loss(
                     output_total,
-                    label,
+                    label_rect,
                     u_weight=u_weight,
                 )
                 # Entropy loss
@@ -314,6 +340,23 @@ class PseudoTrainer(object):
                 loss_val.backward()
                 self.optimizer.step()
                 self.optimizer.zero_grad()
+
+                # Update prototype and model_ema
+                if self.params.use_prototype_denoising: #update prototype
+                    output_total_ema = ema_output['out'] + 0.5 * ema_output['aux']
+                    ema_vectors, ema_ids = self.prototypes.calculate_mean_vector(
+                        ema_output['feat'].detach(), output_total_ema.detach())
+
+                    for t in range(len(ema_ids)):
+                        self.prototypes.update_objective_SingleVector(
+                            ema_ids[t], ema_vectors[t].detach(), start_mean=False)
+
+                # Update EMA model
+                p = 0.9
+                for param_q, param_k in zip(self.model.parameters(), self.model_ema.parameters()):
+                    param_k.data = param_k.data.clone() * p + param_q.data.clone() * (1. - p)
+                for buffer_q, buffer_k in zip(self.model.buffers(), self.model_ema.buffers()):
+                    buffer_k.data = buffer_q.data.clone()
 
                 # Update tqdm
                 pbar_loader.set_postfix(
@@ -353,6 +396,17 @@ class PseudoTrainer(object):
                             is_label=True,
                             color_encoding=self.color_encoding,
                         )
+                        if self.params.use_prototype_denoising and not self.params.is_hard:
+                            label_rect = torch.argmax(label_rect, dim=1)
+                            add_images_to_tensorboard(
+                                self.writer,
+                                label_rect,
+                                epoch,
+                                "train/label_rect",
+                                is_label=True,
+                                color_encoding=self.color_encoding,
+                            )
+
                         add_images_to_tensorboard(
                             self.writer,
                             amax,
@@ -431,6 +485,8 @@ class PseudoTrainer(object):
                 mode="pseudo",
                 data_list_path=self.train_data_list_path,
                 pseudo_label_dir=self.initial_pseudo_label_path,
+                is_hard=self.params.is_hard,
+                load_labels=not pseudo_only,
             )
 
             if not pseudo_only:
@@ -529,6 +585,8 @@ class PseudoTrainer(object):
             device=self.device,
             use_cosine=self.use_cosine,
         )
+
+        self.model_ema = copy.deepcopy(self.model)
 
         #
         # Optimizer: Updates
@@ -859,6 +917,15 @@ class PseudoTrainer(object):
         best_miou = 0.0
         label_update_times = 0
         for ep in range(self.resume_epoch, self.params.epochs):
+            if self.params.use_prototype_denoising and ep == self.prototype_init_epoch:
+                self.prototypes = calc_prototype(
+                    self.model, 
+                    self.dataset_pseudo, 
+                    self.num_classes, 
+                    self.device, 
+                    use_soft_label_weight = self.use_prototype_soft_label_weight,
+                )
+
             # Save the model every hundred epoch
             if ep % 100 == 0 and ep != 0:
                 torch.save(
@@ -916,9 +983,9 @@ class PseudoTrainer(object):
 
                 # Prototype-based denoising
                 prototypes = None
-                if self.params.use_prototype_denoising:
-                    prototypes = calc_prototype(
-                        self.model, self.dataset_pseudo, self.num_classes, self.device)
+                # if self.params.use_prototype_denoising:
+                #     prototypes = calc_prototype(
+                #         self.model, self.dataset_pseudo, self.num_classes, self.device)
 
                 self.class_wts, label_path_list = generate_pseudo_label(
                     model=self.model,
@@ -926,7 +993,7 @@ class PseudoTrainer(object):
                     num_classes=self.num_classes,
                     ignore_index=self.ignore_index,
                     save_path=self.pseudo_save_path,
-                    prototypes=prototypes,
+                    prototypes=self.prototypes,
                     proto_rect_thresh=self.params.conf_thresh[label_update_times],
                     min_portion=self.params.sp_label_min_portion,
                 )

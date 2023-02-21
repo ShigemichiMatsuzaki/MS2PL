@@ -292,6 +292,19 @@ class TrainOptions(TrainBaseOptions):
             default=False,
             help="Whether to use prototype-based denoising",
         )
+        self.parser.add_argument(
+            "--prototype-init-epoch",
+            type=int,
+            default=0,
+            help="Whether to use prototype-based denoising",
+        )
+        self.parser.add_argument(
+            "--use-prototype-soft-label-weight",
+            type=strtobool,
+            default=False,
+            help="Whether to use label weight in prototype calculation",
+        )
+
 
 
 class PseudoLabelAndTrainOptions(TrainOptions):
