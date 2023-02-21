@@ -1,6 +1,7 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
 RESUME_FROM="./pretrained_weights/espdnetue_2.0_480_best_camvid.pth"
+RESUME_FROM="./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_sakaki.pth"
 # RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
 USE_OPTUNA=false
 # RESUME_FROM=""
@@ -34,7 +35,7 @@ forest_weight="./pretrained_weights/espdnetue_2.0_480_best_forest.pth"
 conf_thresh=0.95
 entropy_loss_weight=1.0
 kld_loss_weight=0.21879
-label_update_epoch=30
+label_update_epoch=100
 label_weight_temp=3.536898
 optimizer_name=SGD
 scheduler_name=cyclic
@@ -42,6 +43,7 @@ label_weight_threshold=0.1
 use_kld_class_loss=false
 use_label_ent_weight=true
 is_hard=false
+LEARNING_RATE=0.009
 python train_pseudo.py \
     --device cuda \
     --generate-pseudo-labels true \
@@ -60,10 +62,10 @@ python train_pseudo.py \
     --model ${MODEL} \
     --use-cosine true \
     --batch-size 64 \
-    --epoch 50 \
-    --lr 0.020 \
+    --epoch 100 \
+    --lr ${LEARNING_RATE} \
     --val-every-epochs 1 \
-    --vis-every-vals 1 \
+    --vis-every-vals 5 \
     --label-update-epoch ${label_update_epoch} \
     --save-path /tmp/runs/domain_gap/ \
     --optim ${optimizer_name} \
@@ -76,7 +78,9 @@ python train_pseudo.py \
     --sce-alpha 0.1 \
     --sce-beta 1.0 \
     --conf-thresh ${conf_thresh} \
-    --use-prototype-denoising false \
+    --use-prototype-denoising true \
+    --use-prototype-soft-label-weight true \
+    --prototype-init-epoch 0 \
     --label-weight-temperature ${label_weight_temp} \
     --kld-loss-weight ${kld_loss_weight} \
     --entropy-loss-weight ${entropy_loss_weight} \
