@@ -806,13 +806,13 @@ class PseudoTrainer(object):
                 global_step=epoch,
             )
 
-        return {
-            "miou": avg_iou,
-            "plant_iou": iou[0],
-            "artificial_iou": iou[1],
-            "ground_iou": iou[2],
-            "cls_loss": class_avg_loss,
-        }
+        # Logging
+        metrics = {self.class_list[i]: iou[i] for i in range(iou.shape[0])}
+        metrics["miou"] = avg_iou
+        metrics["cls_loss"] = class_avg_loss
+
+        return metrics
+
 
     def test(self,):
         """Validation
