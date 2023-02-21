@@ -113,7 +113,7 @@ class GreenhouseRGBD(BaseTargetDataset):
                     else:
                         label_img_loc = line_split[1].rstrip()
 
-                    if self.mode == "train" and not self.is_hard_label:
+                    if not self.is_hard_label:
                         label_img_loc = label_img_loc.replace("png", "pt")
                 else:
                     label_img_loc = ""

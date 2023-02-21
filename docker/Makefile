@@ -138,11 +138,11 @@ train-greenhouse-pseudo-soft:
 		--rm \
 		--shm-size 15G \
 		--workdir /root/training/ \
-		--name $(CONTAINER_NAME)-greenhouse-pseudo-soft \
+		--name $(CONTAINER_NAME)-greenhouse-pseudo-soft-2 \
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/train_greenhouse_soft_pseudo.sh
 
-train-greenhouse-pseudo-soft-2:
+train-sakaki-pseudo-soft:
 	docker run -it \
 		--gpus '"device=${GPU_ID}"' \
 		-v ${PWD}/../:/root/training/ \
@@ -151,9 +151,9 @@ train-greenhouse-pseudo-soft-2:
 		--rm \
 		--shm-size 15G \
 		--workdir /root/training/ \
-		--name $(CONTAINER_NAME)-greenhouse-pseudo-soft-2 \
+		--name $(CONTAINER_NAME)-sakaki-pseudo-soft \
 		$(IMAGE_NAME):$(VERSION) \
-		bash script/train_greenhouse_soft_pseudo.sh
+		bash script/train_sakaki_soft_pseudo.sh
 
 
 generate-pseudo-labels:

@@ -1,10 +1,11 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
 RESUME_FROM="./pretrained_weights/espdnetue_2.0_480_best_camvid.pth"
-RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
+RESUME_FROM="./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_sakaki.pth"
+# RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
 USE_OPTUNA=false
 # RESUME_FROM=""
-TARGET=greenhouse
+TARGET=sakaki
 if [ ${TARGET} = "greenhouse" ]; then
 IGNORE_INDEX=3
 TRAIN_LST=train_greenhouse_a.lst

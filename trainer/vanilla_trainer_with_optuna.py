@@ -125,7 +125,9 @@ class PseudoTrainer(object):
         if not os.path.isdir(self.save_path):
             os.makedirs(self.save_path)
             os.makedirs(self.pseudo_save_path)
-
+        
+        if not os.path.isdir(self.initial_pseudo_label_path):
+            os.makedirs(self.initial_pseudo_label_path)
 
         self.optuna_storage_name = condition + "_" + self.model_name
         if args.optuna_resume_from:
