@@ -245,3 +245,30 @@ comparative-park:
 		--name $(CONTAINER_NAME)-comparative-park \
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/exp/comparative_park.sh
+
+comparative-park-single:
+	docker run -it \
+		--gpus '"device=${GPU_ID}"' \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset/ \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-comparative-park-single \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/exp/comparative_park_single.sh
+
+
+comparative-greenhouse:
+	docker run -it \
+		--gpus '"device=${GPU_ID}"' \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset/ \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-comparative-greenhouse \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/exp/comparative_greenhouse.sh

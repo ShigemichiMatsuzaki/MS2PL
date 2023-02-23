@@ -3,3 +3,5 @@ pseudo_labels/
 logs
 *.sqlite3
 *.db
+./results/**/
+**.png
