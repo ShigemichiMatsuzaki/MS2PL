@@ -83,6 +83,19 @@ class BaseOptions(object):
             default=False,
         )
 
+        self.parser.add_argument(
+            '--use-cosine',
+            default=False,
+            type=strtobool,
+            help='True to use cosine-based loss (ArcFace). Valid only when "model"=="espnetv2"'
+        )
+        self.parser.add_argument(
+            "--resume-from",
+            type=str,
+            default="",
+            help="Weights to resume the training from",
+        )
+
         self.initialized = True
 
     def parse(self):

@@ -28,7 +28,6 @@ class MSDACLTrainer(object):
         self.resume_from = args.resume_from
         self.batch_size = args.batch_size
         self.use_cosine = args.use_cosine
-        self.ignore_index = args.ignore_index
         self.device = args.device
         self.pin_memory = args.pin_memory
         self.num_workers = args.num_workers
@@ -54,17 +53,15 @@ class MSDACLTrainer(object):
         self.optimizers = []
         self.schedulers = []
 
-        # Training settings
-        self.current_iters = [0] * len(self.models)
 
         # Parameters
-        self.lambda_col = 0.5
+        self.lambda_col = 1.0
         self.lambda_seg_t = 0.1
         self.device = "cuda"
         self.alpha = 0.5
         self.tau = 0.9
         # Optimizer and learning rate
-        self.scheduler_name = "polynomial"
+        self.scheduler_name = args.scheduler
         self.optimizer_name = args.optim
         self.lr = args.lr
         self.lr_gamma = args.lr_gamma
@@ -72,14 +69,14 @@ class MSDACLTrainer(object):
         self.momentum = args.momentum
         self.use_lr_warmup = args.use_lr_warmup
 
-        self.ignore_idx = 3
+        self.ignore_idx = args.ignore_index
         self.epochs_source = 20
-        self.epochs_target = 150
+        self.epochs_target = 50
         self.max_iter = self.epochs_target * 3000 / self.batch_size
 
         # Loss
         self.loss_seg = torch.nn.CrossEntropyLoss(
-            ignore_index=self.ignore_index,
+            ignore_index=self.ignore_idx,
             reduction="mean",
         )
         self.loss_col = torch.nn.KLDivLoss(reduction="batchmean")
@@ -108,8 +105,10 @@ class MSDACLTrainer(object):
         # Initialize training
         self._init_training()
 
+        # Training settings
+        self.current_iters = [0] * len(self.models)
+
         for i, model in enumerate(self.models):
-            print("DataParallel")
             model = torch.nn.DataParallel(model)  # make parallel
             torch.backends.cudnn.enabled = True
             torch.backends.cudnn.benchmark = True
@@ -171,11 +170,12 @@ class MSDACLTrainer(object):
                         self.optimizers[i].step()
                         self.optimizers[i].zero_grad()
 
+                        namespace = "MSDACL/stage1"
                         if self.writer is not None:
                             self.writer.add_scalar(
-                                "MSDACL/train/{}/loss".format(i),
+                                namespace + "/train/{}/loss".format(i),
                                 loss.item(),
-                                ep,
+                                ep * len(self.source_train_loaders[i]) + iter_i,
                             )
 
                             if iter_i == 0:
@@ -183,14 +183,14 @@ class MSDACLTrainer(object):
                                     self.writer,
                                     image_orig_i,
                                     ep,
-                                    "MSDACL/train/{}/image".format(i)
+                                    namespace + "/train/{}/image".format(i)
                                 )
 
                                 add_images_to_tensorboard(
                                     self.writer,
                                     label_i,
                                     ep,
-                                    "MSDACL/train/{}/label".format(i),
+                                    namespace + "/train/{}/label".format(i),
                                     is_label=True,
                                     color_encoding=self.color_encoding,
                                 )
@@ -198,7 +198,7 @@ class MSDACLTrainer(object):
                                     self.writer,
                                     amax_i,
                                     ep,
-                                    "MSDACL/train/{}/pred".format(i),
+                                    namespace + "/train/{}/pred".format(i),
                                     is_label=True,
                                     color_encoding=self.color_encoding,
                                 )
@@ -220,11 +220,14 @@ class MSDACLTrainer(object):
                 P += self.models[i](image_t)["out"]
 
             # Normalize the summed score
-            print(P)
             P = F.softmax(P, dim=1)
             # Y = torch.argmax(P, dim=1)
             Y = class_balanced_pseudo_label_selection(
-                P, self.num_classes, self.ignore_idx, self.alpha, self.tau
+                P, 
+                num_classes = self.num_classes, 
+                ignore_idx = self.ignore_idx, 
+                alpha = self.alpha, 
+                tau = self.tau
             )
 
             # Save the pseudo-labels
@@ -239,13 +242,45 @@ class MSDACLTrainer(object):
                 label_i.save(
                     os.path.join(
                         self.pseudo_save_path,
-                        "{}_argmax.png".format(name_i.replace(".png", ""))
+                        "{}.png".format(
+                            name_i.replace(".png", "").replace(".jpg", "")
+                        )
                     )
                 )
 
     def target_train(self,):
         """Training using target dataset"""
+
+        best_miou = 0.0
+
         for ep in range(self.epochs_target):
+            # Validation
+            metrics = self.val(ep, visualize=True)
+            # Log the metric values in a text file
+            log_metrics(
+                metrics=metrics,
+                epoch=ep,
+                save_dir=self.save_path,
+                write_header=(ep == 0)
+            )
+
+            # Update best mIoU
+            if best_miou < metrics["miou"]:
+                best_miou = metrics["miou"]
+                for i, source in enumerate(self.source_dataset_name_list):
+                    torch.save(
+                        self.models[i].state_dict(),
+                        os.path.join(
+                            self.save_path,
+                            "pseudo_{}_{}_{}_best_iou.pth".format(
+                                self.model_name, 
+                                self.target_name,
+                                source,
+                            ),
+                        ),
+                    )
+
+            # Train
             for i in range(len(self.source_train_loaders)):
                 with tqdm(self.source_train_loaders[i]) as pbar_loader:
                     pbar_loader.set_description(
@@ -253,7 +288,7 @@ class MSDACLTrainer(object):
 
                     # Data loaders for computing collaborative loss
                     iter_t = iter(self.target_train_loader)
-                    for batch_i in self.source_train_loaders[i]:
+                    for iter_i, batch_i in enumerate(self.source_train_loaders[i]):
                         loss = 0.0
                         # Get input image and label batch from dataset i (main dataset)
                         image_i = batch_i["image"].to(self.device)
@@ -270,14 +305,26 @@ class MSDACLTrainer(object):
                         amax_i = torch.argmax(output_i, dim=1)
 
                         # Collaborative learning with other sources
-                        batch_t = next(iter_t)
+                        try:
+                            # Samples the batch
+                            batch_t = next(iter_t)
+                        except StopIteration:
+                            # restart the generator if the previous generator is exhausted.
+                            iter_t = iter(self.target_train_loader)
+                            batch_t = next(iter_t)
+
                         image_t = batch_t["image"].to(self.device)
+                        image_orig_t = batch_t["image_orig"].to(self.device)
                         label_t = batch_t["label"].to(self.device)
-                        output_t_i = self.models[i](image_t)
+                        output = self.models[i](image_t)
+                        output_t_i = output["out"] + 0.5 * output["aux"]
+                        # output_t_i = self.models[i](image_t)
 
                         loss += self.current_iters[i] / self.max_iter * \
                             self.lambda_seg_t * \
                             self.loss_seg(output_t_i, label_t)
+
+                        amax_t = torch.argmax(output_t_i, dim=1)
 
                         self.current_iters[i] += 1
 
@@ -285,26 +332,27 @@ class MSDACLTrainer(object):
                         self.optimizers[i].step()
                         self.optimizers[i].zero_grad()
 
+                        namespace = "MSDACL/stage2"
                         if self.writer is not None:
                             self.writer.add_scalar(
-                                "MSDACL/train/{}/loss".format(i),
+                                namespace + "/train/{}/loss".format(i),
                                 loss.item(),
-                                ep,
+                                ep * len(self.source_train_loaders[i]) + iter_i,
                             )
 
-                            if i == 0:
+                            if iter_i == 0:
                                 add_images_to_tensorboard(
                                     self.writer,
                                     image_orig_i,
                                     ep,
-                                    "MSDACL/train/{}/image".format(i)
+                                    namespace + "/train/{}/image".format(i)
                                 )
 
                                 add_images_to_tensorboard(
                                     self.writer,
                                     label_i,
                                     ep,
-                                    "MSDACL/train/{}/label".format(i),
+                                    namespace + "/train/{}/label".format(i),
                                     is_label=True,
                                     color_encoding=self.color_encoding,
                                 )
@@ -312,10 +360,41 @@ class MSDACLTrainer(object):
                                     self.writer,
                                     amax_i,
                                     ep,
-                                    "MSDACL/train/{}/pred".format(i),
+                                    namespace + "/train/{}/pred".format(i),
                                     is_label=True,
                                     color_encoding=self.color_encoding,
                                 )
+
+                                # Targes
+                                add_images_to_tensorboard(
+                                    self.writer,
+                                    image_orig_t,
+                                    ep,
+                                    namespace + "/train/{}/target/image".format(i)
+                                )
+
+                                add_images_to_tensorboard(
+                                    self.writer,
+                                    label_t,
+                                    ep,
+                                    namespace + "/train/{}/target/label".format(i),
+                                    is_label=True,
+                                    color_encoding=self.color_encoding,
+                                )
+                                add_images_to_tensorboard(
+                                    self.writer,
+                                    amax_t,
+                                    ep,
+                                    namespace + "/train/{}/target/pred".format(i),
+                                    is_label=True,
+                                    color_encoding=self.color_encoding,
+                                )
+
+                        # Update tqdm
+                        pbar_loader.set_postfix(
+                            cls="{:.4f}".format(loss.item()),
+                        )
+                        pbar_loader.update()
 
     def val(self, epoch: int = -1, visualize=False) -> dict:
         """Validation
@@ -334,41 +413,47 @@ class MSDACLTrainer(object):
                 "ent_loss": Average entropy loss (KLD with a uniform dist.)
         """
         # Set the model to 'eval' mode
-        self.model.eval()
+        for model in self.models:
+            model.eval()
 
         # Loss function
         loss_cls_func = torch.nn.CrossEntropyLoss(
-            reduction="mean", ignore_index=self.ignore_index
+            reduction="mean", ignore_index=self.ignore_idx
         )
 
         inter_meter = AverageMeter()
         union_meter = AverageMeter()
-        miou_class = MIOU(num_classes=self.num_classes)
+        miou_class = MIOU(
+            num_classes=self.num_classes)
         # Classification for S1
         class_total_loss = 0.0
         feature_list = []
         label_list = []
         with torch.no_grad():
-            for i, batch in enumerate(self.val_loader):
+            for i, batch in enumerate(self.target_val_loader):
                 # Get input image and label batch
                 image = batch["image"].to(self.device)
                 image_orig = batch["image_orig"].to(self.device)
                 label = batch["label"].to(self.device)
 
                 # Get output
-                output = self.model(image)
-                main_output = output["out"]
-                aux_output = output["aux"]
-                feature = output["feat"]
+                output = 0.0
+                class_total_loss = 0.0
+                for model in self.models:
+                    output_tmp = model(image)
+                    main_output = output_tmp["out"]
+                    aux_output = output_tmp["aux"]
 
-                loss_val = loss_cls_func(main_output, label) + 0.5 * loss_cls_func(
-                    aux_output, label
-                )
-                class_total_loss += loss_val.item()
+                    output += (main_output + 0.5 * aux_output)
 
-                amax_main = main_output.argmax(dim=1)
-                amax_aux = aux_output.argmax(dim=1)
-                amax_total = (main_output + 0.5 * aux_output).argmax(dim=1)
+                    loss_val = loss_cls_func(main_output, label) + 0.5 * loss_cls_func(
+                        aux_output, label
+                    )
+
+                    class_total_loss += loss_val.item()
+
+                amax_total = torch.argmax(output, dim=1)
+
                 inter, union = miou_class.get_iou(
                     amax_total.cpu(), label.cpu())
 
@@ -376,14 +461,18 @@ class MSDACLTrainer(object):
                 union_meter.update(union)
 
                 # Calculate and sum up the loss
+                namespace = "MSDACL/target"
                 if visualize and i == 0 and self.writer is not None and self.color_encoding is not None:
                     add_images_to_tensorboard(
-                        self.writer, image_orig, epoch, "val/image")
+                        self.writer, 
+                        image_orig, 
+                        epoch, 
+                        namespace + "/val/image")
                     add_images_to_tensorboard(
                         self.writer,
                         label,
                         epoch,
-                        "val/label",
+                        namespace + "/val/label",
                         is_label=True,
                         color_encoding=self.color_encoding,
                     )
@@ -391,42 +480,27 @@ class MSDACLTrainer(object):
                         self.writer,
                         amax_total,
                         epoch,
-                        "val/pred",
-                        is_label=True,
-                        color_encoding=self.color_encoding,
-                    )
-                    add_images_to_tensorboard(
-                        self.writer,
-                        amax_main,
-                        epoch,
-                        "val/pred_main",
-                        is_label=True,
-                        color_encoding=self.color_encoding,
-                    )
-
-                    add_images_to_tensorboard(
-                        self.writer,
-                        amax_aux,
-                        epoch,
-                        "val/pred_aux",
+                        namespace + "/val/pred",
                         is_label=True,
                         color_encoding=self.color_encoding,
                     )
 
         iou = inter_meter.sum / (union_meter.sum + 1e-10)
-        class_avg_loss = class_total_loss / len(self.val_loader)
+        class_avg_loss = class_total_loss / len(self.target_val_loader)
         avg_iou = iou.mean()
 
-        self.writer.add_scalar("val/class_avg_loss", class_avg_loss, epoch)
-        self.writer.add_scalar("val/miou", avg_iou, epoch)
+        self.writer.add_scalar(namespace + "/val/class_avg_loss", class_avg_loss, epoch)
+        self.writer.add_scalar(namespace + "/val/miou", avg_iou, epoch)
 
-        return {
-            "miou": avg_iou,
-            "plant_iou": iou[0],
-            "artificial_iou": iou[1],
-            "ground_iou": iou[2],
-            "cls_loss": class_avg_loss,
-        }
+        # Set model mode back 
+        for model in self.models:
+            model.train()
+
+        metrics = {self.class_list[i]: iou[i] for i in range(iou.shape[0])}
+        metrics["miou"] = avg_iou
+        metrics["cls_loss"] = class_avg_loss
+
+        return metrics
 
     def test(self,):
         """Validation
@@ -445,17 +519,21 @@ class MSDACLTrainer(object):
                 "ent_loss": Average entropy loss (KLD with a uniform dist.)
         """
         # Load the best weights
-        state_dict = torch.load(
-            os.path.join(
-                self.save_path,
-                "pseudo_{}_{}_best_iou.pth".format(
-                    self.model_name, self.target_name),
-            ),
-        )
-        self.model.load_state_dict(state_dict)
-        self.model.to(self.device)
-        # Set the model to 'eval' mode
-        self.model.eval()
+        for i, source in enumerate(self.source_dataset_name_list):
+            state_dict = torch.load(
+                os.path.join(
+                    self.save_path,
+                    "pseudo_{}_{}_{}_best_iou.pth".format(
+                        self.model_name, 
+                        self.target_name,
+                        source,
+                    ),
+                ),
+            )
+            self.models[i].load_state_dict(state_dict)
+            self.models[i].to(self.device)
+            # Set the model to 'eval' mode
+            self.models[i].eval()
 
         inter_meter = AverageMeter()
         union_meter = AverageMeter()
@@ -509,14 +587,15 @@ class MSDACLTrainer(object):
         avg_iou = iou.mean()
 
         # Logging
-        metrics["miou"] = avg_iou
         metrics = {self.class_list[i]: iou[i] for i in range(iou.shape[0])}
+        metrics["miou"] = avg_iou
         metrics["cls_loss"] = class_avg_loss
         log_metrics(
             metrics=metrics,
             epoch=0,
             save_dir=test_save_path,
-            write_header=True
+            write_header=True,
+            name="metrics_test.txt",
         )
 
     def msdacl_main(self):
@@ -526,6 +605,7 @@ class MSDACLTrainer(object):
         self._load_optimizers(
             max_epochs=self.epochs_target)
         self.target_train()
+        self.test()
 
     def _init_training(self):
         """Initialize training settings"""
@@ -552,12 +632,12 @@ class MSDACLTrainer(object):
 
     def _load_source_datasets(self,):
         """_summary_"""
-        source_dataset_name_list = self.args.source_dataset_names.split(",")
+        self.source_dataset_name_list = self.args.source_dataset_names.split(",")
 
         #
         # Import source datasets
         #
-        for dataset_name in source_dataset_name_list:
+        for dataset_name in self.source_dataset_name_list:
             try:
                 dataset_s1, _, _, _ = import_dataset(
                     # self.s1_name,
@@ -616,6 +696,7 @@ class MSDACLTrainer(object):
                     pseudo_label_dir=self.pseudo_save_path,
                     is_hard=True,
                     is_old_label=False,
+                    max_iter=3000,
                 )
 
                 target_dataset_val, _, _, _, _ = import_target_dataset(

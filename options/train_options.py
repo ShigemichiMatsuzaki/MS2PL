@@ -22,12 +22,6 @@ class TrainBaseOptions(BaseOptions):
         )
 
         self.parser.add_argument(
-            "--resume-from",
-            type=str,
-            default="",
-            help="Weights to resume the training from",
-        )
-        self.parser.add_argument(
             "--resume-epoch",
             type=int,
             default=0,
@@ -84,12 +78,6 @@ class TrainBaseOptions(BaseOptions):
 
         # Parameters related to cosine-based softmax
         self.parser.add_argument(
-            '--use-cosine',
-            default=False,
-            type=strtobool,
-            help='True to use cosine-based loss (ArcFace). Valid only when "model"=="espnetv2"'
-        )
-        self.parser.add_argument(
             '--cos-margin',
             default=0.1,
             type=float,
@@ -120,6 +108,14 @@ class TrainBaseOptions(BaseOptions):
             default='',
             type=str,
             help='Name of existing study'
+        )
+
+        # Dataset
+        self.parser.add_argument(
+            "--target",
+            type=str,
+            default="",
+            help="Target dataset",
         )
 
 
@@ -165,13 +161,6 @@ class TrainOptions(TrainBaseOptions):
         super(TrainOptions, self).__init__()
         print("Train option")
 
-        # Dataset
-        self.parser.add_argument(
-            "--target",
-            type=str,
-            default="greenhouse",
-            help="Target dataset",
-        )
         self.parser.add_argument(
             "--train-data-list-path",
             type=str,
@@ -237,6 +226,26 @@ class TrainOptions(TrainBaseOptions):
             default=0.5,
             help="Threshold of label weight value. Below this value is set to 0",
         )
+        self.parser.add_argument(
+            "--is-sce-loss",
+            type=strtobool,
+            default=False,
+            help="Use symmetric cross entropy as a classification loss",
+        )
+        self.parser.add_argument(
+            "--sce-alpha",
+            type=float,
+            default=0.1,
+            help="Alpha for SCELoss (weight on the normal cross entropy)",
+        )
+        self.parser.add_argument(
+            "--sce-beta",
+            type=float,
+            default=1.0,
+            help="Beta for SCELoss (weight on the reverse cross entropy)",
+        )
+
+
 
         # Pseudo-label update
         self.parser.add_argument(
@@ -271,6 +280,19 @@ class TrainOptions(TrainBaseOptions):
             default=False,
             help="Whether to use prototype-based denoising",
         )
+        self.parser.add_argument(
+            "--prototype-init-epoch",
+            type=int,
+            default=0,
+            help="Whether to use prototype-based denoising",
+        )
+        self.parser.add_argument(
+            "--use-prototype-soft-label-weight",
+            type=strtobool,
+            default=False,
+            help="Whether to use label weight in prototype calculation",
+        )
+
 
 
 class PseudoLabelAndTrainOptions(TrainOptions):
@@ -307,12 +329,12 @@ class PseudoLabelAndTrainOptions(TrainOptions):
             type=strtobool,
             help="If True, generate hard pseudo-labels.",
         )
-        self.parser.add_argument(
-            "--use-domain-gap",
-            type=strtobool,
-            default=True,
-            help="If True, domain gap-based weights are used for soft pseudo-label generation",
-        )
+        # self.parser.add_argument(
+        #     "--use-domain-gap",
+        #     type=strtobool,
+        #     default=True,
+        #     help="If True, domain gap-based weights are used for soft pseudo-label generation",
+        # )
         self.parser.add_argument(
             "--is-softmax-normalize",
             type=strtobool,
@@ -320,17 +342,22 @@ class PseudoLabelAndTrainOptions(TrainOptions):
             help="If set, normalize the domain gaps using softmax. Otherwise by the sum",
         )
         self.parser.add_argument(
-            "--is-per-sample",
-            type=strtobool,
-            default=False,
-            help="If set, consider the domain gap per sample. Otherwise, per batch",
+            "--domain-gap-type",
+            type=str,
+            help="If True, domain gap-based weights are used for soft pseudo-label generation",
         )
-        self.parser.add_argument(
-            "--is-per-pixel",
-            type=strtobool,
-            default=False,
-            help="If set, consider the domain gap per pixel. Otherwise, per image",
-        )
+        # self.parser.add_argument(
+        #     "--is-per-sample",
+        #     type=strtobool,
+        #     default=False,
+        #     help="If set, consider the domain gap per sample. Otherwise, per batch",
+        # )
+        # self.parser.add_argument(
+        #     "--is-per-pixel",
+        #     type=strtobool,
+        #     default=False,
+        #     help="If set, consider the domain gap per pixel. Otherwise, per image",
+        # )
 
         self.parser.add_argument(
             "--sp-label-min-portion",

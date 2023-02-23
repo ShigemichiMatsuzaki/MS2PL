@@ -51,6 +51,9 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
         reduction: str = "mean",
         is_hard: bool = True,
         is_kld: bool = False,
+        is_sce: bool = False,
+        alpha: float = 0.5,
+        beta: float = 1.0,
     ):
         """Cross entropy loss with weights
 
@@ -72,7 +75,15 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
             `True` to use hard label
         is_kld: `bool`
             `True` to use KLD loss for soft label. Valid only when `is_hard`==`False`
-        
+        is_sce: `bool`
+            `True` to use Symmetric Cross Entropy as a base classification loss
+        alpha : `float`, optional
+            Weight on normal cross entropy. 
+            Only valid when `is_sce=True`. Default: 0.1
+        beta : `float`, optional
+            Weight on reverse cross entropy (RCE).
+            Only valid when `is_sce=True`. Default: 1.0
+
         """
 
         super(UncertaintyWeightedSegmentationLoss, self).__init__()
@@ -94,20 +105,33 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
         self.is_hard = is_hard
         self.is_kld = is_kld
 
+        if is_sce:
+            self.seg_loss_func = SCELoss(
+                num_classes=self.num_classes,
+                class_wts=self.class_wts,
+                ignore_index=self.ignore_index,
+                reduction="none",
+                alpha=alpha,
+                beta=beta,
+            )
+        else:
+            self.seg_loss_func = torch.nn.CrossEntropyLoss(
+                weight=self.class_wts,
+                ignore_index=self.ignore_index,
+                reduction="none",
+            ) 
+
     def forward(
         self,
         pred: torch.Tensor,
         target: torch.Tensor,
-        u_weight: Union[torch.Tensor, list],
+        u_weight: Optional[Union[torch.Tensor, list]] = None,
         epsilon: float = 1e-12,
     ) -> torch.Tensor:
         """Forward calculation
 
         Parameters
         ----------
-
-        Returns
-        -------
         pred: `torch.Tensor`
             Prediction value in a shape (B, C, H, W)
         target: `torch.Tensor`
@@ -119,23 +143,22 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
         epsilon: `float` 
             CURRENTLY NOT USED.
 
+        Returns
+        -------
+        `torch.Tensor`
+            Loss value reduced in the method specified as "reduction"
+
         """
         torch.autograd.set_detect_anomaly(True)
 
-        if isinstance(u_weight, list) and len(u_weight) > 0:
+        if u_weight is not None and isinstance(u_weight, list) and len(u_weight) > 0:
             u_weight_tmp = torch.ones(u_weight[0].size())
             for l in u_weight:
                 u_weight_tmp = u_weight_tmp * l
 
         if self.is_hard:
             # Standard cross entropy
-            seg_loss = F.cross_entropy(
-                pred / self.T,
-                target,
-                weight=self.class_wts,
-                ignore_index=self.ignore_index,
-                reduction="none",
-            )
+            seg_loss = self.seg_loss_func(pred / self.T, target)
         elif self.is_kld:
             # KLD between the predicted probability and the soft label
             pred_prob = F.log_softmax(pred / self.T, dim=1)
@@ -145,16 +168,13 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
         else:
             # Label is the argmax of the soft label
             target = target.argmax(dim=1)
-            seg_loss = F.cross_entropy(
-                pred / self.T,
-                target,
-                weight=self.class_wts,
-                ignore_index=self.ignore_index,
-                reduction="none",
-            )
+            seg_loss = self.seg_loss_func(pred / self.T, target)
 
         # Rectify the loss with the uncertainty weights
-        rect_ce = seg_loss * u_weight
+        if u_weight is not None:
+            rect_ce = seg_loss * u_weight
+        else:
+            rect_ce = seg_loss
 
         if self.is_hard and not self.reduction == "none":
             rect_ce = rect_ce[target != self.ignore_index]
@@ -168,6 +188,81 @@ class UncertaintyWeightedSegmentationLoss(nn.Module):
         else:
             raise ValueError
 
+class SCELoss(torch.nn.Module):
+    def __init__(
+        self, 
+        num_classes,
+        ignore_index: Optional[int] = -100,
+        class_wts: Optional[torch.Tensor] = None,
+        alpha: float = 0.1, 
+        beta: float = 1.0, 
+        reduction: str = "mean",
+    ):
+        """Symmetric Cross Entropy for Robust Learning With Noisy Labels (Wang et al., 2019)
+        https://github.com/HanxunH/SCELoss-Reproduce/blob/master/loss.py
+
+        Parameters
+        ----------
+        num_classes : `int`
+            _description_
+        ignore_index : `Optional[int]`, optional
+            Class index to ignore, Default: `None`
+        class_wts : `Optional[torch.Tensor]`, optional
+            Loss weights, Default: `None`
+        alpha : `float`, optional
+            Weight on normal cross entropy, Default: 0.1
+        beta : `float`, optional
+            Weight on reverse cross entropy (RCE), Default: 1.0
+        reduction: `str`, optional
+            Reduction strategy ['mean', 'sum', 'none'], Default: 'mean'
+        """
+        super(SCELoss, self).__init__()
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.alpha = alpha
+        self.beta = beta
+        self.num_classes = num_classes
+        self.cross_entropy = torch.nn.CrossEntropyLoss(
+            weight=class_wts,
+            ignore_index=ignore_index,
+            reduction=reduction,
+        )
+        self.ignore_index = ignore_index
+        self.reduction = reduction
+
+    def forward(self, pred, labels):
+        # CCE
+        ce = self.cross_entropy(pred, labels)
+
+        # RCE
+        pred = F.softmax(pred, dim=1)
+        pred = torch.clamp(pred, min=1e-7, max=1.0)
+
+        labels_tmp = torch.clone(labels)
+        # Replace ignore_index with an index one greater than the largest valid index
+        if self.ignore_index >= 0 and self.ignore_index != self.num_classes: 
+            labels_tmp[labels_tmp == self.ignore_index] = self.num_classes
+        
+        if self.ignore_index == -100:
+            label_one_hot = F.one_hot(labels_tmp, self.num_classes).float().to(self.device)
+        else:
+            label_one_hot = F.one_hot(labels_tmp, self.num_classes + 1).float().to(self.device)
+            label_one_hot = label_one_hot[:, :, :, :-1]
+
+        label_one_hot = label_one_hot.permute((0, 3, 1, 2))
+        label_one_hot = torch.clamp(label_one_hot, min=1e-4, max=1.0)
+        rce = (-1*torch.sum(pred * torch.log(label_one_hot), dim=1))
+
+        # Loss
+        loss = self.alpha * ce + self.beta * rce
+
+        if self.reduction == "mean":
+            return loss[labels != self.ignore_index].mean()
+        elif self.reduction == "sum":
+            return loss[labels != self.ignore_index].sum()
+        elif self.reduction == "none":  # if reduction=='none' or any other
+            return loss
+        else:
+            raise ValueError
 
 class DistillationSegmentationLoss(nn.Module):
     def __init__(
@@ -292,3 +387,5 @@ class Entropy(nn.Module):
             ent = torch.sum(ent)
 
         return ent
+
+

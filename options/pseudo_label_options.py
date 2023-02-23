@@ -42,10 +42,15 @@ class PseudoLabelOptions(BaseOptions):
             type=strtobool,
             help="If True, generate hard pseudo-labels.",
         )
+        # self.parser.add_argument(
+        #     "--use-domain-gap",
+        #     type=strtobool,
+        #     default=True,
+        #     help="If True, domain gap-based weights are used for soft pseudo-label generation",
+        # )
         self.parser.add_argument(
-            "--use-domain-gap",
-            type=strtobool,
-            default=True,
+            "--domain-gap-type",
+            type=str,
             help="If True, domain gap-based weights are used for soft pseudo-label generation",
         )
         self.parser.add_argument(
@@ -54,18 +59,18 @@ class PseudoLabelOptions(BaseOptions):
             default=False,
             help="If set, normalize the domain gaps using softmax. Otherwise by the sum",
         )
-        self.parser.add_argument(
-            "--is-per-sample",
-            type=strtobool,
-            default=False,
-            help="If set, consider the domain gap per sample. Otherwise, per batch",
-        )
-        self.parser.add_argument(
-            "--is-per-pixel",
-            type=strtobool,
-            default=False,
-            help="If set, consider the domain gap per pixel. Otherwise, per image",
-        )
+        # self.parser.add_argument(
+        #     "--is-per-sample",
+        #     type=strtobool,
+        #     default=False,
+        #     help="If set, consider the domain gap per sample. Otherwise, per batch",
+        # )
+        # self.parser.add_argument(
+        #     "--is-per-pixel",
+        #     type=strtobool,
+        #     default=False,
+        #     help="If set, consider the domain gap per pixel. Otherwise, per image",
+        # )
 
         self.parser.add_argument(
             "--sp-label-min-portion",
