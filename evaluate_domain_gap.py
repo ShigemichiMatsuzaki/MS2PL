@@ -51,7 +51,7 @@ def main():
         )
         source_model_list.append(os_model)
 
-    if args.target == "greenhouse":
+    if args.target == "greenhouse" or args.target == "imo":
         from dataset.greenhouse import GreenhouseRGBD, color_encoding
 
         target_dataset = GreenhouseRGBD(
@@ -116,27 +116,59 @@ def main():
             weight_list /= weight_list.sum()
 
             plt.cla()
-            plt.figure()
-            # Show image
-            img_cv = batch["image_orig"][0].permute(1, 2, 0).numpy()
-            img_cv = cv2.resize(
-                img_cv,
-                dsize=(img_cv.shape[1] * 2, img_cv.shape[0] * 2),
-                interpolation=cv2.INTER_CUBIC
-            )
-            plt.subplot(121).imshow(img_cv,)
+            show_image = False
+            if show_image:
+                fig, ax = plt.subplots(1, 2, gridspec_kw={'width_ratios': [3, 2]})
+                fig.tight_layout()
 
-            # Show chart
-            plt.subplot(122)
-            plt.title("Domain similarity")
-            plt.ylim([0.0, 0.7])
-            plt.bar(source_dataset_name_list, weight_list)
-            plt.savefig(
-                os.path.join(
-                    args.save_path,
-                    name[0].replace(".png", "_gap.png")
+                # Show image
+                img_cv = batch["image_orig"][0].permute(1, 2, 0).numpy()
+                img_cv = cv2.resize(
+                    img_cv,
+                    dsize=(img_cv.shape[1] * 2, img_cv.shape[0] * 2),
+                    interpolation=cv2.INTER_CUBIC
                 )
-            )
+                ax[0].imshow(img_cv,)
+
+                # Show chart
+                # plt.subplot(122)
+                ax[1].set_title("Domain similarity")
+                ax[1].set_ylim([0.0, 0.55])
+                ax[1].bar(
+                    source_dataset_name_list,
+                    weight_list,
+                    color=['tab:orange', 'tab:blue', 'tab:green'],
+                )
+                fig.savefig(
+                    os.path.join(
+                        args.save_path,
+                        name[0].replace(".png", "_gap.png")
+                    )
+                )
+
+            else: # Bar chart only
+                fig = plt.figure()
+                ax = fig.add_subplot(111)
+                fig.tight_layout()
+                # Show chart
+                # plt.subplot(122)
+
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.set_ylim([0.0, 0.55])
+                ax.bar(
+                    source_dataset_name_list,
+                    weight_list,
+                    color=['tab:orange', 'tab:blue', 'tab:green'],
+                )
+                fig.savefig(
+                    os.path.join(
+                        args.save_path,
+                        name[0].replace(".png", "_gap.pdf")
+                    )
+                )
+
+
 
 
 if __name__ == "__main__":

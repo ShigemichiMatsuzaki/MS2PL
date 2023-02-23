@@ -57,10 +57,28 @@ elif [ ${model} = "deeplabv3_mobilenet_v3_large" ]; then
     forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20220728-160250/${forest_model}_forest_best_iou.pth"
 fi
 
+TARGET=sakaki
+if [ ${TARGET} = "greenhouse" ]; then
+IGNORE_INDEX=3
+TRAIN_LST=train_greenhouse_a.lst
+VAL_LST=val_greenhouse_a.lst
+TEST_LST=test_greenhouse_a.lst
+elif [ ${TARGET} = "imo" ]; then
+IGNORE_INDEX=3
+TRAIN_LST=train_imo_stabilized.lst
+VAL_LST=test_sakaki.lst
+TEST_LST=test_sakaki.lst
+elif [ ${TARGET} = "sakaki" ]; then
+IGNORE_INDEX=5
+TRAIN_LST=train_oskar_TUT.lst
+VAL_LST=test_sakaki.lst
+TEST_LST=test_sakaki.lst
+fi
+
 python evaluate_domain_gap.py \
     --device cuda \
-    --target target \
-    --target-data-list ./dataset/data_list/val_greenhouse_a.lst \
+    --target ${TARGET} \
+    --target-data-list ./dataset/data_list/${TRAIN_LST} \
     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \

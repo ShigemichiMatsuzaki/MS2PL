@@ -43,7 +43,7 @@ fi
 python evaluate_source_models.py \
     --device cuda \
     --target sakaki \
-    --target-data-list ./dataset/data_list/test_sakaki.lst \
+    --target-data-list ./dataset/data_list/train_oskar_TUT.lst \
     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
