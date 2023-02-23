@@ -474,9 +474,9 @@ def generate_pseudo_label_multi_model_domain_gap(
     save_path: str,
     device: str = "cuda",
     domain_gap_type: str = "none",
-#    use_domain_gap: bool = True,
-#    is_per_pixel: bool = False,
-#    is_per_sample: bool = False,
+    #    use_domain_gap: bool = True,
+    #    is_per_pixel: bool = False,
+    #    is_per_sample: bool = False,
     ignore_index: int = 4,
     label_normalize: str = "softmax",
     class_weighting: str = "normal",
@@ -550,7 +550,8 @@ def generate_pseudo_label_multi_model_domain_gap(
     class_array = np.zeros(num_classes)
 
     if domain_gap_type not in ["none", "per_dataset", "per_sample", "per_pixel"]:
-        raise ValueError("Domain gap type '{}' is not supported".format(domain_gap_type))
+        raise ValueError(
+            "Domain gap type '{}' is not supported".format(domain_gap_type))
     #
     # Calculate weights based on the domain gaps
     #
@@ -634,14 +635,15 @@ def generate_pseudo_label_multi_model_domain_gap(
                     for i in range(num_classes):
                         indices = torch.where(label_conversion == i)[0]
                         if indices.size(0):
-                            output_target[:, i] = output[:, indices].max(dim=1)[0]
+                            output_target[:, i] = output[:, indices].max(dim=1)[
+                                0]
 
                     # output_target = F.normalize(output_target, p=1)
                     output_target = F.softmax(output_target, dim=1)
 
                     output_list.append(output_target)
 
-                    if domain_gap_type == "none": # No domain gap
+                    if domain_gap_type == "none":  # No domain gap
                         output_total += output_target
                     elif domain_gap_type == "per_sample":
                         domain_gap_w = calc_norm_ent(

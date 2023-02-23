@@ -66,8 +66,8 @@ def main():
         from dataset.imo import Imo, color_encoding
 
         pseudo_dataset = Imo(
-            list_name=args.target_data_list, 
-            mode="pseudo", 
+            list_name=args.target_data_list,
+            mode="pseudo",
             load_labels=False
         )
         num_classes = 3
@@ -75,8 +75,8 @@ def main():
         from dataset.sakaki import SakakiDataset, color_encoding
 
         pseudo_dataset = SakakiDataset(
-            list_name=args.target_data_list, 
-            mode="pseudo", 
+            list_name=args.target_data_list,
+            mode="pseudo",
             load_labels=False
         )
         num_classes = 5

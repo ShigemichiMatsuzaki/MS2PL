@@ -2,7 +2,7 @@ import os
 
 
 def log_training_conditions(
-    args, save_dir: str, name: str="params.txt",
+    args, save_dir: str, name: str = "params.txt",
 ):
     """Save the training parameters
 
@@ -20,12 +20,13 @@ def log_training_conditions(
             val = getattr(args, arg)
             f.write("%s: %s\n" % (arg, val))
 
+
 def log_metrics(
-    metrics: dict, 
-    epoch: int, 
-    save_dir: str, 
-    name: str="metrics.txt", 
-    write_header: bool=False,
+    metrics: dict,
+    epoch: int,
+    save_dir: str,
+    name: str = "metrics.txt",
+    write_header: bool = False,
 ) -> None:
     """Save the training parameters
 
@@ -51,7 +52,7 @@ def log_metrics(
                     is_first = False
                 else:
                     f.write(",%s" % (k))
-            
+
             f.write("\n")
 
         is_first = True
@@ -61,8 +62,5 @@ def log_metrics(
                 is_first = False
             else:
                 f.write(",%s" % (str(metrics[k])))
-        
+
         f.write("\n")
-
-        
-

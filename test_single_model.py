@@ -86,7 +86,6 @@ def test(
                     os.path.join(test_save_path, filename + ".png",)
                 )
 
-
     iou = inter_meter.sum / (union_meter.sum + 1e-10)
     avg_iou = iou.mean()
 
@@ -99,6 +98,7 @@ def test(
         save_dir=test_save_path,
         write_header=True
     )
+
 
 def main():
     # Get arguments
@@ -144,8 +144,8 @@ def main():
     model.to(args.device)
 
     save_path = os.path.join(
-        args.test_save_path, 
-        args.target, 
+        args.test_save_path,
+        args.target,
         "single_supervised"
     )
 
@@ -162,6 +162,7 @@ def main():
         color_palette=color_palette,
         class_list=class_list,
     )
+
 
 if __name__ == "__main__":
     main()

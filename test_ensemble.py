@@ -27,6 +27,7 @@ from dataset.tools.label_conversions import id_camvid_to_oxford
 from dataset.tools.label_conversions import id_cityscapes_to_oxford
 from dataset.tools.label_conversions import id_forest_to_oxford
 
+
 def test(
     model_list: list,
     dg_model_list: list,
@@ -66,7 +67,8 @@ def test(
         m.to(device)
 
     if domain_gap_type not in ["none", "per_dataset", "per_sample", "per_pixel"]:
-        raise ValueError("Domain gap type '{}' is not supported".format(domain_gap_type))
+        raise ValueError(
+            "Domain gap type '{}' is not supported".format(domain_gap_type))
     #
     # Calculate weights based on the domain gaps
     #
@@ -153,14 +155,15 @@ def test(
                     for i in range(num_classes):
                         indices = torch.where(label_conversion == i)[0]
                         if indices.size(0):
-                            output_target[:, i] = output[:, indices].max(dim=1)[0]
+                            output_target[:, i] = output[:, indices].max(dim=1)[
+                                0]
 
                     # output_target = F.normalize(output_target, p=1)
                     output_target = F.softmax(output_target, dim=1)
 
                     output_list.append(output_target)
 
-                    if domain_gap_type == "none": # No domain gap
+                    if domain_gap_type == "none":  # No domain gap
                         output_total += output_target
                     elif domain_gap_type == "per_sample":
                         domain_gap_w = calc_norm_ent(
@@ -186,14 +189,16 @@ def test(
 
                 output_total = F.softmax(output_total, dim=1)
                 amax_total = torch.argmax(output_total, dim=1)
-                inter, union = miou_class.get_iou(amax_total.cpu(), label.cpu())
+                inter, union = miou_class.get_iou(
+                    amax_total.cpu(), label.cpu())
 
                 inter_meter.update(inter)
                 union_meter.update(union)
 
                 # Save prediction
                 for j in range(amax_total.shape[0]):
-                    amax_total_np = amax_total[j].cpu().numpy().astype(np.uint8)
+                    amax_total_np = amax_total[j].cpu(
+                    ).numpy().astype(np.uint8)
                     # File name ('xxx.png')
                     filename = name[j].split(
                         "/")[-1].replace(".png", "").replace(".jpg", "")
@@ -217,6 +222,8 @@ def test(
         save_dir=test_save_path,
         write_header=True
     )
+
+
 def main():
     # Get arguments
     # args = parse_arguments()
@@ -297,8 +304,8 @@ def main():
 
     # Save
     save_path = os.path.join(
-        args.test_save_path, 
-        args.target, 
+        args.test_save_path,
+        args.target,
         "single_ensemble",
     )
 
@@ -319,6 +326,7 @@ def main():
         color_palette=color_palette,
         class_list=class_list,
     )
+
 
 if __name__ == "__main__":
     main()

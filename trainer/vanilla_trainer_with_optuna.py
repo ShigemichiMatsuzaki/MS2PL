@@ -125,7 +125,7 @@ class PseudoTrainer(object):
         if not os.path.isdir(self.save_path):
             os.makedirs(self.save_path)
             os.makedirs(self.pseudo_save_path)
-        
+
         if not os.path.isdir(self.initial_pseudo_label_path):
             os.makedirs(self.initial_pseudo_label_path)
 
@@ -295,10 +295,11 @@ class PseudoTrainer(object):
                     output_aux_logprob, output_main_prob).sum(dim=1)
 
                 # Prototype-based rectification of label
-                if self.params.use_prototype_denoising and not self.params.is_hard: #update prototype
+                if self.params.use_prototype_denoising and not self.params.is_hard:  # update prototype
                     with torch.no_grad():
                         if self.use_cosine:
-                            ema_output = self.model_ema(image, label.argmax(dim=1))
+                            ema_output = self.model_ema(
+                                image, label.argmax(dim=1))
                         else:
                             ema_output = self.model_ema(image,)
 
@@ -344,8 +345,9 @@ class PseudoTrainer(object):
                 self.optimizer.zero_grad()
 
                 # Update prototype and model_ema
-                if self.params.use_prototype_denoising and not self.params.is_hard: #update prototype
-                    output_total_ema = ema_output['out'] + 0.5 * ema_output['aux']
+                if self.params.use_prototype_denoising and not self.params.is_hard:  # update prototype
+                    output_total_ema = ema_output['out'] + \
+                        0.5 * ema_output['aux']
                     ema_vectors, ema_ids = self.prototypes.calculate_mean_vector(
                         ema_output['feat'].detach(), output_total_ema.detach())
 
@@ -369,8 +371,8 @@ class PseudoTrainer(object):
 
                 if self.writer is not None:
                     self.writer.add_scalar(
-                        "train/cls_loss", 
-                        seg_loss_value.item(), 
+                        "train/cls_loss",
+                        seg_loss_value.item(),
                         epoch * len(self.train_loader) + i
                     )
                     self.writer.add_scalar(
@@ -813,7 +815,6 @@ class PseudoTrainer(object):
 
         return metrics
 
-
     def test(self,):
         """Validation
 
@@ -920,11 +921,11 @@ class PseudoTrainer(object):
         for ep in range(self.resume_epoch, self.params.epochs):
             if self.params.use_prototype_denoising and ep == self.prototype_init_epoch:
                 self.prototypes = calc_prototype(
-                    self.model, 
-                    self.dataset_pseudo, 
-                    self.num_classes, 
-                    self.device, 
-                    use_soft_label_weight = self.use_prototype_soft_label_weight,
+                    self.model,
+                    self.dataset_pseudo,
+                    self.num_classes,
+                    self.device,
+                    use_soft_label_weight=self.use_prototype_soft_label_weight,
                 )
 
             # Save the model every hundred epoch
@@ -945,7 +946,7 @@ class PseudoTrainer(object):
             if ep % self.val_every_epochs == 0:
                 num_val = ep // self.val_every_epochs
                 metrics = self.val(
-                    epoch=ep, 
+                    epoch=ep,
                     visualize=(num_val % self.vis_every_vals == 0)
                 )
 
@@ -1038,7 +1039,6 @@ class PseudoTrainer(object):
                     momentum=self.params.momentum,
                 )
 
-
             self.writer.add_scalar(
                 "learning_rate", self.optimizer.param_groups[0]["lr"], ep)
 
@@ -1086,7 +1086,7 @@ class PseudoTrainer(object):
         # self.params.is_per_sample = trial.suggest_categorical(
         #     'is_per_sample', [True, False])
         self.params.domain_gap_type = trial.suggest_categorical(
-            'domain_gap_type', 
+            'domain_gap_type',
             ["per_dataset", "per_sample", "per_pixel"],
         )
 

@@ -90,7 +90,7 @@ def calc_entropy(pred: torch.Tensor, is_prob: bool = False, reduction: str = "me
 
 def calc_norm_ent(
     target: Union[torch.utils.data.DataLoader, torch.Tensor],
-    model: Optional[torch.Tensor]=None,
+    model: Optional[torch.Tensor] = None,
     device: str = "cuda",
     reduction: str = "mean",
 ) -> dict:
@@ -136,7 +136,8 @@ def calc_norm_ent(
 
                     # # pred = model(image)["out"]
                     # pred = output["out"] + 0.5 * output["aux"]
-                    pred = get_output(model, image, aux_weight=0.5, device=device)
+                    pred = get_output(
+                        model, image, aux_weight=0.5, device=device)
 
                     # Entropy
                     # p = softmax2d(pred)

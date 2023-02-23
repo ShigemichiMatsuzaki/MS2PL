@@ -118,7 +118,8 @@ def main():
             plt.cla()
             show_image = False
             if show_image:
-                fig, ax = plt.subplots(1, 2, gridspec_kw={'width_ratios': [3, 2]})
+                fig, ax = plt.subplots(
+                    1, 2, gridspec_kw={'width_ratios': [3, 2]})
                 fig.tight_layout()
 
                 # Show image
@@ -146,7 +147,7 @@ def main():
                     )
                 )
 
-            else: # Bar chart only
+            else:  # Bar chart only
                 fig = plt.figure()
                 ax = fig.add_subplot(111)
                 fig.tight_layout()
@@ -167,8 +168,6 @@ def main():
                         name[0].replace(".png", "_gap.pdf")
                     )
                 )
-
-
 
 
 if __name__ == "__main__":

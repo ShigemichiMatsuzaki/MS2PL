@@ -225,7 +225,8 @@ def import_model(
         model_dict.update(overlap_dict)
         model.load_state_dict(model_dict)
 
-        print("{} % of paremteres are loaded.".format(len(overlap_dict)/len(model_dict) * 100))
+        print("{} % of paremteres are loaded.".format(
+            len(overlap_dict)/len(model_dict) * 100))
 
     model.to(device)
 

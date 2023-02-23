@@ -53,7 +53,6 @@ class MSDACLTrainer(object):
         self.optimizers = []
         self.schedulers = []
 
-
         # Parameters
         self.lambda_col = 1.0
         self.lambda_seg_t = 0.1
@@ -175,7 +174,8 @@ class MSDACLTrainer(object):
                             self.writer.add_scalar(
                                 namespace + "/train/{}/loss".format(i),
                                 loss.item(),
-                                ep * len(self.source_train_loaders[i]) + iter_i,
+                                ep *
+                                len(self.source_train_loaders[i]) + iter_i,
                             )
 
                             if iter_i == 0:
@@ -223,11 +223,11 @@ class MSDACLTrainer(object):
             P = F.softmax(P, dim=1)
             # Y = torch.argmax(P, dim=1)
             Y = class_balanced_pseudo_label_selection(
-                P, 
-                num_classes = self.num_classes, 
-                ignore_idx = self.ignore_idx, 
-                alpha = self.alpha, 
-                tau = self.tau
+                P,
+                num_classes=self.num_classes,
+                ignore_idx=self.ignore_idx,
+                alpha=self.alpha,
+                tau=self.tau
             )
 
             # Save the pseudo-labels
@@ -273,7 +273,7 @@ class MSDACLTrainer(object):
                         os.path.join(
                             self.save_path,
                             "pseudo_{}_{}_{}_best_iou.pth".format(
-                                self.model_name, 
+                                self.model_name,
                                 self.target_name,
                                 source,
                             ),
@@ -337,7 +337,8 @@ class MSDACLTrainer(object):
                             self.writer.add_scalar(
                                 namespace + "/train/{}/loss".format(i),
                                 loss.item(),
-                                ep * len(self.source_train_loaders[i]) + iter_i,
+                                ep *
+                                len(self.source_train_loaders[i]) + iter_i,
                             )
 
                             if iter_i == 0:
@@ -370,14 +371,16 @@ class MSDACLTrainer(object):
                                     self.writer,
                                     image_orig_t,
                                     ep,
-                                    namespace + "/train/{}/target/image".format(i)
+                                    namespace +
+                                    "/train/{}/target/image".format(i)
                                 )
 
                                 add_images_to_tensorboard(
                                     self.writer,
                                     label_t,
                                     ep,
-                                    namespace + "/train/{}/target/label".format(i),
+                                    namespace +
+                                    "/train/{}/target/label".format(i),
                                     is_label=True,
                                     color_encoding=self.color_encoding,
                                 )
@@ -385,7 +388,8 @@ class MSDACLTrainer(object):
                                     self.writer,
                                     amax_t,
                                     ep,
-                                    namespace + "/train/{}/target/pred".format(i),
+                                    namespace +
+                                    "/train/{}/target/pred".format(i),
                                     is_label=True,
                                     color_encoding=self.color_encoding,
                                 )
@@ -464,9 +468,9 @@ class MSDACLTrainer(object):
                 namespace = "MSDACL/target"
                 if visualize and i == 0 and self.writer is not None and self.color_encoding is not None:
                     add_images_to_tensorboard(
-                        self.writer, 
-                        image_orig, 
-                        epoch, 
+                        self.writer,
+                        image_orig,
+                        epoch,
                         namespace + "/val/image")
                     add_images_to_tensorboard(
                         self.writer,
@@ -489,10 +493,11 @@ class MSDACLTrainer(object):
         class_avg_loss = class_total_loss / len(self.target_val_loader)
         avg_iou = iou.mean()
 
-        self.writer.add_scalar(namespace + "/val/class_avg_loss", class_avg_loss, epoch)
+        self.writer.add_scalar(
+            namespace + "/val/class_avg_loss", class_avg_loss, epoch)
         self.writer.add_scalar(namespace + "/val/miou", avg_iou, epoch)
 
-        # Set model mode back 
+        # Set model mode back
         for model in self.models:
             model.train()
 
@@ -524,7 +529,7 @@ class MSDACLTrainer(object):
                 os.path.join(
                     self.save_path,
                     "pseudo_{}_{}_{}_best_iou.pth".format(
-                        self.model_name, 
+                        self.model_name,
                         self.target_name,
                         source,
                     ),
@@ -632,7 +637,8 @@ class MSDACLTrainer(object):
 
     def _load_source_datasets(self,):
         """_summary_"""
-        self.source_dataset_name_list = self.args.source_dataset_names.split(",")
+        self.source_dataset_name_list = self.args.source_dataset_names.split(
+            ",")
 
         #
         # Import source datasets
