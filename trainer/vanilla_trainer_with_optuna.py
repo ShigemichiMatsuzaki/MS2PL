@@ -344,7 +344,7 @@ class PseudoTrainer(object):
                 self.optimizer.zero_grad()
 
                 # Update prototype and model_ema
-                if self.params.use_prototype_denoising: #update prototype
+                if self.params.use_prototype_denoising and not self.params.is_hard: #update prototype
                     output_total_ema = ema_output['out'] + 0.5 * ema_output['aux']
                     ema_vectors, ema_ids = self.prototypes.calculate_mean_vector(
                         ema_output['feat'].detach(), output_total_ema.detach())
@@ -890,9 +890,8 @@ class PseudoTrainer(object):
         avg_iou = iou.mean()
 
         # Logging
-        metrics = {}
-        metrics["miou"] = avg_iou
         metrics = {self.class_list[i]: iou[i] for i in range(iou.shape[0])}
+        metrics["miou"] = avg_iou
         metrics["cls_loss"] = class_avg_loss
         log_metrics(
             metrics=metrics,
