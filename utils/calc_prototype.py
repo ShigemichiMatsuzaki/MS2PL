@@ -388,7 +388,13 @@ def calc_prototype(
                         feat, prob, newlabels, weight=weight,
                     )
                 else:
+                    if len(labels.size()) == 4:
+                        # Calculate labels
+                        newlabels = torch.argmax(
+                            labels, dim=1,)
+
                     batch, w, h = labels.size()
+
                     newlabels = labels.reshape(
                         [batch, 1, w, h]).float()
                     newlabels = F.interpolate(
