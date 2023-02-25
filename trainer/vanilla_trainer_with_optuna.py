@@ -91,7 +91,7 @@ class PseudoTrainer(object):
         self.pin_memory = args.pin_memory
         self.num_workers = args.num_workers
         self.target_name = args.target
-        self.num_classes = 5 if self.target_name == "sakaki" else 3
+        self.num_classes = 5 if self.target_name == "sakaki" or self.target_name == "imo" else 3
         self.model_name = args.model
         self.resume_epoch = args.resume_epoch
         self.train_data_list_path = args.train_data_list_path
@@ -192,7 +192,7 @@ class PseudoTrainer(object):
         if self.args.target == "greenhouse":
             num_classes = 3
         elif self.args.target == "imo":
-            num_classes = 3
+            num_classes = 5
         elif self.args.target == "sakaki":
             num_classes = 5
         elif self.args.target == "oxfordrobot":
@@ -295,7 +295,7 @@ class PseudoTrainer(object):
                     output_aux_logprob, output_main_prob).sum(dim=1)
 
                 # Prototype-based rectification of label
-                if self.params.use_prototype_denoising and not self.params.is_hard:  # update prototype
+                if self.prototypes is not None and self.params.use_prototype_denoising and not self.params.is_hard:  # update prototype
                     with torch.no_grad():
                         if self.use_cosine:
                             ema_output = self.model_ema(
@@ -345,7 +345,7 @@ class PseudoTrainer(object):
                 self.optimizer.zero_grad()
 
                 # Update prototype and model_ema
-                if self.params.use_prototype_denoising and not self.params.is_hard:  # update prototype
+                if self.prototypes is not None and self.params.use_prototype_denoising and not self.params.is_hard:  # update prototype
                     output_total_ema = ema_output['out'] + \
                         0.5 * ema_output['aux']
                     ema_vectors, ema_ids = self.prototypes.calculate_mean_vector(
@@ -984,7 +984,7 @@ class PseudoTrainer(object):
                 self.params.use_label_ent_weight = False
 
                 # Prototype-based denoising
-                prototypes = None
+                # prototypes = None
                 # if self.params.use_prototype_denoising:
                 #     prototypes = calc_prototype(
                 #         self.model, self.dataset_pseudo, self.num_classes, self.device)
