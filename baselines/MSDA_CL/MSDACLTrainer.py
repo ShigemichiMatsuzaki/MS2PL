@@ -70,7 +70,7 @@ class MSDACLTrainer(object):
 
         self.ignore_idx = args.ignore_index
         self.epochs_source = 20
-        self.epochs_target = 50
+        self.epochs_target = 200
         self.max_iter = self.epochs_target * 3000 / self.batch_size
 
         # Loss
@@ -209,6 +209,8 @@ class MSDACLTrainer(object):
         Parameters
         ----------
         """
+        print("Generate pseudo-labels")
+
         self._load_target_dataset(pseudo_only=True)
 
         for batch in self.target_pseudo_loader:
@@ -588,7 +590,7 @@ class MSDACLTrainer(object):
                 )
 
         iou = inter_meter.sum / (union_meter.sum + 1e-10)
-        class_avg_loss = class_total_loss / len(self.val_loader)
+        class_avg_loss = class_total_loss / len(self.target_val_loader)
         avg_iou = iou.mean()
 
         # Logging
@@ -692,6 +694,8 @@ class MSDACLTrainer(object):
                 mode="pseudo",
                 data_list_path=self.train_data_list_path,
                 pseudo_label_dir=self.pseudo_save_path,
+                is_hard=True,
+                load_labels=not pseudo_only,
             )
 
             if not pseudo_only:
