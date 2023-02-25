@@ -155,6 +155,18 @@ train-sakaki-pseudo-soft:
 		$(IMAGE_NAME):$(VERSION) \
 		bash script/train_sakaki_soft_pseudo.sh
 
+train-imo-pseudo-soft:
+	docker run -it \
+		--gpus '"device=${GPU_ID}"' \
+		-v ${PWD}/../:/root/training/ \
+		-v ${DATASET_ROOT}:/tmp/dataset \
+		-v ${RUNS_ROOT}:/tmp/runs/ \
+		--rm \
+		--shm-size 15G \
+		--workdir /root/training/ \
+		--name $(CONTAINER_NAME)-sakaki-pseudo-soft \
+		$(IMAGE_NAME):$(VERSION) \
+		bash script/train_imo_soft_pseudo.sh
 
 generate-pseudo-labels:
 	docker run -it \

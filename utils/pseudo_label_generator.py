@@ -371,7 +371,7 @@ def generate_pseudo_label_multi_model(
                     amax_output = output.argmax(dim=1)
 
                     # Visualize pseudo labels
-                    if target_dataset_name == "greenhouse" or target_dataset_name == "imo":
+                    if target_dataset_name == "greenhouse":
                         # save visualized seg maps & predication prob map
                         if os_data == "camvid":
                             label_conversion = id_camvid_to_greenhouse
@@ -379,7 +379,7 @@ def generate_pseudo_label_multi_model(
                             label_conversion = id_cityscapes_to_greenhouse
                         elif os_data == "forest":
                             label_conversion = id_forest_to_greenhouse
-                    elif target_dataset_name == "sakaki":
+                    elif target_dataset_name == "sakaki" or target_dataset_name == "imo":
                         if os_data == "camvid":
                             label_conversion = id_camvid_to_sakaki
                         elif os_data == "cityscapes":
@@ -602,7 +602,7 @@ def generate_pseudo_label_multi_model_domain_gap(
                          output.size(2), output.size(3))
                     ).to(device)
 
-                    if target_dataset_name == "greenhouse" or target_dataset_name == "imo":
+                    if target_dataset_name == "greenhouse":
                         if os_data == "camvid":
                             label_conversion = id_camvid_to_greenhouse
                         elif os_data == "cityscapes":
@@ -611,7 +611,7 @@ def generate_pseudo_label_multi_model_domain_gap(
                             label_conversion = id_forest_to_greenhouse
                         else:
                             raise ValueError
-                    elif target_dataset_name == "sakaki":
+                    elif target_dataset_name == "sakaki" or target_dataset_name == "imo":
                         if os_data == "camvid":
                             label_conversion = id_camvid_to_sakaki
                         elif os_data == "cityscapes":

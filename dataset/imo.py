@@ -3,19 +3,40 @@ import os
 
 from dataset.base_dataset import BaseTargetDataset
 
-IMO_CLASS_LIST = ["plant", "artificial", "ground", "other"]
+# IMO_CLASS_LIST = ["plant", "artificial", "ground", "other"]
+# 
+# color_encoding = OrderedDict(
+#     [
+#         ("plant", (0, 255, 255)),
+#         ("artificial_objects", (255, 0, 0)),
+#         ("ground", (255, 255, 0)),
+#         ("background", (0, 0, 0)),
+#     ]
+# )
+# 
+# color_palette = [0, 255, 255, 255, 0, 0, 255, 255, 0, 0, 0, 0]
+# 
+IMO_CLASS_LIST = ["plant", "vegetation,", "artificial", "ground", "sky", "background"]
 
 color_encoding = OrderedDict(
     [
         ("plant", (0, 255, 255)),
+        ("terrain", (152, 251, 152)),
         ("artificial_objects", (255, 0, 0)),
         ("ground", (255, 255, 0)),
+        ("sky", (70, 130, 180)),
         ("background", (0, 0, 0)),
     ]
 )
 
-color_palette = [0, 255, 255, 255, 0, 0, 255, 255, 0, 0, 0, 0]
-
+color_palette = [
+    0, 255, 255, 
+    152, 251, 152,
+    255, 0, 0, 
+    255, 255, 0, 
+    70, 130, 180,
+    0, 0, 0
+]
 
 class Imo(BaseTargetDataset):
     def __init__(
@@ -93,7 +114,9 @@ class Imo(BaseTargetDataset):
                 #
                 if self.load_labels:
                     if self.label_root:
-                        label_img_loc = os.path.join(self.label_root, line_split[1].rstrip())
+                        label_img_loc = os.path.join(
+                            self.label_root, 
+                            line_split[1].rstrip())
                     else:
                         label_img_loc = line_split[1].rstrip()
 
