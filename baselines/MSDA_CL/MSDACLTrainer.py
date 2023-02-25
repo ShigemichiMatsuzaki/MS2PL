@@ -496,7 +496,10 @@ class MSDACLTrainer(object):
         avg_iou = iou.mean()
 
         self.writer.add_scalar(
-            namespace + "/val/class_avg_loss", class_avg_loss, epoch)
+            namespace + "/val/class_avg_loss", 
+            class_avg_loss, 
+            epoch
+        )
         self.writer.add_scalar(namespace + "/val/miou", avg_iou, epoch)
 
         # Set model mode back
