@@ -27,6 +27,8 @@ def log_metrics(
     save_dir: str,
     name: str = "metrics.txt",
     write_header: bool = False,
+    convert_to_percentage: bool = True,
+    delimiter: str = '&',
 ) -> None:
     """Save the training parameters
 
@@ -42,7 +44,14 @@ def log_metrics(
         File name
     write_header: `bool`
         `True` to write the labels of the metrics
+    convert_to_percentage: `bool`
+        Multiply the values by 100 to make it percentage
+    delimiter: `str`
+        Character/string to separate the values in the text
     """
+    if convert_to_percentage:
+        for k in metrics.keys():
+            metrics[k] *= 100
     with open(os.path.join(save_dir, name), 'a') as f:
         if write_header:
             is_first = True
@@ -51,7 +60,7 @@ def log_metrics(
                     f.write("%s" % (k))
                     is_first = False
                 else:
-                    f.write(",%s" % (k))
+                    f.write("%s%s" % (delimiter, k))
 
             f.write("\n")
 
@@ -61,6 +70,6 @@ def log_metrics(
                 f.write("%s" % (str(metrics[k])))
                 is_first = False
             else:
-                f.write(",%s" % (str(metrics[k])))
+                f.write("%s%s" % (delimiter, str(metrics[k])))
 
         f.write("\n")

@@ -32,7 +32,7 @@ class MSDACLTrainer(object):
         self.pin_memory = args.pin_memory
         self.num_workers = args.num_workers
         self.target_name = args.target
-        self.num_classes = 5 if self.target_name == "sakaki" else 3
+        self.num_classes = 5 if self.target_name == "sakaki" or self.target_name == "imo" else 3
         self.model_name = args.model
         self.train_data_list_path = args.train_data_list_path
         self.val_data_list_path = args.val_data_list_path
@@ -70,7 +70,7 @@ class MSDACLTrainer(object):
 
         self.ignore_idx = args.ignore_index
         self.epochs_source = 20
-        self.epochs_target = 200
+        self.epochs_target = 100
         self.max_iter = self.epochs_target * 3000 / self.batch_size
 
         # Loss
@@ -631,9 +631,9 @@ class MSDACLTrainer(object):
         self._load_optimizers(
             max_epochs=self.epochs_source)
 
-        if self.target_name == "greenhouse" or self.target_name == "imo":
+        if self.target_name == "greenhouse":
             from dataset.greenhouse import color_encoding
-        elif self.target_name == "sakaki":
+        elif self.target_name == "sakaki" or self.target_name == "imo":
             from dataset.sakaki import color_encoding
         else:
             raise ValueError
@@ -810,11 +810,13 @@ class MSDACLTrainer(object):
     def _load_models(self) -> None:
         """Load models"""
         source_model_name_list = self.args.source_model_names.split(",")
-        for model_name in source_model_name_list:
+        source_weight_name_list = self.args.source_weight_names.split(",")
+        for model_name, weight_name in zip(source_model_name_list, source_weight_name_list):
             model = import_model(
                 model_name=model_name,
                 num_classes=self.num_classes,
-                weights=self.resume_from if self.resume_from else None,
+                # weights=self.resume_from if self.resume_from else None,
+                weights=weight_name,
                 aux_loss=True,
                 pretrained=False,
                 device=self.device,

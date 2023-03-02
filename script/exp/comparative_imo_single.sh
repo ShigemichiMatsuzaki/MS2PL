@@ -1,12 +1,12 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
 # RESUME_FROM=""
-TARGET=sakaki
+TARGET=imo
 if [ ${TARGET} = "greenhouse" ]; then
     TEST_LST=test_greenhouse_a.lst
     RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
 elif [ ${TARGET} = "imo" ]; then
-    TEST_LST=test_sakaki.lst
+    TEST_LST=test_imo.lst
     RESUME_FROM="./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_sakaki.pth"
 elif [ ${TARGET} = "sakaki" ]; then
     TEST_LST=test_sakaki.lst

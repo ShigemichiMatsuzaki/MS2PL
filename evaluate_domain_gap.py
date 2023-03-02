@@ -165,7 +165,8 @@ def main():
                 fig.savefig(
                     os.path.join(
                         args.save_path,
-                        name[0].replace(".png", "_gap.pdf")
+                        name[0].replace(".png", "_gap.pdf").replace(".jpg", "_gap.pdf")
+
                     )
                 )
 

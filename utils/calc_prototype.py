@@ -402,9 +402,9 @@ def calc_prototype(
                         feat, prob, newlabels, weight=weight,
                     )
                 else:
-                    if len(labels.size()) == 4:
+                    if labels.dim() == 4:
                         # Calculate labels
-                        newlabels = torch.argmax(
+                        labels = torch.argmax(
                             labels, dim=1,)
 
                     batch, w, h = labels.size()

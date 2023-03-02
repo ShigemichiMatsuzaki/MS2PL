@@ -1,7 +1,7 @@
 from collections import OrderedDict
 import os
 
-from dataset.base_dataset import BaseTargetDataset
+from dataset.base_dataset import BaseFiveClassTargetDataset
 
 # IMO_CLASS_LIST = ["plant", "artificial", "ground", "other"]
 # 
@@ -38,7 +38,7 @@ color_palette = [
     0, 0, 0
 ]
 
-class Imo(BaseTargetDataset):
+class Imo(BaseFiveClassTargetDataset):
     def __init__(
         self,
         list_name,
@@ -48,6 +48,7 @@ class Imo(BaseTargetDataset):
         is_hard_label=False,
         load_labels=True,
         max_iter=None,
+        is_three_class=False,
     ):
         """Initialize a dataset
 
@@ -86,6 +87,7 @@ class Imo(BaseTargetDataset):
             is_hard_label=is_hard_label,
             load_labels=load_labels,
             max_iter=max_iter,
+            is_three_class=is_three_class,
         )
 
         self.data_file = list_name
@@ -138,13 +140,3 @@ class Imo(BaseTargetDataset):
         if self.max_iter is not None and self.max_iter > len(self.images):
             self.images *= (self.max_iter // len(self.images))
             self.labels *= (self.max_iter // len(self.labels))
-
-
-    def label_preprocess(self, label_img):
-        """Pre-processing of the label
-        
-        """
-        #
-        # Segmentation label
-        #
-        return label_img

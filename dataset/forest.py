@@ -76,10 +76,10 @@ class FreiburgForestDataset(BaseDataset):
         self.size = (height, width)
 
         self.num_classes = 5
-        if self.label_conversion_to == "greenhouse" or self.label_conversion_to == "imo":
+        if self.label_conversion_to == "greenhouse":
             from .tools.label_conversions import id_forest_to_greenhouse as label_conversion
             self.num_classes = 3
-        elif self.label_conversion_to == "sakaki":
+        elif self.label_conversion_to == "sakaki" or self.label_conversion_to == "imo":
             from .tools.label_conversions import id_forest_to_sakaki as label_conversion
             self.num_classes = 5
         else:

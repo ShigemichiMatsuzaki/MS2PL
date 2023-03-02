@@ -1,6 +1,6 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
-RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
+# RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
 RESUME_FROM="./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_sakaki.pth"
 # RESUME_FROM=""
 TARGET=sakaki
@@ -17,7 +17,7 @@ elif [ ${TARGET} = "imo" ]; then
 elif [ ${TARGET} = "sakaki" ]; then
     IGNORE_INDEX=5
     TRAIN_LST=train_sakaki.lst
-    VAL_LST=test_sakaki.lst
+    VAL_LST=val_sakaki.lst
     TEST_LST=test_sakaki.lst
 fi
 SAVE_PATH=/tmp/runs/domain_gap/exp/comparative/
@@ -49,96 +49,98 @@ use_kld_class_loss=false
 use_label_ent_weight=true
 is_hard=false
 # Triple soft
-# python train_pseudo.py \
-#     --device cuda \
-#     --generate-pseudo-labels true \
-#     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
-#     --source-dataset-names camvid,cityscapes,forest \
-#     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
-#     --pseudo-label-batch-size 16 \
-#     --domain-gap-type "per_sample" \
-#     --is-softmax-normalize true \
-#     --resume-from ${RESUME_FROM} \
-#     --sp-label-min-portion 0.9 \
-#     --target ${TARGET} \
-#     --train-data-list-path dataset/data_list/${TRAIN_LST} \
-#     --val-data-list-path dataset/data_list/${VAL_LST} \
-#     --test-data-list-path dataset/data_list/${TEST_LST} \
-#     --model ${MODEL} \
-#     --use-cosine true \
-#     --batch-size ${BATCH_SIZE} \
-#     --epoch ${EPOCH} \
-#     --lr ${LEARNING_RATE} \
-#     --val-every-epochs ${VAL_EVERY_EPOCHS} \
-#     --vis-every-vals ${VIS_EVERY_VALS} \
-#     --label-update-epoch ${label_update_epoch} \
-#     --save-path ${SAVE_PATH} \
-#     --optim ${optimizer_name} \
-#     --scheduler ${scheduler_name} \
-#     --class-wts-type normal \
-#     --is-hard ${is_hard} \
-#     --use-kld-class-loss ${use_kld_class_loss} \
-#     --use-label-ent-weight ${use_label_ent_weight} \
-#     --is-sce-loss true \
-#     --sce-alpha 0.1 \
-#     --sce-beta 1.0 \
-#     --conf-thresh ${conf_thresh} \
-#     --use-prototype-denoising true \
-#     --use-prototype-soft-label-weight true \
-#     --label-weight-temperature ${label_weight_temp} \
-#     --kld-loss-weight ${kld_loss_weight} \
-#     --entropy-loss-weight ${entropy_loss_weight} \
-#     --sp-label-min-portion 0.9 \
-#     --initial-pseudo-label-path ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
-#     --ignore-index ${IGNORE_INDEX} \
-#     --use-optuna false
-# ##    --optuna-resume-from ./pseudo_soft_espnetv2_20230103-111856.db
-# #
-# # Double (CS+FR) soft
-# python train_pseudo.py \
-#     --device cuda \
-#     --generate-pseudo-labels true \
-#     --source-model-names ${cityscapes_model},${forest_model} \
-#     --source-dataset-names cityscapes,forest \
-#     --source-weight-names ${cityscapes_weight},${forest_weight} \
-#     --pseudo-label-batch-size 16 \
-#     --domain-gap-type "per_sample" \
-#     --is-softmax-normalize true \
-#     --resume-from ${RESUME_FROM} \
-#     --sp-label-min-portion 0.9 \
-#     --target ${TARGET} \
-#     --train-data-list-path dataset/data_list/${TRAIN_LST} \
-#     --val-data-list-path dataset/data_list/${VAL_LST} \
-#     --test-data-list-path dataset/data_list/${TEST_LST} \
-#     --model ${MODEL} \
-#     --use-cosine true \
-#     --batch-size ${BATCH_SIZE} \
-#     --epoch ${EPOCH} \
-#     --lr ${LEARNING_RATE} \
-#     --val-every-epochs ${VAL_EVERY_EPOCHS} \
-#     --vis-every-vals ${VIS_EVERY_VALS} \
-#     --label-update-epoch ${label_update_epoch} \
-#     --save-path ${SAVE_PATH} \
-#     --optim ${optimizer_name} \
-#     --scheduler ${scheduler_name} \
-#     --class-wts-type normal \
-#     --is-hard ${is_hard} \
-#     --use-kld-class-loss ${use_kld_class_loss} \
-#     --use-label-ent-weight ${use_label_ent_weight} \
-#     --is-sce-loss true \
-#     --sce-alpha 0.1 \
-#     --sce-beta 1.0 \
-#     --conf-thresh ${conf_thresh} \
-#     --use-prototype-denoising true \
-#     --use-prototype-soft-label-weight true \
-#     --label-weight-temperature ${label_weight_temp} \
-#     --kld-loss-weight ${kld_loss_weight} \
-#     --entropy-loss-weight ${entropy_loss_weight} \
-#     --sp-label-min-portion 0.9 \
-#     --initial-pseudo-label-path ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
-#     --ignore-index ${IGNORE_INDEX} \
-#     --use-optuna false
-#    --optuna-resume-from ./pseudo_soft_espnetv2_20230103-111856.db
+ python train_pseudo.py \
+     --device cuda \
+     --generate-pseudo-labels true \
+     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
+     --source-dataset-names camvid,cityscapes,forest \
+     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
+     --pseudo-label-batch-size 16 \
+     --domain-gap-type "per_sample" \
+     --is-softmax-normalize true \
+     --sp-label-min-portion 0.9 \
+     --target ${TARGET} \
+     --train-data-list-path dataset/data_list/${TRAIN_LST} \
+     --val-data-list-path dataset/data_list/${VAL_LST} \
+     --test-data-list-path dataset/data_list/${TEST_LST} \
+     --model ${MODEL} \
+     --resume-from ${RESUME_FROM} \
+     --use-cosine true \
+     --batch-size ${BATCH_SIZE} \
+     --epoch ${EPOCH} \
+     --lr ${LEARNING_RATE} \
+     --val-every-epochs ${VAL_EVERY_EPOCHS} \
+     --vis-every-vals ${VIS_EVERY_VALS} \
+     --label-update-epoch ${label_update_epoch} \
+     --save-path ${SAVE_PATH} \
+     --optim ${optimizer_name} \
+     --scheduler ${scheduler_name} \
+     --class-wts-type normal \
+     --is-hard ${is_hard} \
+     --use-kld-class-loss ${use_kld_class_loss} \
+     --use-label-ent-weight ${use_label_ent_weight} \
+     --is-sce-loss true \
+     --sce-alpha 0.1 \
+     --sce-beta 1.0 \
+     --conf-thresh ${conf_thresh} \
+     --use-prototype-denoising true \
+     --use-prototype-soft-label-weight true \
+     --prototype-init-epoch 5 \
+     --label-weight-temperature ${label_weight_temp} \
+     --kld-loss-weight ${kld_loss_weight} \
+     --entropy-loss-weight ${entropy_loss_weight} \
+     --sp-label-min-portion 0.9 \
+     --initial-pseudo-label-path ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
+     --ignore-index ${IGNORE_INDEX} \
+     --use-optuna false
+##    --optuna-resume-from ./pseudo_soft_espnetv2_20230103-111856.db
+#
+# Double (CS+FR) soft
+python train_pseudo.py \
+    --device cuda \
+    --generate-pseudo-labels true \
+    --source-model-names ${cityscapes_model},${forest_model} \
+    --source-dataset-names cityscapes,forest \
+    --source-weight-names ${cityscapes_weight},${forest_weight} \
+    --pseudo-label-batch-size 16 \
+    --domain-gap-type "per_sample" \
+    --is-softmax-normalize true \
+    --sp-label-min-portion 0.9 \
+    --target ${TARGET} \
+    --train-data-list-path dataset/data_list/${TRAIN_LST} \
+    --val-data-list-path dataset/data_list/${VAL_LST} \
+    --test-data-list-path dataset/data_list/${TEST_LST} \
+    --model ${MODEL} \
+    --resume-from ${RESUME_FROM} \
+    --use-cosine true \
+    --batch-size ${BATCH_SIZE} \
+    --epoch ${EPOCH} \
+    --lr ${LEARNING_RATE} \
+    --val-every-epochs ${VAL_EVERY_EPOCHS} \
+    --vis-every-vals ${VIS_EVERY_VALS} \
+    --label-update-epoch ${label_update_epoch} \
+    --save-path ${SAVE_PATH} \
+    --optim ${optimizer_name} \
+    --scheduler ${scheduler_name} \
+    --class-wts-type normal \
+    --is-hard ${is_hard} \
+    --use-kld-class-loss ${use_kld_class_loss} \
+    --use-label-ent-weight ${use_label_ent_weight} \
+    --prototype-init-epoch 5 \
+    --is-sce-loss true \
+    --sce-alpha 0.1 \
+    --sce-beta 1.0 \
+    --conf-thresh ${conf_thresh} \
+    --use-prototype-denoising true \
+    --use-prototype-soft-label-weight true \
+    --label-weight-temperature ${label_weight_temp} \
+    --kld-loss-weight ${kld_loss_weight} \
+    --entropy-loss-weight ${entropy_loss_weight} \
+    --sp-label-min-portion 0.9 \
+    --initial-pseudo-label-path ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
+    --ignore-index ${IGNORE_INDEX} \
+    --use-optuna false
+   --optuna-resume-from ./pseudo_soft_espnetv2_20230103-111856.db
 
 # Triple MSDA_CL 
 python train_msdacl.py \
@@ -147,15 +149,14 @@ python train_msdacl.py \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
     --target ${TARGET} \
-    --resume-from ${RESUME_FROM} \
     --train-data-list-path dataset/data_list/${TRAIN_LST} \
     --val-data-list-path dataset/data_list/${VAL_LST} \
     --test-data-list-path dataset/data_list/${TEST_LST} \
     --model ${MODEL} \
+    --resume-from ${RESUME_FROM} \
     --use-cosine true \
     --batch-size 40 \
     --epoch ${EPOCH} \
-    --is-hard true \
     --lr ${LEARNING_RATE} \
     --save-path ${SAVE_PATH} \
     --optim ${optimizer_name} \
@@ -172,15 +173,14 @@ python train_msdacl.py \
     --source-dataset-names cityscapes,forest \
     --source-weight-names ${cityscapes_weight},${forest_weight} \
     --target ${TARGET} \
-    --resume-from ${RESUME_FROM} \
     --train-data-list-path dataset/data_list/${TRAIN_LST} \
     --val-data-list-path dataset/data_list/${VAL_LST} \
     --test-data-list-path dataset/data_list/${TEST_LST} \
     --model ${MODEL} \
+    --resume-from ${RESUME_FROM} \
     --use-cosine true \
     --batch-size 40 \
     --epoch ${EPOCH} \
-    --is-hard true \
     --lr ${LEARNING_RATE} \
     --save-path ${SAVE_PATH} \
     --optim ${optimizer_name} \
@@ -189,87 +189,178 @@ python train_msdacl.py \
     --pseudo-label-dir ./pseudo_labels/msda_cl/${TARGET} \
     --ignore-index ${IGNORE_INDEX}
 
-# Double (CS+FR) hard
-# python train_pseudo.py \
-#     --device cuda \
-#     --generate-pseudo-labels true \
-#     --source-model-names ${cityscapes_model},${forest_model} \
-#     --source-dataset-names cityscapes,forest \
-#     --source-weight-names ${cityscapes_weight},${forest_weight} \
-#     --pseudo-label-batch-size 16 \
-#     --domain-gap-type "per_sample" \
-#     --is-softmax-normalize true \
-#     --resume-from ${RESUME_FROM} \
-#     --sp-label-min-portion 0.9 \
-#     --target ${TARGET} \
-#     --train-data-list-path dataset/data_list/${TRAIN_LST} \
-#     --val-data-list-path dataset/data_list/${VAL_LST} \
-#     --test-data-list-path dataset/data_list/${TEST_LST} \
-#     --model ${MODEL} \
-#     --use-cosine true \
-#     --batch-size ${BATCH_SIZE} \
-#     --epoch ${EPOCH} \
-#     --lr ${LEARNING_RATE} \
-#     --val-every-epochs ${VAL_EVERY_EPOCHS} \
-#     --vis-every-vals ${VIS_EVERY_VALS} \
-#     --label-update-epoch 15 \
-#     --save-path ${SAVE_PATH} \
-#     --optim ${optimizer_name} \
-#     --scheduler ${scheduler_name} \
-#     --class-wts-type normal \
-#     --is-hard true \
-#     --use-kld-class-loss ${use_kld_class_loss} \
-#     --use-label-ent-weight ${use_label_ent_weight} \
-#     --is-sce-loss false \
-#     --conf-thresh ${conf_thresh} \
-#     --use-prototype-denoising false \
-#     --kld-loss-weight ${kld_loss_weight} \
-#     --entropy-loss-weight ${entropy_loss_weight} \
-#     --sp-label-min-portion 0.9 \
-#     --initial-pseudo-label-path ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
-#     --ignore-index ${IGNORE_INDEX} \
-#     --use-optuna false
-# 
-# #    --optuna-resume-from ./pseudo_soft_espnetv2_20230103-111856.db
-# 
-# ## Triple hard
-# python train_pseudo.py \
-#     --device cuda \
-#     --generate-pseudo-labels true \
-#     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
-#     --source-dataset-names camvid,cityscapes,forest \
-#     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
-#     --pseudo-label-batch-size 16 \
-#     --domain-gap-type "per_sample" \
-#     --is-softmax-normalize true \
-#     --resume-from ${RESUME_FROM} \
-#     --sp-label-min-portion 0.9 \
-#     --target ${TARGET} \
-#     --train-data-list-path dataset/data_list/${TRAIN_LST} \
-#     --val-data-list-path dataset/data_list/${VAL_LST} \
-#     --test-data-list-path dataset/data_list/${TEST_LST} \
-#     --model ${MODEL} \
-#     --use-cosine true \
-#     --batch-size ${BATCH_SIZE} \
-#     --epoch ${EPOCH} \
-#     --lr ${LEARNING_RATE} \
-#     --val-every-epochs ${VAL_EVERY_EPOCHS} \
-#     --vis-every-vals ${VIS_EVERY_VALS} \
-#     --label-update-epoch 15 \
-#     --save-path ${SAVE_PATH} \
-#     --optim ${optimizer_name} \
-#     --scheduler ${scheduler_name} \
-#     --class-wts-type normal \
-#     --is-hard true \
-#     --use-kld-class-loss ${use_kld_class_loss} \
-#     --use-label-ent-weight ${use_label_ent_weight} \
-#     --is-sce-loss false \
-#     --conf-thresh ${conf_thresh} \
-#     --use-prototype-denoising false \
-#     --kld-loss-weight ${kld_loss_weight} \
-#     --entropy-loss-weight ${entropy_loss_weight} \
-#     --sp-label-min-portion 0.9 \
-#     --initial-pseudo-label-path ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
-#     --ignore-index ${IGNORE_INDEX} \
-#     --use-optuna false
-# 
+ # Double (CS+FR) hard
+ python train_pseudo.py \
+     --device cuda \
+     --generate-pseudo-labels true \
+     --source-model-names ${cityscapes_model},${forest_model} \
+     --source-dataset-names cityscapes,forest \
+     --source-weight-names ${cityscapes_weight},${forest_weight} \
+     --pseudo-label-batch-size 16 \
+     --domain-gap-type "per_sample" \
+     --is-softmax-normalize true \
+     --sp-label-min-portion 0.9 \
+     --target ${TARGET} \
+     --train-data-list-path dataset/data_list/${TRAIN_LST} \
+     --val-data-list-path dataset/data_list/${VAL_LST} \
+     --test-data-list-path dataset/data_list/${TEST_LST} \
+     --model ${MODEL} \
+     --resume-from ${RESUME_FROM} \
+     --use-cosine true \
+     --batch-size ${BATCH_SIZE} \
+     --epoch ${EPOCH} \
+     --lr ${LEARNING_RATE} \
+     --val-every-epochs ${VAL_EVERY_EPOCHS} \
+     --vis-every-vals ${VIS_EVERY_VALS} \
+     --label-update-epoch 15 \
+     --save-path ${SAVE_PATH} \
+     --optim ${optimizer_name} \
+     --scheduler ${scheduler_name} \
+     --class-wts-type normal \
+     --is-hard true \
+     --use-kld-class-loss ${use_kld_class_loss} \
+     --use-label-ent-weight ${use_label_ent_weight} \
+     --is-sce-loss false \
+     --conf-thresh ${conf_thresh} \
+     --use-prototype-denoising false \
+     --kld-loss-weight ${kld_loss_weight} \
+     --entropy-loss-weight ${entropy_loss_weight} \
+     --sp-label-min-portion 0.9 \
+     --initial-pseudo-label-path ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
+     --ignore-index ${IGNORE_INDEX} \
+     --use-optuna false
+ #    --optuna-resume-from ./pseudo_soft_espnetv2_20230103-111856.db
+ 
+ ## Triple hard
+ python train_pseudo.py \
+     --device cuda \
+     --generate-pseudo-labels true \
+     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
+     --source-dataset-names camvid,cityscapes,forest \
+     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
+     --pseudo-label-batch-size 16 \
+     --domain-gap-type "per_sample" \
+     --is-softmax-normalize true \
+     --sp-label-min-portion 0.9 \
+     --target ${TARGET} \
+     --train-data-list-path dataset/data_list/${TRAIN_LST} \
+     --val-data-list-path dataset/data_list/${VAL_LST} \
+     --test-data-list-path dataset/data_list/${TEST_LST} \
+     --model ${MODEL} \
+     --resume-from ${RESUME_FROM} \
+     --use-cosine true \
+     --batch-size ${BATCH_SIZE} \
+     --epoch ${EPOCH} \
+     --lr ${LEARNING_RATE} \
+     --val-every-epochs ${VAL_EVERY_EPOCHS} \
+     --vis-every-vals ${VIS_EVERY_VALS} \
+     --label-update-epoch 15 \
+     --save-path ${SAVE_PATH} \
+     --optim ${optimizer_name} \
+     --scheduler ${scheduler_name} \
+     --class-wts-type normal \
+     --is-hard true \
+     --use-kld-class-loss ${use_kld_class_loss} \
+     --use-label-ent-weight ${use_label_ent_weight} \
+     --is-sce-loss false \
+     --conf-thresh ${conf_thresh} \
+     --use-prototype-denoising false \
+     --kld-loss-weight ${kld_loss_weight} \
+     --entropy-loss-weight ${entropy_loss_weight} \
+     --sp-label-min-portion 0.9 \
+     --initial-pseudo-label-path ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
+     --ignore-index ${IGNORE_INDEX} \
+     --use-optuna false
+ 
+ # Single (CS)
+ python train_pseudo.py \
+     --device cuda \
+     --generate-pseudo-labels true \
+     --source-model-names ${cityscapes_model} \
+     --source-dataset-names cityscapes \
+     --source-weight-names ${cityscapes_weight} \
+     --pseudo-label-batch-size 16 \
+     --domain-gap-type "per_sample" \
+     --is-softmax-normalize true \
+     --sp-label-min-portion 0.9 \
+     --target ${TARGET} \
+     --train-data-list-path dataset/data_list/${TRAIN_LST} \
+     --val-data-list-path dataset/data_list/${VAL_LST} \
+     --test-data-list-path dataset/data_list/${TEST_LST} \
+     --model ${MODEL} \
+     --resume-from ${RESUME_FROM} \
+     --use-cosine true \
+     --batch-size ${BATCH_SIZE} \
+     --epoch ${EPOCH} \
+     --lr ${LEARNING_RATE} \
+     --val-every-epochs ${VAL_EVERY_EPOCHS} \
+     --vis-every-vals ${VIS_EVERY_VALS} \
+     --label-update-epoch ${label_update_epoch} \
+     --save-path ${SAVE_PATH} \
+     --optim ${optimizer_name} \
+     --scheduler ${scheduler_name} \
+     --class-wts-type normal \
+     --is-hard ${is_hard} \
+     --use-kld-class-loss ${use_kld_class_loss} \
+     --use-label-ent-weight ${use_label_ent_weight} \
+     --is-sce-loss true \
+     --sce-alpha 0.1 \
+     --sce-beta 1.0 \
+     --conf-thresh ${conf_thresh} \
+     --use-prototype-denoising false \
+     --use-prototype-soft-label-weight false \
+     --prototype-init-epoch 5 \
+     --label-weight-temperature ${label_weight_temp} \
+     --kld-loss-weight ${kld_loss_weight} \
+     --entropy-loss-weight ${entropy_loss_weight} \
+     --sp-label-min-portion 0.9 \
+     --initial-pseudo-label-path ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
+     --ignore-index ${IGNORE_INDEX} \
+     --use-optuna false
+ 
+ # Single (FR)
+ python train_pseudo.py \
+     --device cuda \
+     --generate-pseudo-labels true \
+     --source-model-names ${forest_model} \
+     --source-dataset-names forest \
+     --source-weight-names ${forest_weight} \
+     --pseudo-label-batch-size 16 \
+     --domain-gap-type "per_sample" \
+     --is-softmax-normalize true \
+     --sp-label-min-portion 0.9 \
+     --target ${TARGET} \
+     --train-data-list-path dataset/data_list/${TRAIN_LST} \
+     --val-data-list-path dataset/data_list/${VAL_LST} \
+     --test-data-list-path dataset/data_list/${TEST_LST} \
+     --model ${MODEL} \
+     --resume-from ${RESUME_FROM} \
+     --use-cosine true \
+     --batch-size ${BATCH_SIZE} \
+     --epoch ${EPOCH} \
+     --lr ${LEARNING_RATE} \
+     --val-every-epochs ${VAL_EVERY_EPOCHS} \
+     --vis-every-vals ${VIS_EVERY_VALS} \
+     --label-update-epoch ${label_update_epoch} \
+     --save-path ${SAVE_PATH} \
+     --optim ${optimizer_name} \
+     --scheduler ${scheduler_name} \
+     --class-wts-type normal \
+     --is-hard ${is_hard} \
+     --use-kld-class-loss ${use_kld_class_loss} \
+     --use-label-ent-weight ${use_label_ent_weight} \
+     --is-sce-loss true \
+     --sce-alpha 0.1 \
+     --sce-beta 1.0 \
+     --conf-thresh ${conf_thresh} \
+     --use-prototype-denoising false \
+     --use-prototype-soft-label-weight false \
+     --prototype-init-epoch 5 \
+     --label-weight-temperature ${label_weight_temp} \
+     --kld-loss-weight ${kld_loss_weight} \
+     --entropy-loss-weight ${entropy_loss_weight} \
+     --sp-label-min-portion 0.9 \
+     --initial-pseudo-label-path ./pseudo_labels/${SOURCE_MODEL}/${TARGET} \
+     --ignore-index ${IGNORE_INDEX} \
+     --use-optuna false
+ 

@@ -9,7 +9,7 @@ services:
       - 60009:6006
     mem_limit: 15g
     volumes:
-      - /data/aisl/matsuzaki/runs/domain_gap/sakaki/:/tmp/runs/
+      - /data/aisl/matsuzaki/runs/domain_gap/:/tmp/runs/
 
   tensorboard-exp:
     container_name: tensorboard-domain-gap-exp

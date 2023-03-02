@@ -35,9 +35,9 @@ def main():
     ):
         if os_d == "camvid":
             os_seg_classes = 13
-            if args.target == "greenhouse" or args.target == "imo":
+            if args.target == "greenhouse":
                 from dataset.tools.label_conversions import id_camvid_to_greenhouse as label_conversion
-            elif args.target == "sakaki":
+            elif args.target == "sakaki" or args.target == "imo":
                 from dataset.tools.label_conversions import id_camvid_to_sakaki as label_conversion
             else:
                 print("Target {} is not supported.".format(args.target))
@@ -47,11 +47,11 @@ def main():
         elif os_d == "cityscapes":
             # os_seg_classes = 19
             os_seg_classes = 20
-            if args.target == "greenhouse" or args.target == "imo":
+            if args.target == "greenhouse":
                 from dataset.tools.label_conversions import (
                     id_cityscapes_to_greenhouse as label_conversion,
                 )
-            elif args.target == "sakaki":
+            elif args.target == "sakaki" or args.target == "imo":
                 from dataset.tools.label_conversions import (
                     id_cityscapes_to_sakaki as label_conversion,
                 )
@@ -61,9 +61,9 @@ def main():
             from dataset.cityscapes import color_encoding
         elif os_d == "forest" or os_d == "greenhouse":
             os_seg_classes = 5
-            if args.target == "greenhouse" or args.target == "imo":
+            if args.target == "greenhouse":
                 from dataset.tools.label_conversions import id_forest_to_greenhouse as label_conversion
-            elif args.target == "sakaki":
+            elif args.target == "sakaki" or args.target == "imo":
                 from dataset.tools.label_conversions import id_forest_to_sakaki as label_conversion
             else:
                 print("Target {} is not supported.".format(args.target))

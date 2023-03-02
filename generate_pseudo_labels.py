@@ -70,7 +70,7 @@ def main():
             mode="pseudo",
             load_labels=False
         )
-        num_classes = 3
+        num_classes = 5
     elif args.target == "sakaki":
         from dataset.sakaki import SakakiDataset, color_encoding
 

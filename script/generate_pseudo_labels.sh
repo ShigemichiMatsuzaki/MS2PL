@@ -42,26 +42,35 @@ elif [ ${model} = "deeplabv3_mobilenet_v3_large" ]; then
     forest_weight="/tmp/runs/domain_gap/forest/${forest_model}/20220728-160250/${forest_model}_forest_best_iou.pth"
 fi
 
-TARGET=sakaki
+TARGET=imo
 if [ ${TARGET} = "greenhouse" ]; then
+TRAIN_LST=train_greenhouse_a.lst
+VAL_LST=val_greenhouse_a.lst
+TEST_LST=test_greenhouse_a.lst
 IGNORE_INDEX=3
 elif [ ${TARGET} = "imo" ]; then
 IGNORE_INDEX=3
+TRAIN_LST=train_imo_stabilized.lst
+VAL_LST=test_imo.lst
+TEST_LST=test_imo.lst
 elif [ ${TARGET} = "sakaki" ]; then
 IGNORE_INDEX=5
+TRAIN_LST=train_sakaki.lst
+VAL_LST=test_sakaki.lst
+TEST_LST=test_sakaki.lst
 fi
     #--target-data-list ./dataset/data_list/train_greenhouse_a.lst \
 python generate_pseudo_labels.py \
     --device cuda \
     --target ${TARGET} \
     --ignore-index ${IGNORE_INDEX} \
-    --target-data-list ./dataset/data_list/train_oskar_TUT.lst \
+    --target-data-list ./dataset/data_list/vis_imo.lst \
     --source-model-names ${camvid_model},${cityscapes_model},${forest_model} \
     --source-dataset-names camvid,cityscapes,forest \
     --source-weight-names ${camvid_weight},${cityscapes_weight},${forest_weight} \
-    --batch-size 12 \
+    --batch-size 1 \
     --is-hard false \
     --domain-gap-type "per_sample" \
     --is-softmax-normalize true \
     --sp-label-min-portion 0.9 \
-    --save-path ./pseudo_labels/${camvid_model}/
+    --save-path ./pseudo_labels/tmp_sample/
