@@ -80,10 +80,10 @@ class CamVidSegmentation(BaseDataset):
         self.labels += sorted(glob.glob(os.path.join(data_train_label_dir, "*.png")))
 
         self.num_classes = 13
-        if self.label_conversion_to == "greenhouse" or self.label_conversion_to == "imo":
+        if self.label_conversion_to == "greenhouse":
             from .tools.label_conversions import id_camvid_to_greenhouse as label_conversion
             self.num_classes = 3
-        elif self.label_conversion_to == "sakaki":
+        elif self.label_conversion_to == "sakaki" or self.label_conversion_to == "imo":
             from .tools.label_conversions import id_camvid_to_sakaki as label_conversion
             self.num_classes = 5
         else:

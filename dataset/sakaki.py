@@ -1,7 +1,7 @@
 from collections import OrderedDict
 import os
 
-from dataset.base_dataset import BaseTargetDataset
+from dataset.base_dataset import BaseFiveClassTargetDataset
 
 SAKAKI_CLASS_LIST = ["plant", "vegetation,", "artificial", "ground", "sky", "background"]
 
@@ -26,7 +26,7 @@ color_palette = [
 ]
 
 
-class SakakiDataset(BaseTargetDataset):
+class SakakiDataset(BaseFiveClassTargetDataset):
     def __init__(
         self,
         list_name,
@@ -36,6 +36,7 @@ class SakakiDataset(BaseTargetDataset):
         is_hard_label=False,
         load_labels=True,
         max_iter=None,
+        is_three_class=False,
     ):
         """Initialize a dataset
 
@@ -74,6 +75,7 @@ class SakakiDataset(BaseTargetDataset):
             is_hard_label=is_hard_label,
             load_labels=load_labels,
             max_iter=max_iter,
+            is_three_class=is_three_class,
         )
 
         self.data_file = list_name
@@ -125,12 +127,3 @@ class SakakiDataset(BaseTargetDataset):
         if self.max_iter is not None and self.max_iter > len(self.images):
             self.images *= (self.max_iter // len(self.images))
             self.labels *= (self.max_iter // len(self.labels))
-
-    def label_preprocess(self, label_img):
-        """Pre-processing of the label
-        
-        """
-        #
-        # Segmentation label
-        #
-        return label_img

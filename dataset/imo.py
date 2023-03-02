@@ -1,23 +1,44 @@
 from collections import OrderedDict
 import os
 
-from dataset.base_dataset import BaseTargetDataset
+from dataset.base_dataset import BaseFiveClassTargetDataset
 
-IMO_CLASS_LIST = ["plant", "artificial", "ground", "other"]
+# IMO_CLASS_LIST = ["plant", "artificial", "ground", "other"]
+# 
+# color_encoding = OrderedDict(
+#     [
+#         ("plant", (0, 255, 255)),
+#         ("artificial_objects", (255, 0, 0)),
+#         ("ground", (255, 255, 0)),
+#         ("background", (0, 0, 0)),
+#     ]
+# )
+# 
+# color_palette = [0, 255, 255, 255, 0, 0, 255, 255, 0, 0, 0, 0]
+# 
+IMO_CLASS_LIST = ["plant", "vegetation,", "artificial", "ground", "sky", "background"]
 
 color_encoding = OrderedDict(
     [
         ("plant", (0, 255, 255)),
+        ("terrain", (152, 251, 152)),
         ("artificial_objects", (255, 0, 0)),
         ("ground", (255, 255, 0)),
+        ("sky", (70, 130, 180)),
         ("background", (0, 0, 0)),
     ]
 )
 
-color_palette = [0, 255, 255, 255, 0, 0, 255, 255, 0, 0, 0, 0]
+color_palette = [
+    0, 255, 255, 
+    152, 251, 152,
+    255, 0, 0, 
+    255, 255, 0, 
+    70, 130, 180,
+    0, 0, 0
+]
 
-
-class Imo(BaseTargetDataset):
+class Imo(BaseFiveClassTargetDataset):
     def __init__(
         self,
         list_name,
@@ -27,6 +48,7 @@ class Imo(BaseTargetDataset):
         is_hard_label=False,
         load_labels=True,
         max_iter=None,
+        is_three_class=False,
     ):
         """Initialize a dataset
 
@@ -65,6 +87,7 @@ class Imo(BaseTargetDataset):
             is_hard_label=is_hard_label,
             load_labels=load_labels,
             max_iter=max_iter,
+            is_three_class=is_three_class,
         )
 
         self.data_file = list_name
@@ -93,7 +116,9 @@ class Imo(BaseTargetDataset):
                 #
                 if self.load_labels:
                     if self.label_root:
-                        label_img_loc = os.path.join(self.label_root, line_split[1].rstrip())
+                        label_img_loc = os.path.join(
+                            self.label_root, 
+                            line_split[1].rstrip())
                     else:
                         label_img_loc = line_split[1].rstrip()
 
@@ -115,13 +140,3 @@ class Imo(BaseTargetDataset):
         if self.max_iter is not None and self.max_iter > len(self.images):
             self.images *= (self.max_iter // len(self.images))
             self.labels *= (self.max_iter // len(self.labels))
-
-
-    def label_preprocess(self, label_img):
-        """Pre-processing of the label
-        
-        """
-        #
-        # Segmentation label
-        #
-        return label_img

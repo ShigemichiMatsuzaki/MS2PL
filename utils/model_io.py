@@ -201,13 +201,6 @@ def import_model(
             and model_dict[k.replace("module.", "")].size() == v.size()
         }
 
-        # overlap_dict = {
-        #     k: v
-        #     for k, v in state_dict.items()
-        #     if k in model_dict and model_dict[k].size() == v.size()
-        # }
-        # print(overlap_dict.keys())
-
         # Just for debugging
         non_overlap_dict = {
             k.replace("module.", ""): v
@@ -231,6 +224,9 @@ def import_model(
 
         model_dict.update(overlap_dict)
         model.load_state_dict(model_dict)
+
+        print("{} % of paremteres are loaded.".format(
+            len(overlap_dict)/len(model_dict) * 100))
 
     model.to(device)
 

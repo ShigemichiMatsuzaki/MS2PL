@@ -314,7 +314,6 @@ def val(
             inter_meter.update(inter)
             union_meter.update(union)
 
-
             # Visualize features
             features, labels = assign_label_on_features(
                 feature,
@@ -322,7 +321,7 @@ def val(
                 label_type='object',
                 scale_factor=16,
                 ignore_index=args.ignore_index,
-                class_list=class_list, 
+                class_list=class_list,
             )
             feature_list += features
             label_list += labels
@@ -437,7 +436,6 @@ def val(
         metadata=labels,
         global_step=epoch,
     )
-
 
     return {"miou": avg_iou, "cls_loss": class_avg_loss, "ent_loss": ent_avg_loss}
 
@@ -619,7 +617,7 @@ def main():
     # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     print("=== Get optimizer ===")
     optimizer = get_optimizer(
-        optim_name=args.optim, 
+        optim_name=args.optim,
         model_name=args.model,
         model=model,
         lr=args.lr,
@@ -631,7 +629,7 @@ def main():
     # Scheduler: Gradually changes the learning rate
     #
     scheduler = get_scheduler(
-        scheduler_name=args.scheduler, 
+        scheduler_name=args.scheduler,
         optim_name=args.optim,
         optimizer=optimizer,
         epochs=args.epochs,

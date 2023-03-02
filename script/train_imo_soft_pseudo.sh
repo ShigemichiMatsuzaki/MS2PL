@@ -1,20 +1,21 @@
 MODEL=espnetv2
 SOURCE_MODEL=espnetv2
 RESUME_FROM="./pretrained_weights/espdnetue_2.0_480_best_camvid.pth"
-RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
+RESUME_FROM="./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_sakaki.pth"
+# RESUME_FROM=./pretrained_weights/espnetv2_camvid_cityscapes_forest_best_iou_norm.pth
 USE_OPTUNA=false
 # RESUME_FROM=""
-TARGET=greenhouse
+TARGET=imo
 if [ ${TARGET} = "greenhouse" ]; then
 IGNORE_INDEX=3
 TRAIN_LST=train_greenhouse_a.lst
 VAL_LST=val_greenhouse_a.lst
 TEST_LST=test_greenhouse_a.lst
 elif [ ${TARGET} = "imo" ]; then
-IGNORE_INDEX=3
+IGNORE_INDEX=5
 TRAIN_LST=train_imo_stabilized.lst
-VAL_LST=test_sakaki.lst
-TEST_LST=test_sakaki.lst
+VAL_LST=test_imo.lst
+TEST_LST=test_imo.lst
 elif [ ${TARGET} = "sakaki" ]; then
 IGNORE_INDEX=5
 TRAIN_LST=train_sakaki.lst
@@ -30,11 +31,12 @@ camvid_weight="./pretrained_weights/espdnetue_2.0_480_best_camvid.pth"
 cityscapes_weight="./pretrained_weights/espdnetue_2.0_512_best_city.pth"
 forest_weight="./pretrained_weights/espdnetue_2.0_480_best_forest.pth"
 
+EPOCH=200
 # Parameters
 conf_thresh=0.95
 entropy_loss_weight=1.0
 kld_loss_weight=0.21879
-label_update_epoch=200
+label_update_epoch=${EPOCH}
 label_weight_temp=3.536898
 optimizer_name=SGD
 scheduler_name=cyclic
@@ -61,7 +63,7 @@ python train_pseudo.py \
     --model ${MODEL} \
     --use-cosine true \
     --batch-size 64 \
-    --epoch 200 \
+    --epoch ${EPOCH} \
     --lr ${LEARNING_RATE} \
     --val-every-epochs 1 \
     --vis-every-vals 5 \

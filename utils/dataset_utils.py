@@ -327,7 +327,7 @@ def import_target_dataset(
     elif dataset_name == "imo":
         from dataset.imo import Imo, color_encoding, color_palette
         from dataset.imo import IMO_CLASS_LIST as class_list
-        num_classes = 3
+        num_classes = 5
         try:
             if mode == "train":
                 dataset_ret = Imo(

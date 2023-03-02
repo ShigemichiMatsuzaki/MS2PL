@@ -32,7 +32,7 @@ class MSDACLTrainer(object):
         self.pin_memory = args.pin_memory
         self.num_workers = args.num_workers
         self.target_name = args.target
-        self.num_classes = 5 if self.target_name == "sakaki" else 3
+        self.num_classes = 5 if self.target_name == "sakaki" or self.target_name == "imo" else 3
         self.model_name = args.model
         self.train_data_list_path = args.train_data_list_path
         self.val_data_list_path = args.val_data_list_path
@@ -53,7 +53,6 @@ class MSDACLTrainer(object):
         self.optimizers = []
         self.schedulers = []
 
-
         # Parameters
         self.lambda_col = 1.0
         self.lambda_seg_t = 0.1
@@ -71,7 +70,7 @@ class MSDACLTrainer(object):
 
         self.ignore_idx = args.ignore_index
         self.epochs_source = 20
-        self.epochs_target = 50
+        self.epochs_target = 100
         self.max_iter = self.epochs_target * 3000 / self.batch_size
 
         # Loss
@@ -175,7 +174,8 @@ class MSDACLTrainer(object):
                             self.writer.add_scalar(
                                 namespace + "/train/{}/loss".format(i),
                                 loss.item(),
-                                ep * len(self.source_train_loaders[i]) + iter_i,
+                                ep *
+                                len(self.source_train_loaders[i]) + iter_i,
                             )
 
                             if iter_i == 0:
@@ -209,6 +209,8 @@ class MSDACLTrainer(object):
         Parameters
         ----------
         """
+        print("Generate pseudo-labels")
+
         self._load_target_dataset(pseudo_only=True)
 
         for batch in self.target_pseudo_loader:
@@ -223,11 +225,11 @@ class MSDACLTrainer(object):
             P = F.softmax(P, dim=1)
             # Y = torch.argmax(P, dim=1)
             Y = class_balanced_pseudo_label_selection(
-                P, 
-                num_classes = self.num_classes, 
-                ignore_idx = self.ignore_idx, 
-                alpha = self.alpha, 
-                tau = self.tau
+                P,
+                num_classes=self.num_classes,
+                ignore_idx=self.ignore_idx,
+                alpha=self.alpha,
+                tau=self.tau
             )
 
             # Save the pseudo-labels
@@ -273,7 +275,7 @@ class MSDACLTrainer(object):
                         os.path.join(
                             self.save_path,
                             "pseudo_{}_{}_{}_best_iou.pth".format(
-                                self.model_name, 
+                                self.model_name,
                                 self.target_name,
                                 source,
                             ),
@@ -337,7 +339,8 @@ class MSDACLTrainer(object):
                             self.writer.add_scalar(
                                 namespace + "/train/{}/loss".format(i),
                                 loss.item(),
-                                ep * len(self.source_train_loaders[i]) + iter_i,
+                                ep *
+                                len(self.source_train_loaders[i]) + iter_i,
                             )
 
                             if iter_i == 0:
@@ -370,14 +373,16 @@ class MSDACLTrainer(object):
                                     self.writer,
                                     image_orig_t,
                                     ep,
-                                    namespace + "/train/{}/target/image".format(i)
+                                    namespace +
+                                    "/train/{}/target/image".format(i)
                                 )
 
                                 add_images_to_tensorboard(
                                     self.writer,
                                     label_t,
                                     ep,
-                                    namespace + "/train/{}/target/label".format(i),
+                                    namespace +
+                                    "/train/{}/target/label".format(i),
                                     is_label=True,
                                     color_encoding=self.color_encoding,
                                 )
@@ -385,7 +390,8 @@ class MSDACLTrainer(object):
                                     self.writer,
                                     amax_t,
                                     ep,
-                                    namespace + "/train/{}/target/pred".format(i),
+                                    namespace +
+                                    "/train/{}/target/pred".format(i),
                                     is_label=True,
                                     color_encoding=self.color_encoding,
                                 )
@@ -464,9 +470,9 @@ class MSDACLTrainer(object):
                 namespace = "MSDACL/target"
                 if visualize and i == 0 and self.writer is not None and self.color_encoding is not None:
                     add_images_to_tensorboard(
-                        self.writer, 
-                        image_orig, 
-                        epoch, 
+                        self.writer,
+                        image_orig,
+                        epoch,
                         namespace + "/val/image")
                     add_images_to_tensorboard(
                         self.writer,
@@ -489,10 +495,14 @@ class MSDACLTrainer(object):
         class_avg_loss = class_total_loss / len(self.target_val_loader)
         avg_iou = iou.mean()
 
-        self.writer.add_scalar(namespace + "/val/class_avg_loss", class_avg_loss, epoch)
+        self.writer.add_scalar(
+            namespace + "/val/class_avg_loss", 
+            class_avg_loss, 
+            epoch
+        )
         self.writer.add_scalar(namespace + "/val/miou", avg_iou, epoch)
 
-        # Set model mode back 
+        # Set model mode back
         for model in self.models:
             model.train()
 
@@ -524,7 +534,7 @@ class MSDACLTrainer(object):
                 os.path.join(
                     self.save_path,
                     "pseudo_{}_{}_{}_best_iou.pth".format(
-                        self.model_name, 
+                        self.model_name,
                         self.target_name,
                         source,
                     ),
@@ -583,7 +593,7 @@ class MSDACLTrainer(object):
                 )
 
         iou = inter_meter.sum / (union_meter.sum + 1e-10)
-        class_avg_loss = class_total_loss / len(self.val_loader)
+        class_avg_loss = class_total_loss / len(self.target_val_loader)
         avg_iou = iou.mean()
 
         # Logging
@@ -621,9 +631,9 @@ class MSDACLTrainer(object):
         self._load_optimizers(
             max_epochs=self.epochs_source)
 
-        if self.target_name == "greenhouse" or self.target_name == "imo":
+        if self.target_name == "greenhouse":
             from dataset.greenhouse import color_encoding
-        elif self.target_name == "sakaki":
+        elif self.target_name == "sakaki" or self.target_name == "imo":
             from dataset.sakaki import color_encoding
         else:
             raise ValueError
@@ -632,7 +642,8 @@ class MSDACLTrainer(object):
 
     def _load_source_datasets(self,):
         """_summary_"""
-        self.source_dataset_name_list = self.args.source_dataset_names.split(",")
+        self.source_dataset_name_list = self.args.source_dataset_names.split(
+            ",")
 
         #
         # Import source datasets
@@ -686,6 +697,8 @@ class MSDACLTrainer(object):
                 mode="pseudo",
                 data_list_path=self.train_data_list_path,
                 pseudo_label_dir=self.pseudo_save_path,
+                is_hard=True,
+                load_labels=not pseudo_only,
             )
 
             if not pseudo_only:
@@ -797,11 +810,13 @@ class MSDACLTrainer(object):
     def _load_models(self) -> None:
         """Load models"""
         source_model_name_list = self.args.source_model_names.split(",")
-        for model_name in source_model_name_list:
+        source_weight_name_list = self.args.source_weight_names.split(",")
+        for model_name, weight_name in zip(source_model_name_list, source_weight_name_list):
             model = import_model(
                 model_name=model_name,
                 num_classes=self.num_classes,
-                weights=self.resume_from if self.resume_from else None,
+                # weights=self.resume_from if self.resume_from else None,
+                weights=weight_name,
                 aux_loss=True,
                 pretrained=False,
                 device=self.device,

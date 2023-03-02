@@ -46,3 +46,5 @@ RUN pip3 install -U \
     matplotlib \
     "opencv-python-headless<4.3" \
     --ignore-installed
+
+RUN pip3 install tensorboard --upgrade

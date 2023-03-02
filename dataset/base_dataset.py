@@ -301,3 +301,78 @@ class BaseTargetDataset(data.Dataset):
             "label_path": self.labels[index],
             "name": self.images[index].rsplit("/", 1)[1],
         }
+
+class BaseFiveClassTargetDataset(BaseTargetDataset):
+    def __init__(
+        self,
+        label_root="",
+        mode="train",
+        size=(256, 480),
+        scale=(0.70, 1.0),
+        is_hard_label=False,
+        load_labels=True,
+        transform=None,
+        max_iter=None,
+        is_three_class=False,
+    ):
+        """Base class of dataset
+
+        Parameter
+        ---------
+        root : str
+            Root directory of datasets
+        mode : str
+            Mode of the dataset ['train', 'val', 'test']
+        ignore_idx : int
+            Label index for the pixels ignored in training
+        transform : albumentations
+
+        """
+        super().__init__(
+            label_root=label_root,
+            mode=mode,
+            size=size,
+            is_hard_label=is_hard_label,
+            load_labels=load_labels,
+            max_iter=max_iter,
+        )
+        self.is_three_class = is_three_class
+
+    def label_conversion_to_three(self, label_img: Image) -> Image:
+        """Convert five-class label to three-class label
+
+        Parameters
+        ----------
+        label_img : `PIL.Image`
+            Label image
+
+        Returns
+        -------
+        `PIL.Image`
+            Converted label
+        """
+        label_np = np.array(
+            label_img, np.uint8)
+
+        # Label conversion
+        label_conv = np.array([
+            0, 0, 1, 2, 3, 3
+        ], type=np.uint8)
+
+        label_np = label_conv[label_np]
+
+        label_img = Image.fromarray(label_np)
+
+        return label_img
+
+    def label_preprocess(self, label_img):
+        """Pre-processing of the label
+        
+        """
+        #
+        # Segmentation label
+        #
+        if self.is_three_class:
+            label_img = self.label_conversion_to_three(label_img)
+
+        return label_img

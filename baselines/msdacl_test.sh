@@ -44,6 +44,7 @@ python train_msdacl.py \
     --batch-size 40 \
     --epoch 30 \
     --lr 0.009 \
+    --is-hard true \
     --save-path /tmp/runs/domain_gap/ \
     --optim ${optimizer_name} \
     --scheduler ${scheduler_name} \

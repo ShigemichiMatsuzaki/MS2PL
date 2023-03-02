@@ -22,12 +22,6 @@ class TrainBaseOptions(BaseOptions):
         )
 
         self.parser.add_argument(
-            "--resume-from",
-            type=str,
-            default="",
-            help="Weights to resume the training from",
-        )
-        self.parser.add_argument(
             "--resume-epoch",
             type=int,
             default=0,
@@ -83,12 +77,6 @@ class TrainBaseOptions(BaseOptions):
         )
 
         # Parameters related to cosine-based softmax
-        self.parser.add_argument(
-            '--use-cosine',
-            default=False,
-            type=strtobool,
-            help='True to use cosine-based loss (ArcFace). Valid only when "model"=="espnetv2"'
-        )
         self.parser.add_argument(
             '--cos-margin',
             default=0.1,
