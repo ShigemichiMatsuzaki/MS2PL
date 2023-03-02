@@ -1,6 +1,3 @@
 [submodule "models/edgenets"]
 	path = models/edgenets
 	url = git@github.com:ShigemichiMatsuzaki/EdgeNets.git
-[submodule "loss_fns/seg_loss"]
-	path = loss_fns/seg_loss
-	url = git@github.com:JunMa11/SegLoss.git
