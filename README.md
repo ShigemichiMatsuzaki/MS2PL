@@ -1,4 +1,4 @@
-# Multi-Source Soft Pseudo-Label Learning
+# Multi-Source Soft Pseudo-Label Learning with Domain Similarity-based Weighting for Semantic Segmentation
 
 ## Overview
 Domain adaptive training for semantic segmentation network using multiple source datasets.
@@ -49,3 +49,5 @@ make train-greenhouse-pseudo-soft # Using soft pseudo-labels
 make train-greenhouse-pseudo-hard # Using hard pseudo-labels
 ```
 To change parameters, modify `scripts/train_greenhouse_soft_pseudo.sh` / `scripts/train_greenhouse_hard_pseudo.sh`.
+
+## Acknowledgements
