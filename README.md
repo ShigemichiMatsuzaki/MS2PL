@@ -50,4 +50,14 @@ make train-greenhouse-pseudo-hard # Using hard pseudo-labels
 ```
 To change parameters, modify `scripts/train_greenhouse_soft_pseudo.sh` / `scripts/train_greenhouse_hard_pseudo.sh`.
 
-## Acknowledgements
+## Publication
+
+```
+@report{
+  author  = {Matsuzaki, Shigemichi and Masuzawa, Hiroaki and Miura, Jun},
+  arxivid = {2303.00979},
+  title   = {{Multi-Source Soft Pseudo-Label Learning with Domain Similarity-based Weighting for Semantic Segmentation}},
+  url     = {http://arxiv.org/abs/2303.00979},
+  year    = {2023}
+}
+```
