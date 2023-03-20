@@ -1,3 +1,4 @@
+import copy
 import random
 import datetime
 import logging
@@ -55,6 +56,9 @@ class PseudoTrainer(object):
         self.params.epochs = args.epochs
         self.params.is_hard = args.is_hard
         self.params.use_kld_class_loss = args.use_kld_class_loss
+        self.params.is_sce_loss = args.is_sce_loss
+        self.params.sce_alpha = args.sce_alpha
+        self.params.sce_beta = args.sce_beta
         self.params.label_weight_temperature = args.label_weight_temperature
         self.params.use_label_ent_weight = args.use_label_ent_weight
         self.params.kld_loss_weight = args.kld_loss_weight
@@ -74,8 +78,9 @@ class PseudoTrainer(object):
         self.params.scheduler_name = args.scheduler
         # Pseudo-label
         self.params.label_normalize = "softmax" if args.is_softmax_normalize else "L1"
-        self.params.is_per_pixel = args.is_per_pixel
-        self.params.is_per_sample = args.is_per_sample
+        # self.params.is_per_pixel = args.is_per_pixel
+        # self.params.is_per_sample = args.is_per_sample
+        self.params.domain_gap_type = args.domain_gap_type
 
         self.rand_seed = args.rand_seed
         self.resume_from = args.resume_from
@@ -86,39 +91,61 @@ class PseudoTrainer(object):
         self.pin_memory = args.pin_memory
         self.num_workers = args.num_workers
         self.target_name = args.target
-        self.num_classes = 5 if self.target_name == "sakaki" else 3
+        self.num_classes = None
+        # self.num_classes = 5 if self.target_name == "sakaki" or self.target_name == "imo" else 3
         self.model_name = args.model
         self.resume_epoch = args.resume_epoch
         self.train_data_list_path = args.train_data_list_path
         self.val_data_list_path = args.val_data_list_path
         self.test_data_list_path = args.test_data_list_path
-        self.pseudo_label_dir = args.pseudo_label_dir
         self.is_old_label = args.is_old_label
         self.val_every_epochs = args.val_every_epochs
         self.vis_every_vals = args.vis_every_vals
         self.save_path_root = args.save_path
         self.class_wts_type = args.class_wts_type
 
+        self.initial_pseudo_label_path = args.initial_pseudo_label_path
+
+        self.prototype_init_epoch = args.prototype_init_epoch
+        self.use_prototype_soft_label_weight = args.use_prototype_soft_label_weight
+
+        #
+        # Tensorboard writer
+        #
         now = datetime.datetime.now() + datetime.timedelta(hours=9)
         condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
-        self.optuna_storage_name = condition + "_" + self.model_name
+        source_model_name_list = self.args.source_dataset_names.split(",")
+        source_name = source_model_name_list[0]
+        for s_name in source_model_name_list[1:]:
+            source_name += "_" + s_name
+        self.save_path = os.path.join(
+            self.save_path_root,
+            self.target_name,
+            condition,
+            source_name,
+            # self.model_name,
+            now.strftime("%Y%m%d-%H%M%S")
+        )
+        self.pseudo_save_path = os.path.join(self.save_path, "pseudo_labels")
+        # If the directory not found, create it
+        if not os.path.isdir(self.save_path):
+            os.makedirs(self.save_path)
+            os.makedirs(self.pseudo_save_path)
 
+        if not os.path.isdir(self.initial_pseudo_label_path):
+            os.makedirs(self.initial_pseudo_label_path)
+
+        self.optuna_storage_name = condition + "_" + self.model_name
         if args.optuna_resume_from:
             self.optuna_study_name = args.optuna_resume_from
         else:
             self.optuna_study_name = condition + "_" + \
                 self.model_name + "_" + now.strftime("%Y%m%d-%H%M%S")
 
-        self.args.pseudo_label_save_path = os.path.join(
-            self.args.pseudo_label_save_path, self.args.target
-        )
-        if not os.path.isdir(self.args.pseudo_label_save_path):
-            os.makedirs(self.args.pseudo_label_save_path)
+        self.prototypes = None
 
     def generate_pseudo_labels(self,) -> None:
-        """Generate pseudo-labels
-
-        """
+        """Generate pseudo-labels"""
         #
         # Generate pseudo-labels
         #
@@ -168,38 +195,30 @@ class PseudoTrainer(object):
             source_model_list.append(os_model)
             dg_model_list.append(os_model_dg)
 
-        if self.args.target == "greenhouse":
-            num_classes = 3
-        elif self.args.target == "imo":
-            num_classes = 3
-        elif self.args.target == "sakaki":
-            num_classes = 5
-        elif self.args.target == "oxfordrobot":
-            num_classes = 19
-        else:
-            print("Target {} is not supported.".format(self.args.target))
-            raise ValueError
-
-        # pseudo_loader = torch.utils.data.DataLoader(
-        #     pseudo_dataset,
-        #     batch_size=self.args.batch_size,
-        #     shuffle=False,
-        #     pin_memory=self.args.pin_memory,
-        #     num_workers=self.args.num_workers,
-        # )
+        # if self.args.target == "greenhouse":
+        #     num_classes = 3
+        # elif self.args.target == "imo":
+        #     num_classes = 5
+        # elif self.args.target == "sakaki":
+        #     num_classes = 5
+        # elif self.args.target == "oxfordrobot":
+        #     num_classes = 19
+        # else:
+        #     print("Target {} is not supported.".format(self.args.target))
+        #     raise ValueError
 
         #
         # Generate pseudo-labels
         #
-        if self.args.is_hard:
+        if self.params.is_hard:
             class_wts = generate_pseudo_label_multi_model(
                 model_list=source_model_list,
                 source_dataset_name_list=source_dataset_name_list,
                 target_dataset_name=self.args.target,
                 data_loader=self.pseudo_loader,
-                num_classes=num_classes,
+                num_classes=self.num_classes,
                 device=self.args.device,
-                save_path=self.args.pseudo_label_save_path,
+                save_path=self.initial_pseudo_label_path,
                 min_portion=self.args.sp_label_min_portion,
                 ignore_index=self.args.ignore_index,
             )
@@ -210,21 +229,18 @@ class PseudoTrainer(object):
                 source_dataset_name_list=source_dataset_name_list,
                 target_dataset_name=self.args.target,
                 data_loader=self.pseudo_loader,
-                num_classes=num_classes,
-                save_path=self.args.pseudo_label_save_path,
+                num_classes=self.num_classes,
+                save_path=self.initial_pseudo_label_path,
                 device=self.args.device,
-                use_domain_gap=self.args.use_domain_gap,
                 label_normalize=self.params.label_normalize,
-                is_per_pixel=self.params.is_per_pixel,
-                is_per_sample=self.params.is_per_sample,
+                domain_gap_type=self.params.domain_gap_type,
                 ignore_index=self.args.ignore_index,
             )
 
-        # class_wts = torch.Tensor(class_wts)
         filename = "class_weights_{}.pt".format(
-            "hard" if self.args.is_hard else "soft")
+            "hard" if self.params.is_hard else "soft")
         torch.save(class_wts, os.path.join(
-            self.args.pseudo_label_save_path, filename))
+            self.initial_pseudo_label_path, filename))
 
         # Free models for pseudo-label generation
         for m in source_model_list:
@@ -281,13 +297,34 @@ class PseudoTrainer(object):
                 kld_loss_value = self.kld_loss(
                     output_aux_logprob, output_main_prob).sum(dim=1)
 
+                # Prototype-based rectification of label
+                if self.prototypes is not None and self.params.use_prototype_denoising and not self.params.is_hard:  # update prototype
+                    with torch.no_grad():
+                        if self.use_cosine:
+                            ema_output = self.model_ema(
+                                image, label.argmax(dim=1))
+                        else:
+                            ema_output = self.model_ema(image,)
+
+                    # Class-wise weights based on the distance to the prototype of each class
+                    weights = self.prototypes.get_prototype_weight(
+                        ema_output["feat"].detach()).to(self.device)
+
+                    # Rectified output probability
+                    rectified_prob = weights * label
+                    # Normalize the rectified values as probabilities
+                    label_rect = rectified_prob / \
+                        rectified_prob.sum(1, keepdim=True)
+                else:
+                    label_rect = copy.deepcopy(label)
+
                 # Weight by KLD between main and aux, and label entropy
                 if not self.params.is_hard and self.params.use_label_ent_weight:
-                    label_ent = self.entropy(label)
+                    label_ent = self.entropy(label_rect)
 
                     kld_weight = torch.exp(-kld_loss_value.detach())
-                    label_ent_weight = torch.exp(-label_ent.detach()
-                                                 * self.params.label_weight_temperature)
+                    label_ent_weight = torch.exp(
+                        -label_ent.detach() * self.params.label_weight_temperature)
                     # label_ent_weight[label_ent_weight < args.label_weight_threshold] = 0.0
                     u_weight = kld_weight * label_ent_weight
                 else:
@@ -296,7 +333,7 @@ class PseudoTrainer(object):
                 # Classification loss
                 seg_loss_value = self.seg_loss(
                     output_total,
-                    label,
+                    label_rect,
                     u_weight=u_weight,
                 )
                 # Entropy loss
@@ -310,6 +347,24 @@ class PseudoTrainer(object):
                 self.optimizer.step()
                 self.optimizer.zero_grad()
 
+                # Update prototype and model_ema
+                if self.prototypes is not None and self.params.use_prototype_denoising and not self.params.is_hard:  # update prototype
+                    output_total_ema = ema_output['out'] + \
+                        0.5 * ema_output['aux']
+                    ema_vectors, ema_ids = self.prototypes.calculate_mean_vector(
+                        ema_output['feat'].detach(), output_total_ema.detach())
+
+                    for t in range(len(ema_ids)):
+                        self.prototypes.update_objective_SingleVector(
+                            ema_ids[t], ema_vectors[t].detach(), start_mean=False)
+
+                # Update EMA model
+                p = 0.9
+                for param_q, param_k in zip(self.model.parameters(), self.model_ema.parameters()):
+                    param_k.data = param_k.data.clone() * p + param_q.data.clone() * (1. - p)
+                for buffer_q, buffer_k in zip(self.model.buffers(), self.model_ema.buffers()):
+                    buffer_k.data = buffer_q.data.clone()
+
                 # Update tqdm
                 pbar_loader.set_postfix(
                     cls="{:.4f}".format(seg_loss_value.item()),
@@ -319,7 +374,9 @@ class PseudoTrainer(object):
 
                 if self.writer is not None:
                     self.writer.add_scalar(
-                        "train/cls_loss", seg_loss_value.item(), epoch * len(self.train_loader) + i
+                        "train/cls_loss",
+                        seg_loss_value.item(),
+                        epoch * len(self.train_loader) + i
                     )
                     self.writer.add_scalar(
                         "train/ent_loss",
@@ -346,6 +403,17 @@ class PseudoTrainer(object):
                             is_label=True,
                             color_encoding=self.color_encoding,
                         )
+                        if self.params.use_prototype_denoising and not self.params.is_hard:
+                            label_rect = torch.argmax(label_rect, dim=1)
+                            add_images_to_tensorboard(
+                                self.writer,
+                                label_rect,
+                                epoch,
+                                "train/label_rect",
+                                is_label=True,
+                                color_encoding=self.color_encoding,
+                            )
+
                         add_images_to_tensorboard(
                             self.writer,
                             amax,
@@ -419,19 +487,21 @@ class PseudoTrainer(object):
         # Import datasets
         #
         try:
-            self.dataset_pseudo, _, _, _, _ = import_target_dataset(
+            self.dataset_pseudo, self.num_classes, _, _, _ = import_target_dataset(
                 dataset_name=self.target_name,
                 mode="pseudo",
                 data_list_path=self.train_data_list_path,
-                pseudo_label_dir=self.pseudo_label_dir,
+                pseudo_label_dir=self.initial_pseudo_label_path,
+                is_hard=self.params.is_hard,
+                load_labels=not pseudo_only,
             )
 
             if not pseudo_only:
-                self.dataset_train, self.num_classes, self.color_encoding, self.color_palette, self.class_list = import_target_dataset(
+                self.dataset_train, _, self.color_encoding, self.color_palette, self.class_list = import_target_dataset(
                     dataset_name=self.target_name,
                     mode="train",
                     data_list_path=self.train_data_list_path,
-                    pseudo_label_dir=self.pseudo_label_dir,
+                    pseudo_label_dir=self.initial_pseudo_label_path,
                     is_hard=self.params.is_hard,
                     is_old_label=self.is_old_label,
                 )
@@ -492,19 +562,6 @@ class PseudoTrainer(object):
                 num_workers=self.num_workers,
             )
 
-#        # Class list used in embedding visualization
-#        if self.target_name == "greenhouse":
-#            from dataset.greenhouse import GREENHOUSE_CLASS_LIST as CLASS_LIST
-#        elif self.target_name == "sakaki":
-#            from dataset.sakaki import SAKAKI_CLASS_LIST as CLASS_LIST
-#        elif self.target_name == "imo":
-#            from dataset.imo import IMO_CLASS_LIST as CLASS_LIST
-#        else:
-#            print("Invalid target type {}".format(self.target_name))
-#            raise ValueError
-#
-#        self.class_list = CLASS_LIST
-
     def init_training(self, trial=None):
         """Initialize model, optimizer, and scheduler for one training process
 
@@ -535,6 +592,8 @@ class PseudoTrainer(object):
             device=self.device,
             use_cosine=self.use_cosine,
         )
+
+        self.model_ema = copy.deepcopy(self.model)
 
         #
         # Optimizer: Updates
@@ -575,7 +634,7 @@ class PseudoTrainer(object):
             try:
                 self.class_wts = torch.load(
                     os.path.join(
-                        self.pseudo_label_dir,
+                        self.initial_pseudo_label_path,
                         "class_weights_" +
                         ("hard" if self.params.is_hard else "soft") + ".pt",
                     )
@@ -584,7 +643,7 @@ class PseudoTrainer(object):
                 print(
                     "Class weight '{}' not found".format(
                         os.path.join(
-                            self.pseudo_label_dir,
+                            self.initial_pseudo_label_path,
                             "class_weights_" +
                             ("hard" if self.params.is_hard else "soft") + ".pt",
                         )
@@ -612,29 +671,14 @@ class PseudoTrainer(object):
             reduction="mean",
             is_hard=self.params.is_hard,
             is_kld=self.params.use_kld_class_loss,
+            is_sce=self.params.is_sce_loss,
+            alpha=self.params.sce_alpha,
+            beta=self.params.sce_beta,
         )
         # For estimating pixel-wise uncertainty
         # (KLD between main and aux branches)
         self.kld_loss = torch.nn.KLDivLoss(reduction="none")
         self.entropy = Entropy(num_classes=self.num_classes)
-
-        #
-        # Tensorboard writer
-        #
-        now = datetime.datetime.now() + datetime.timedelta(hours=9)
-        condition = "pseudo_" + ("hard" if self.params.is_hard else "soft")
-        self.save_path = os.path.join(
-            self.save_path_root,
-            self.target_name,
-            condition,
-            self.model_name,
-            now.strftime("%Y%m%d-%H%M%S")
-        )
-        self.pseudo_save_path = os.path.join(self.save_path, "pseudo_labels")
-        # If the directory not found, create it
-        if not os.path.isdir(self.save_path):
-            os.makedirs(self.save_path)
-            os.makedirs(self.pseudo_save_path)
 
         # SummaryWriter for Tensorboard
         if trial is None:  # If not optuna
@@ -767,13 +811,12 @@ class PseudoTrainer(object):
                 global_step=epoch,
             )
 
-        return {
-            "miou": avg_iou,
-            "plant_iou": iou[0],
-            "artificial_iou": iou[1],
-            "ground_iou": iou[2],
-            "cls_loss": class_avg_loss,
-        }
+        # Logging
+        metrics = {self.class_list[i]: iou[i] for i in range(iou.shape[0])}
+        metrics["miou"] = avg_iou
+        metrics["cls_loss"] = class_avg_loss
+
+        return metrics
 
     def test(self,):
         """Validation
@@ -879,6 +922,15 @@ class PseudoTrainer(object):
         best_miou = 0.0
         label_update_times = 0
         for ep in range(self.resume_epoch, self.params.epochs):
+            if self.params.use_prototype_denoising and ep == self.prototype_init_epoch:
+                self.prototypes = calc_prototype(
+                    self.model,
+                    self.dataset_pseudo,
+                    self.num_classes,
+                    self.device,
+                    use_soft_label_weight=self.use_prototype_soft_label_weight,
+                )
+
             # Save the model every hundred epoch
             if ep % 100 == 0 and ep != 0:
                 torch.save(
@@ -896,8 +948,10 @@ class PseudoTrainer(object):
             #
             if ep % self.val_every_epochs == 0:
                 num_val = ep // self.val_every_epochs
-                metrics = self.val(epoch=ep, visualize=(
-                    num_val % self.vis_every_vals == 0))
+                metrics = self.val(
+                    epoch=ep,
+                    visualize=(num_val % self.vis_every_vals == 0)
+                )
 
                 # Optuna
                 if trial is not None:
@@ -915,7 +969,7 @@ class PseudoTrainer(object):
                     write_header=(ep == 0)
                 )
 
-                if best_miou < metrics["miou"]:
+                if ep > 10 and best_miou < metrics["miou"]:
                     best_miou = metrics["miou"]
 
                     torch.save(
@@ -933,10 +987,10 @@ class PseudoTrainer(object):
                 self.params.use_label_ent_weight = False
 
                 # Prototype-based denoising
-                prototypes = None
-                if self.params.use_prototype_denoising:
-                    prototypes = calc_prototype(
-                        self.model, self.dataset_pseudo, self.num_classes, self.device)
+                # prototypes = None
+                # if self.params.use_prototype_denoising:
+                #     prototypes = calc_prototype(
+                #         self.model, self.dataset_pseudo, self.num_classes, self.device)
 
                 self.class_wts, label_path_list = generate_pseudo_label(
                     model=self.model,
@@ -944,7 +998,7 @@ class PseudoTrainer(object):
                     num_classes=self.num_classes,
                     ignore_index=self.ignore_index,
                     save_path=self.pseudo_save_path,
-                    prototypes=prototypes,
+                    prototypes=self.prototypes,
                     proto_rect_thresh=self.params.conf_thresh[label_update_times],
                     min_portion=self.params.sp_label_min_portion,
                 )
@@ -956,18 +1010,10 @@ class PseudoTrainer(object):
                 self.params.is_hard = self.seg_loss.is_hard = True
                 self.seg_loss.is_kld = False
 
-                #from dataset.greenhouse import GreenhouseRGBD, color_encoding
-                # dataset_train = GreenhouseRGBD(
-                #    list_name=self.train_data_list_path,
-                #    mode="train",
-                #    is_hard_label=self.params.is_hard,
-                #    load_labels=False,
-                # )
                 self.dataset_train, self.num_classes, self.color_encoding, _, _ = import_target_dataset(
                     dataset_name=self.target_name,
                     mode="train",
                     data_list_path=self.train_data_list_path,
-                    # pseudo_label_dir=self.pseudo_label_dir,
                     pseudo_label_dir=self.pseudo_save_path,
                     is_hard=self.params.is_hard,
                     is_old_label=self.is_old_label,
@@ -982,6 +1028,18 @@ class PseudoTrainer(object):
                     pin_memory=self.pin_memory,
                     num_workers=self.num_workers,
                     drop_last=True,
+                )
+
+                #
+                # Optimizer: Updates
+                #
+                self.optimizer = get_optimizer(
+                    optim_name=self.params.optimizer_name,
+                    model_name=self.model_name,
+                    model=self.model,
+                    lr=self.params.lr * 0.1,
+                    weight_decay=self.params.weight_decay,
+                    momentum=self.params.momentum,
                 )
 
             self.writer.add_scalar(
@@ -1026,10 +1084,14 @@ class PseudoTrainer(object):
         #
         self.params.label_normalize = trial.suggest_categorical(
             'label_normalize', ["softmax", "L1"])
-        self.params.is_per_pixel = trial.suggest_categorical(
-            'is_per_pixel', [True, False])
-        self.params.is_per_sample = trial.suggest_categorical(
-            'is_per_sample', [True, False])
+        # self.params.is_per_pixel = trial.suggest_categorical(
+        #     'is_per_pixel', [True, False])
+        # self.params.is_per_sample = trial.suggest_categorical(
+        #     'is_per_sample', [True, False])
+        self.params.domain_gap_type = trial.suggest_categorical(
+            'domain_gap_type',
+            ["per_dataset", "per_sample", "per_pixel"],
+        )
 
         #
         # Training

@@ -1,13 +1,23 @@
 version: "2.3"
-
 services:
   tensorboard:
     container_name: tensorboard-domain-gap
-    image: nvcr.io/nvidia/pytorch:20.03-py3
-    entrypoint: tensorboard --logdir /tmp/runs
+    image: nvcr.io/nvidia/pytorch:22.11-py3
+    entrypoint: tensorboard --logdir /tmp/runs --bind_all
     build: .
     ports:
       - 60009:6006
     mem_limit: 15g
     volumes:
-      - /data/aisl/matsuzaki/runs/domain_gap/greenhouse/:/tmp/runs/
+      - /data/aisl/matsuzaki/runs/domain_gap/:/tmp/runs/
+
+  tensorboard-exp:
+    container_name: tensorboard-domain-gap-exp
+    image: nvcr.io/nvidia/pytorch:20.03-py3
+    entrypoint: tensorboard --logdir /tmp/runs --bind_all
+    build: .
+    ports:
+      - 60009:6006
+    mem_limit: 30g
+    volumes:
+      - /data/aisl/matsuzaki/runs/domain_gap/exp/:/tmp/runs/

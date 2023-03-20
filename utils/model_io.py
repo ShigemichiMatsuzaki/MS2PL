@@ -9,8 +9,8 @@ class Arguments(object):
 
 
 def make_argument_for_espnetv2(
-    num_classes: int, 
-    channels: int = 3, 
+    num_classes: int,
+    channels: int = 3,
     s: float = 2.0,
     use_cosine: bool = False,
     cos_margin: float = 0.1,
@@ -43,11 +43,12 @@ def make_argument_for_espnetv2(
 
 
 def import_espnetv2(
-    num_classes: int, 
+    num_classes: int,
     use_cosine: bool = False,
     cos_margin: float = 0.1,
     cos_logit_scale: float = 30.0,
     is_easy_margin: bool = False,
+    use_traversability: bool = False,
 ) -> torch.nn.Module:
     """Wrapper for code to import ESPNetv2
 
@@ -63,7 +64,6 @@ def import_espnetv2(
     model: `torch.nn.Module`
         Model
     """
-    from models.edgenets.model.segmentation.espnetv2 import ESPNetv2Segmentation
 
     args = make_argument_for_espnetv2(
         num_classes,
@@ -72,10 +72,19 @@ def import_espnetv2(
         cos_logit_scale=cos_logit_scale,
         is_easy_margin=is_easy_margin,
     )
-    model = ESPNetv2Segmentation(
-        args,
-        classes=num_classes,
-    )
+    if use_traversability:
+        from models.esptnet import ESPTNet
+        model = ESPTNet(
+            args,
+            classes=num_classes,
+            spatial=False,
+        )
+    else:
+        from models.edgenets.model.segmentation.espnetv2 import ESPNetv2Segmentation
+        model = ESPNetv2Segmentation(
+            args,
+            classes=num_classes,
+        )
 
     # Load ImageNet pretrained encoder
     weights = "/root/training/models/edgenets/model/classification/model_zoo/espnetv2/espnetv2_s_2.0_imagenet_224x224.pth"
@@ -92,7 +101,6 @@ def import_espnetv2(
     basenet_dict = model.base_net.state_dict()
     overlap_dict = {k: v for k, v in pretrained_dict.items()
                     if k in basenet_dict}
-
 
     if len(overlap_dict) == 0:
         print("No overlapping elements")
@@ -162,9 +170,16 @@ def import_model(
         )
     elif model_name == "espnetv2":
         model = import_espnetv2(
-            num_classes=num_classes, 
+            num_classes=num_classes,
             use_cosine=use_cosine,
         )
+    elif model_name == "esptnet":
+        model = import_espnetv2(
+            num_classes=num_classes,
+            use_cosine=use_cosine,
+            use_traversability=True,
+        )
+
     elif model_name == "unet":
         from models.unet.unet import UNet
 
@@ -185,13 +200,6 @@ def import_model(
             if k.replace("module.", "") in model_dict
             and model_dict[k.replace("module.", "")].size() == v.size()
         }
-
-        # overlap_dict = {
-        #     k: v
-        #     for k, v in state_dict.items()
-        #     if k in model_dict and model_dict[k].size() == v.size()
-        # }
-        # print(overlap_dict.keys())
 
         # Just for debugging
         non_overlap_dict = {
@@ -216,6 +224,9 @@ def import_model(
 
         model_dict.update(overlap_dict)
         model.load_state_dict(model_dict)
+
+        print("{} % of paremteres are loaded.".format(
+            len(overlap_dict)/len(model_dict) * 100))
 
     model.to(device)
 

@@ -1,8 +1,16 @@
-import torch
+import os
 
+import torch
+import torch.nn.functional as F
+import numpy as np
+import cv2
 from options.pseudo_label_options import PseudoLabelOptions
-from domain_gap_evaluator.domain_gap_evaluator import calculate_domain_gap
+# from domain_gap_evaluator.domain_gap_evaluator import calculate_domain_gap
+from domain_gap_evaluator.domain_gap_evaluator import calculate_domain_gap, calc_norm_ent
 from utils.model_io import import_model
+import matplotlib.pyplot as plt
+
+from tqdm import tqdm
 
 
 def main():
@@ -43,12 +51,19 @@ def main():
         )
         source_model_list.append(os_model)
 
-    if args.target == "greenhouse":
+    if args.target == "greenhouse" or args.target == "imo":
         from dataset.greenhouse import GreenhouseRGBD, color_encoding
 
         target_dataset = GreenhouseRGBD(
             list_name=args.target_data_list, mode="val", load_labels=False
         )
+    elif args.target == "sakaki":
+        from dataset.sakaki import SakakiDataset, color_encoding
+
+        target_dataset = SakakiDataset(
+            list_name=args.target_data_list, mode="val", load_labels=False
+        )
+
     elif args.target == "cityscapes":
         from dataset.cityscapes import CityscapesSegmentation
 
@@ -79,11 +94,81 @@ def main():
         num_workers=args.num_workers,
     )
 
-    domain_gap_list = calculate_domain_gap(
-        source_model_list, target_loader, args.device
-    )["domain_gap_list"]
+    for i, batch in enumerate(target_loader):
+        image = batch["image"].to('cuda')
+        print(batch['name'])
+        name = batch["name"]
 
-    print(domain_gap_list)
+        with torch.no_grad():
+            weight_list = []
+            for model in source_model_list:
+                output_tmp = model(image)
+                output = output_tmp["out"] + 0.5 * output_tmp["aux"]
+                output_target = F.softmax(output, dim=1)
+                domain_gap_w = calc_norm_ent(
+                    output_target,
+                    reduction="per_sample",
+                )["ent"]
+
+                weight_list.append(1 / domain_gap_w.cpu().item())
+
+            weight_list = np.array(weight_list)
+            weight_list /= weight_list.sum()
+
+            plt.cla()
+            show_image = False
+            if show_image:
+                fig, ax = plt.subplots(
+                    1, 2, gridspec_kw={'width_ratios': [3, 2]})
+                fig.tight_layout()
+
+                # Show image
+                img_cv = batch["image_orig"][0].permute(1, 2, 0).numpy()
+                img_cv = cv2.resize(
+                    img_cv,
+                    dsize=(img_cv.shape[1] * 2, img_cv.shape[0] * 2),
+                    interpolation=cv2.INTER_CUBIC
+                )
+                ax[0].imshow(img_cv,)
+
+                # Show chart
+                # plt.subplot(122)
+                ax[1].set_title("Domain similarity")
+                ax[1].set_ylim([0.0, 0.55])
+                ax[1].bar(
+                    source_dataset_name_list,
+                    weight_list,
+                    color=['tab:orange', 'tab:blue', 'tab:green'],
+                )
+                fig.savefig(
+                    os.path.join(
+                        args.save_path,
+                        name[0].replace(".png", "_gap.png")
+                    )
+                )
+
+            else:  # Bar chart only
+                fig = plt.figure()
+                ax = fig.add_subplot(111)
+                fig.tight_layout()
+                # Show chart
+                # plt.subplot(122)
+
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.set_ylim([0.0, 0.55])
+                ax.bar(
+                    source_dataset_name_list,
+                    weight_list,
+                    color=['tab:orange', 'tab:blue', 'tab:green'],
+                )
+                fig.savefig(
+                    os.path.join(
+                        args.save_path,
+                        name[0].replace(".png", "_gap.pdf").replace(".jpg", "_gap.pdf")
+
+                    )
+                )
 
 
 if __name__ == "__main__":

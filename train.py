@@ -237,6 +237,7 @@ def val(
     epoch: int = -1,
     weight_loss_ent: float = 0.1,
     device: str = "cuda",
+    class_list: list = None,
 ):
     """Validation
 
@@ -313,7 +314,6 @@ def val(
             inter_meter.update(inter)
             union_meter.update(union)
 
-
             # Visualize features
             features, labels = assign_label_on_features(
                 feature,
@@ -321,6 +321,7 @@ def val(
                 label_type='object',
                 scale_factor=16,
                 ignore_index=args.ignore_index,
+                class_list=class_list,
             )
             feature_list += features
             label_list += labels
@@ -436,7 +437,6 @@ def val(
         global_step=epoch,
     )
 
-
     return {"miou": avg_iou, "cls_loss": class_avg_loss, "ent_loss": ent_avg_loss}
 
 
@@ -463,7 +463,7 @@ def main():
             A.HorizontalFlip(p=0.5),
         ]
     )
-    max_iter = 3000 if args.use_other_datasets or len(
+    max_num = 3000 if args.use_other_datasets or len(
         args.s1_name) > 1 else None
 
     if len(args.s1_name) > 1:
@@ -482,8 +482,9 @@ def main():
                 height=args.train_image_size_h,
                 width=args.train_image_size_w,
                 transform=transform,
-                max_iter=max_iter,
-                label_conversion=args.use_label_conversion,
+                max_num=max_num,
+                # label_conversion=args.use_label_conversion,
+                label_conversion_to=args.target,
             )
             dataset_s1_val, _, _, _ = import_dataset(
                 # args.s1_name,
@@ -491,7 +492,8 @@ def main():
                 mode="val",
                 height=args.val_image_size_h,
                 width=args.val_image_size_w,
-                label_conversion=args.use_label_conversion,
+                # label_conversion=args.use_label_conversion,
+                label_conversion_to=args.target,
             )
             args.num_classes = num_classes
         except Exception as e:
@@ -528,7 +530,7 @@ def main():
                     height=args.val_image_size_h,
                     width=args.val_image_size_w,
                     transform=transform,
-                    max_iter=max_iter,
+                    max_num=max_num,
                 )
             except Exception as e:
                 t, v, tb = sys.exc_info()
@@ -585,6 +587,13 @@ def main():
         train_loader_a1 = None
         val_loader_a1 = None
 
+    if args.target == "greenhouse":
+        from dataset.greenhouse import GREENHOUSE_CLASS_LIST as CLASS_LIST
+    elif args.target == "sakaki" or args.target == "imo":
+        from dataset.sakaki import SAKAKI_CLASS_LIST as CLASS_LIST
+    else:
+        CLASS_LIST = []
+
     #
     # Define a model
     #
@@ -608,7 +617,7 @@ def main():
     # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     print("=== Get optimizer ===")
     optimizer = get_optimizer(
-        optim_name=args.optim, 
+        optim_name=args.optim,
         model_name=args.model,
         model=model,
         lr=args.lr,
@@ -620,7 +629,7 @@ def main():
     # Scheduler: Gradually changes the learning rate
     #
     scheduler = get_scheduler(
-        scheduler_name=args.scheduler, 
+        scheduler_name=args.scheduler,
         optim_name=args.optim,
         optimizer=optimizer,
         epochs=args.epochs,
@@ -686,6 +695,7 @@ def main():
                 writer=writer,
                 color_encoding=color_encoding,
                 epoch=ep,
+                class_list=CLASS_LIST,
             )
 
             if current_miou < metrics["miou"]:

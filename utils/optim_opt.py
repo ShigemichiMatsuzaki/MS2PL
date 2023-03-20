@@ -2,9 +2,10 @@ import torch
 
 SUPPORTED_OPTIMIZERS = ['SGD', 'Adam']
 SUPPORTED_SCHEDULERS = (['step', 'multistep', 'exponential', 'polynomial', 'cyclic', 'constant']
-    if torch.__version__ >= '1.13.0'
-    else ['step', 'multistep', 'exponential', 'cyclic', 'constant']
-)
+                        if torch.__version__ >= '1.13.0'
+                        else ['step', 'multistep', 'exponential', 'cyclic', 'constant']
+                        )
+
 
 class ConstantLR:
     def __init__(self):
@@ -15,9 +16,9 @@ class ConstantLR:
 
 
 def get_optimizer(
-    optim_name: str, 
-    model_name: str, 
-    model: torch.nn.Module, 
+    optim_name: str,
+    model_name: str,
+    model: torch.nn.Module,
     lr: float,
     weight_decay: float,
     momentum: float,
@@ -86,7 +87,7 @@ def get_optimizer(
 
 
 def get_scheduler(
-    scheduler_name: str, 
+    scheduler_name: str,
     optim_name: str,
     optimizer: torch.optim.Optimizer,
     epochs: int,
@@ -157,7 +158,11 @@ def get_encoder_weights(model: torch.nn.Module, model_name: str):
     """ """
     b = []
     if "deeplab" in model_name:
-        b.append(model.backbone)
+        if isinstance(model, torch.nn.DataParallel):
+            b.append(model.module.backbone)
+        else:
+            b.append(model.backbone)
+
         for i in range(len(b)):
             for j in b[i].modules():
                 jj = 0
@@ -165,9 +170,13 @@ def get_encoder_weights(model: torch.nn.Module, model_name: str):
                     jj += 1
                     if k.requires_grad:
                         yield k
-    elif model_name == "espnetv2":
-        for w in model.get_basenet_params():
-            yield w
+    elif model_name == "espnetv2" or model_name == "esptnet":
+        if isinstance(model, torch.nn.DataParallel):
+            for w in model.module.get_basenet_params():
+                yield w
+        else:
+            for w in model.get_basenet_params():
+                yield w
     else:
         raise ValueError
 
@@ -176,9 +185,15 @@ def get_decoder_weights(model: torch.nn.Module, model_name: str):
     """ """
     if "deeplab" in model_name:
         b = []
-        b.append(model.classifier)
-        if model.aux_classifier is not None:
-            b.append(model.aux_classifier)
+
+        if isinstance(model, torch.nn.DataParallel):
+            b.append(model.module.classifier)
+            if model.module.aux_classifier is not None:
+                b.append(model.module.aux_classifier)
+        else:
+            b.append(model.classifier)
+            if model.aux_classifier is not None:
+                b.append(model.aux_classifier)
 
         for i in range(len(b)):
             for j in b[i].modules():
@@ -188,7 +203,24 @@ def get_decoder_weights(model: torch.nn.Module, model_name: str):
                     if k.requires_grad:
                         yield k
     elif model_name == "espnetv2":
-        for w in model.get_segment_params():
-            yield w
+        if isinstance(model, torch.nn.DataParallel):
+            for w in model.module.get_segment_params():
+                yield w
+        else:
+            for w in model.get_segment_params():
+                yield w
+    elif model_name == "esptnet":
+        if isinstance(model, torch.nn.DataParallel):
+            for w in model.module.get_segment_params():
+                yield w
+
+            for w in model.module.get_traversability_module_params():
+                yield w
+        else:
+            for w in model.get_segment_params():
+                yield w
+
+            for w in model.get_traversability_module_params():
+                yield w
     else:
         raise ValueError

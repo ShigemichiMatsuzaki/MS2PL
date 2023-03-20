@@ -47,7 +47,7 @@ class FreiburgForestDataset(BaseDataset):
         height=512,
         width=1024,
         transform=None,
-        label_conversion=False,
+        label_conversion_to="",
         max_iter=None,
     ):
         super().__init__(
@@ -58,7 +58,7 @@ class FreiburgForestDataset(BaseDataset):
             height=height,
             width=width,
             transform=transform,
-            label_conversion=label_conversion,
+            label_conversion_to=label_conversion_to,
             max_iter=max_iter
         )
 
@@ -74,29 +74,22 @@ class FreiburgForestDataset(BaseDataset):
         self.labels = sorted(
             glob.glob(os.path.join(data_dir, "GT_color/*.png")))
         self.size = (height, width)
-        self.label_conversion_map = id_forest_to_greenhouse
+
+        self.num_classes = 5
+        if self.label_conversion_to == "greenhouse":
+            from .tools.label_conversions import id_forest_to_greenhouse as label_conversion
+            self.num_classes = 3
+        elif self.label_conversion_to == "sakaki" or self.label_conversion_to == "imo":
+            from .tools.label_conversions import id_forest_to_sakaki as label_conversion
+            self.num_classes = 5
+        else:
+            label_conversion = None
+
+        self.label_conversion_map = label_conversion
 
         if self.max_iter is not None and self.max_iter > len(self.images):
             self.images *= self.max_iter // len(self.images)
             self.labels *= self.max_iter // len(self.labels)
-
-    def initialize(self):
-        if self.mode == "val":
-            self.mode = "test"
-        elif self.mode not in ["train", "test"]:
-            print("Invalid dataset mode : {}".format(self.mode))
-            raise ValueError
-
-        data_dir = os.path.join(self.root, self.mode)
-
-        self.images = sorted(glob.glob(os.path.join(data_dir, "rgb/*.jpg")))
-        self.labels = sorted(
-            glob.glob(os.path.join(data_dir, "GT_color/*.png")))
-        self.size = (256, 480)
-        self.label_conversion_map = id_forest_to_greenhouse
-
-    # def __len__(self):
-    #     return len(self.images)
 
     def label_preprocess(self, label):
         """Convert color label to ids

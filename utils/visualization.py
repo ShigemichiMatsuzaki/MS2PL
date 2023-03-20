@@ -42,7 +42,8 @@ class LongTensorToRGBPIL(object):
         # Check if label_tensor is a LongTensor
         if not isinstance(tensor, torch.LongTensor):
             raise TypeError(
-                "label_tensor should be torch.LongTensor. Got {}".format(type(tensor))
+                "label_tensor should be torch.LongTensor. Got {}".format(
+                    type(tensor))
             )
         # Check if encoding is a ordered dictionary
         if not isinstance(self.rgb_encoding, OrderedDict):
@@ -133,6 +134,12 @@ def add_images_to_tensorboard(
     if tensor.size(0) > n_max:
         tensor = tensor[:n_max]
 
+    if is_label and color_encoding is None:
+        color_encoding = OrderedDict({
+            "negative": [0, 0, 0],
+            "positive": [255, 255, 255],
+        })
+
     if not is_label:
         images_grid = torchvision.utils.make_grid(tensor.data.cpu()).numpy()
     else:
@@ -211,7 +218,7 @@ def visualize_features(features, labels, label_type='', fig_name='foo'):
         '2': ('lightcoral', '*', 20, 1),
         '3': ('gold', '*', 20, 1),
         '4': ('k', '*', 20, 1)}
-    
+
     # 結果を二次元でプロットする
     embedding_x = embedding[:, 0]
     embedding_y = embedding[:, 1]
@@ -233,14 +240,14 @@ def visualize_features(features, labels, label_type='', fig_name='foo'):
 
 
 def assign_label_on_features(
-    feature: torch.Tensor, 
-    labels: torch.Tensor, 
-    masks: Optional[torch.Tensor]=None,
-    pred_label: Optional[torch.Tensor]=None, 
-    label_type: str='', 
-    scale_factor: int=4,
-    ignore_index: int=-1,
-    class_list: list=[],
+    feature: torch.Tensor,
+    labels: torch.Tensor,
+    masks: Optional[torch.Tensor] = None,
+    pred_label: Optional[torch.Tensor] = None,
+    label_type: str = '',
+    scale_factor: int = 4,
+    ignore_index: int = -1,
+    class_list: list = [],
 ):
     """Create lists of features and the corresponding labels with a specified label type
 
@@ -270,20 +277,24 @@ def assign_label_on_features(
         List of features
     label_list: `list`
         List of labels for UMAP visualization
-    
+
     """
     # Argument check
     #  Is the given label type valid?
-    assert label_type in UMAP_LABEL_TYPES #['object', 'traversability', 'misclassification']
+    # ['object', 'traversability', 'misclassification']
+    assert label_type in UMAP_LABEL_TYPES
     #  Is 'pred_label' given when the label type is 'misclassification'?
     assert label_type != 'misclassification' or pred_label is not None
     assert label_type != 'traversability' or masks is not None
 
-    feature = F.interpolate(feature, scale_factor=1/scale_factor, mode='nearest')
+    feature = F.interpolate(feature, scale_factor=1 /
+                            scale_factor, mode='nearest')
 
     # interpolate is not implemented for integers
-    ih = torch.linspace(0, labels.size(1)-1, labels.size(1)//scale_factor).long()
-    iw = torch.linspace(0, labels.size(2)-1, labels.size(2)//scale_factor).long()
+    ih = torch.linspace(0, labels.size(
+        1)-1, labels.size(1)//scale_factor).long()
+    iw = torch.linspace(0, labels.size(
+        2)-1, labels.size(2)//scale_factor).long()
     labels = labels[:, ih[:, None], iw]
     if masks is not None:
         masks = masks[:, ih[:, None], iw]
@@ -296,9 +307,10 @@ def assign_label_on_features(
         for i in range(feature.size(2)):
             for j in range(feature.size(3)):
                 if label_type == 'object':
-                    l = labels[n,i,j].detach().cpu().numpy()
+                    l = labels[n, i, j].detach().cpu().numpy()
                     if l != ignore_index:
-                        feature_list.append(feature[n,:,i,j].detach().cpu().numpy())
+                        feature_list.append(
+                            feature[n, :, i, j].detach().cpu().numpy())
 
                         if class_list and l < len(class_list):
                             label_list.append(class_list[l])
@@ -307,20 +319,23 @@ def assign_label_on_features(
 
                 elif label_type == 'traversability':
                     # Consider only plant regions
-                    if labels[n,i,j].detach().cpu().numpy() in [0, 1]:
-                        feature_list.append(feature[n,:,i,j].detach().cpu().numpy())
-                        l = masks[n,i,j].detach().cpu().numpy() // 255
-                        label_list.append('traversable' if l == 1 else 'non-traversable')
+                    if labels[n, i, j].detach().cpu().numpy() in [0, 1]:
+                        feature_list.append(
+                            feature[n, :, i, j].detach().cpu().numpy())
+                        l = masks[n, i, j].detach().cpu().numpy() // 255
+                        label_list.append('traversable' if l ==
+                                          1 else 'non-traversable')
                 elif label_type == 'misclassification':
                     # Consider only plant regions
-                    gt_label = labels[n,i,j].detach().cpu().numpy()
+                    gt_label = labels[n, i, j].detach().cpu().numpy()
                     if gt_label in [0, 1]:
-                        pred = pred_label[n,i,j].detach().cpu().numpy()
+                        pred = pred_label[n, i, j].detach().cpu().numpy()
 
                         if gt_label == 4:
                             continue
 
-                        feature_list.append(feature[n,:,i,j].detach().cpu().numpy())
+                        feature_list.append(
+                            feature[n, :, i, j].detach().cpu().numpy())
                         is_correct = gt_label == pred
                         if is_correct:
                             l = 'correct_plant' if is_correct else 0

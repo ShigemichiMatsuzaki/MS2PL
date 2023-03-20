@@ -11,6 +11,7 @@ from torchvision.transforms import InterpolationMode
 import albumentations as A
 import copy
 
+
 class BaseDataset(data.Dataset):
     def __init__(
         self,
@@ -21,7 +22,7 @@ class BaseDataset(data.Dataset):
         height=256,
         width=480,
         transform=None,
-        label_conversion=False,
+        label_conversion_to="",
         max_iter=None,
     ):
         """Base class of dataset
@@ -40,7 +41,7 @@ class BaseDataset(data.Dataset):
         self.root = root
         self.mode = mode
         self.ignore_idx = ignore_idx
-        self.label_conversion = label_conversion
+        self.label_conversion_to = label_conversion_to
         self.label_conversion_map = None
         # self.transform = transform
 
@@ -103,7 +104,7 @@ class BaseDataset(data.Dataset):
 
         # Convert images to tensors
         # label_img = np.array(label_img)
-        if self.label_conversion and self.label_conversion_map is not None:
+        if self.label_conversion_to and self.label_conversion_map is not None:
             label_np = self.label_conversion_map[label_np]
 
         transformed = self.transform(image=rgb_np, mask=label_np)
@@ -132,6 +133,7 @@ class BaseTargetDataset(data.Dataset):
         is_hard_label=False,
         load_labels=True,
         transform=None,
+        max_iter=None,
     ):
         """Base class of dataset
 
@@ -150,12 +152,13 @@ class BaseTargetDataset(data.Dataset):
         self.is_hard_label = is_hard_label
         self.load_labels = load_labels
         self.label_root = label_root
+        self.max_iter = max_iter
 
         if isinstance(size, tuple):
             self.size = size
         else:
             self.size = (size, size)
-        
+
         self.scale = scale
 
         # Declare an augmentation pipeline
@@ -192,7 +195,7 @@ class BaseTargetDataset(data.Dataset):
 
     def label_preprocess(self, label):
         """Pre-processing of the label
-        
+
         """
         raise NotImplementedError
 
@@ -268,25 +271,25 @@ class BaseTargetDataset(data.Dataset):
         # Spacial transform
         if self.mode == "train":
             i, j, h, w = torchvision.transforms.RandomResizedCrop.get_params(
-                rgb_img, 
+                rgb_img,
                 scale=self.scale,
                 ratio=(0.75, 1.3333333333333333),
             )
 
             rgb_img = F.crop(rgb_img, i, j, h, w)
             rgb_img = F.resize(
-                rgb_img, self.size, 
+                rgb_img, self.size,
                 interpolation=InterpolationMode.BILINEAR)
 
             rgb_img_orig = F.crop(rgb_img_orig, i, j, h, w)
             rgb_img_orig = F.resize(
-                rgb_img_orig, self.size, 
+                rgb_img_orig, self.size,
                 interpolation=InterpolationMode.BILINEAR)
 
             label_img = torch.unsqueeze(label_img, dim=0)
             label_img = F.crop(label_img, i, j, h, w)
             label_img = F.resize(
-                label_img, self.size, 
+                label_img, self.size,
                 interpolation=InterpolationMode.NEAREST)
             label_img = torch.squeeze(label_img)
 
@@ -299,3 +302,77 @@ class BaseTargetDataset(data.Dataset):
             "name": self.images[index].rsplit("/", 1)[1],
         }
 
+class BaseFiveClassTargetDataset(BaseTargetDataset):
+    def __init__(
+        self,
+        label_root="",
+        mode="train",
+        size=(256, 480),
+        scale=(0.70, 1.0),
+        is_hard_label=False,
+        load_labels=True,
+        transform=None,
+        max_iter=None,
+        is_three_class=False,
+    ):
+        """Base class of dataset
+
+        Parameter
+        ---------
+        root : str
+            Root directory of datasets
+        mode : str
+            Mode of the dataset ['train', 'val', 'test']
+        ignore_idx : int
+            Label index for the pixels ignored in training
+        transform : albumentations
+
+        """
+        super().__init__(
+            label_root=label_root,
+            mode=mode,
+            size=size,
+            is_hard_label=is_hard_label,
+            load_labels=load_labels,
+            max_iter=max_iter,
+        )
+        self.is_three_class = is_three_class
+
+    def label_conversion_to_three(self, label_img: Image) -> Image:
+        """Convert five-class label to three-class label
+
+        Parameters
+        ----------
+        label_img : `PIL.Image`
+            Label image
+
+        Returns
+        -------
+        `PIL.Image`
+            Converted label
+        """
+        label_np = np.array(
+            label_img, np.uint8)
+
+        # Label conversion
+        label_conv = np.array([
+            0, 0, 1, 2, 3, 3
+        ], type=np.uint8)
+
+        label_np = label_conv[label_np]
+
+        label_img = Image.fromarray(label_np)
+
+        return label_img
+
+    def label_preprocess(self, label_img):
+        """Pre-processing of the label
+        
+        """
+        #
+        # Segmentation label
+        #
+        if self.is_three_class:
+            label_img = self.label_conversion_to_three(label_img)
+
+        return label_img

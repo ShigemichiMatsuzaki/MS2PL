@@ -35,9 +35,9 @@ def main():
     ):
         if os_d == "camvid":
             os_seg_classes = 13
-            if args.target == "greenhouse" or args.target == "imo":
+            if args.target == "greenhouse":
                 from dataset.tools.label_conversions import id_camvid_to_greenhouse as label_conversion
-            elif args.target == "sakaki":
+            elif args.target == "sakaki" or args.target == "imo":
                 from dataset.tools.label_conversions import id_camvid_to_sakaki as label_conversion
             else:
                 print("Target {} is not supported.".format(args.target))
@@ -47,11 +47,11 @@ def main():
         elif os_d == "cityscapes":
             # os_seg_classes = 19
             os_seg_classes = 20
-            if args.target == "greenhouse" or args.target == "imo":
+            if args.target == "greenhouse":
                 from dataset.tools.label_conversions import (
                     id_cityscapes_to_greenhouse as label_conversion,
                 )
-            elif args.target == "sakaki":
+            elif args.target == "sakaki" or args.target == "imo":
                 from dataset.tools.label_conversions import (
                     id_cityscapes_to_sakaki as label_conversion,
                 )
@@ -61,9 +61,9 @@ def main():
             from dataset.cityscapes import color_encoding
         elif os_d == "forest" or os_d == "greenhouse":
             os_seg_classes = 5
-            if args.target == "greenhouse" or args.target == "imo":
+            if args.target == "greenhouse":
                 from dataset.tools.label_conversions import id_forest_to_greenhouse as label_conversion
-            elif args.target == "sakaki":
+            elif args.target == "sakaki" or args.target == "imo":
                 from dataset.tools.label_conversions import id_forest_to_sakaki as label_conversion
             else:
                 print("Target {} is not supported.".format(args.target))
@@ -106,12 +106,13 @@ def main():
     elif args.target == "camvid":
         from dataset.camvid import CamVidSegmentation, color_encoding
 
-        target_dataset = CamVidSegmentation(root="/tmp/dataset/CamVid", mode="val")
+        target_dataset = CamVidSegmentation(
+            root="/tmp/dataset/CamVid", mode="val")
     elif args.target == "forest":
         from dataset.forest import FreiburgForestDataset, color_encoding
 
         target_dataset = FreiburgForestDataset(
-            root="/tmp/dataset/freiburg_forest_annotated", 
+            root="/tmp/dataset/freiburg_forest_annotated",
             mode="val",
         )
     elif args.target == "sakaki":
@@ -119,7 +120,7 @@ def main():
 
         target_dataset = SakakiDataset(
             list_name=args.target_data_list,
-            mode="val", 
+            mode="val",
             load_labels=False,
             is_hard_label=True,
         )
@@ -128,7 +129,7 @@ def main():
 
         target_dataset = Imo(
             list_name=args.target_data_list,
-            mode="val", 
+            mode="val",
             load_labels=False,
             is_hard_label=True,
         )
@@ -137,8 +138,8 @@ def main():
         from dataset.oxford_robot import OxfordRobot, color_encoding
 
         target_dataset = OxfordRobot(
-            dataset_root="/tmp/dataset", 
-            mode="val", 
+            dataset_root="/tmp/dataset",
+            mode="val",
             load_labels=False,
             is_hard_label=True,
         )
@@ -168,7 +169,8 @@ def main():
                 # # pred = model(image)["out"]
                 # pred = output["out"] + 0.5 * output["aux"]
                 for j, model in enumerate(source_model_list):
-                    pred = get_output(model, image, aux_weight=0.5, device=args.device)
+                    pred = get_output(
+                        model, image, aux_weight=0.5, device=args.device)
                     amax = torch.argmax(pred, dim=1).squeeze().cpu().numpy()
                     amax = label_conversions[j][amax]
                     # amax = label_conversion[amax]
@@ -181,7 +183,8 @@ def main():
                     union_meter_list[j].update(union)
 
                     # File name ('xxx.png')
-                    filename = name[0].split("/")[-1].replace(".png", "").replace(".jpg", "")
+                    filename = name[0].split(
+                        "/")[-1].replace(".png", "").replace(".jpg", "")
                     label = Image.fromarray(amax.astype(np.uint8)).convert("P")
                     label.putpalette(color_palette)
                     # label.putpalette(color_palettes[j])
@@ -190,7 +193,8 @@ def main():
                     label.save(
                         os.path.join(
                             args.save_path,
-                            filename + "_" + source_dataset_name_list[j] + ".png",
+                            filename + "_" +
+                            source_dataset_name_list[j] + ".png",
                         )
                     )
 

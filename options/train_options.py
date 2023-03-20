@@ -22,12 +22,6 @@ class TrainBaseOptions(BaseOptions):
         )
 
         self.parser.add_argument(
-            "--resume-from",
-            type=str,
-            default="",
-            help="Weights to resume the training from",
-        )
-        self.parser.add_argument(
             "--resume-epoch",
             type=int,
             default=0,
@@ -84,48 +78,50 @@ class TrainBaseOptions(BaseOptions):
 
         # Parameters related to cosine-based softmax
         self.parser.add_argument(
-            '--use-cosine', 
-            default=False, 
-            type=strtobool,
-            help='True to use cosine-based loss (ArcFace). Valid only when "model"=="espnetv2"'
-        )
-        self.parser.add_argument(
-            '--cos-margin', 
-            default=0.1, 
+            '--cos-margin',
+            default=0.1,
             type=float,
             help='Angle margin'
         )
         self.parser.add_argument(
-            '--cos-logit-scale', 
-            default=30.0, 
+            '--cos-logit-scale',
+            default=30.0,
             type=float,
             help='Scale factor for the final logits'
         )
         self.parser.add_argument(
-            '--is-easy-margin', 
-            default=False, 
+            '--is-easy-margin',
+            default=False,
             type=strtobool,
             help='Whether to use an easy margin'
         )
 
         # Hyperparameter tuning
         self.parser.add_argument(
-            '--use-optuna', 
-            default=False, 
+            '--use-optuna',
+            default=False,
             type=strtobool,
             help='Whether to use automatic hyperparameter tuning by Optuna'
         )
         self.parser.add_argument(
-            '--optuna-resume-from', 
-            default='', 
+            '--optuna-resume-from',
+            default='',
             type=str,
             help='Name of existing study'
+        )
+
+        # Dataset
+        self.parser.add_argument(
+            "--target",
+            type=str,
+            default="",
+            help="Target dataset",
         )
 
 
 class PreTrainOptions(TrainBaseOptions):
     def __init__(self):
-        #super().__init__()
+        # super().__init__()
         super(PreTrainOptions, self).__init__()
 
         print("PreTrainBase option")
@@ -165,13 +161,6 @@ class TrainOptions(TrainBaseOptions):
         super(TrainOptions, self).__init__()
         print("Train option")
 
-        # Dataset
-        self.parser.add_argument(
-            "--target",
-            type=str,
-            default="greenhouse",
-            help="Target dataset",
-        )
         self.parser.add_argument(
             "--train-data-list-path",
             type=str,
@@ -190,7 +179,6 @@ class TrainOptions(TrainBaseOptions):
             default="dataset/data_list/test_greenhouse_a.lst",
             help="Target test dataset",
         )
-
 
         # Label type
         self.parser.add_argument(
@@ -238,6 +226,26 @@ class TrainOptions(TrainBaseOptions):
             default=0.5,
             help="Threshold of label weight value. Below this value is set to 0",
         )
+        self.parser.add_argument(
+            "--is-sce-loss",
+            type=strtobool,
+            default=False,
+            help="Use symmetric cross entropy as a classification loss",
+        )
+        self.parser.add_argument(
+            "--sce-alpha",
+            type=float,
+            default=0.1,
+            help="Alpha for SCELoss (weight on the normal cross entropy)",
+        )
+        self.parser.add_argument(
+            "--sce-beta",
+            type=float,
+            default=1.0,
+            help="Beta for SCELoss (weight on the reverse cross entropy)",
+        )
+
+
 
         # Pseudo-label update
         self.parser.add_argument(
@@ -272,6 +280,19 @@ class TrainOptions(TrainBaseOptions):
             default=False,
             help="Whether to use prototype-based denoising",
         )
+        self.parser.add_argument(
+            "--prototype-init-epoch",
+            type=int,
+            default=0,
+            help="Whether to use prototype-based denoising",
+        )
+        self.parser.add_argument(
+            "--use-prototype-soft-label-weight",
+            type=strtobool,
+            default=False,
+            help="Whether to use label weight in prototype calculation",
+        )
+
 
 
 class PseudoLabelAndTrainOptions(TrainOptions):
@@ -308,12 +329,12 @@ class PseudoLabelAndTrainOptions(TrainOptions):
             type=strtobool,
             help="If True, generate hard pseudo-labels.",
         )
-        self.parser.add_argument(
-            "--use-domain-gap",
-            type=strtobool,
-            default=True,
-            help="If True, domain gap-based weights are used for soft pseudo-label generation",
-        )
+        # self.parser.add_argument(
+        #     "--use-domain-gap",
+        #     type=strtobool,
+        #     default=True,
+        #     help="If True, domain gap-based weights are used for soft pseudo-label generation",
+        # )
         self.parser.add_argument(
             "--is-softmax-normalize",
             type=strtobool,
@@ -321,17 +342,22 @@ class PseudoLabelAndTrainOptions(TrainOptions):
             help="If set, normalize the domain gaps using softmax. Otherwise by the sum",
         )
         self.parser.add_argument(
-            "--is-per-sample",
-            type=strtobool,
-            default=False,
-            help="If set, consider the domain gap per sample. Otherwise, per batch",
+            "--domain-gap-type",
+            type=str,
+            help="If True, domain gap-based weights are used for soft pseudo-label generation",
         )
-        self.parser.add_argument(
-            "--is-per-pixel",
-            type=strtobool,
-            default=False,
-            help="If set, consider the domain gap per pixel. Otherwise, per image",
-        )
+        # self.parser.add_argument(
+        #     "--is-per-sample",
+        #     type=strtobool,
+        #     default=False,
+        #     help="If set, consider the domain gap per sample. Otherwise, per batch",
+        # )
+        # self.parser.add_argument(
+        #     "--is-per-pixel",
+        #     type=strtobool,
+        #     default=False,
+        #     help="If set, consider the domain gap per pixel. Otherwise, per image",
+        # )
 
         self.parser.add_argument(
             "--sp-label-min-portion",
@@ -346,114 +372,94 @@ class PseudoLabelAndTrainOptions(TrainOptions):
             help="Minimum proportion of the majority label in a superpixel to propagate",
         )
         self.parser.add_argument(
-            "--pseudo-label-save-path",
+            "--initial-pseudo-label-path",
             type=str,
             default="",
-            help="Directory to save pseudo-labels",
+            help="Directory where initial pseudo-labels are saved",
         )
 
 
+class TraversabilityTrainOptions(TrainBaseOptions):
+    def __init__(self):
+        # super().__init__()
+        super(TraversabilityTrainOptions, self).__init__()
 
         # Dataset
-#        self.parser.add_argument(
-#            "--target",
-#            type=str,
-#            default="greenhouse",
-#            help="Target dataset",
-#        )
-#        self.parser.add_argument(
-#            "--train-data-list-path",
-#            type=str,
-#            default="dataset/data_list/train_greenhouse_a.lst",
-#            help="Target training dataset",
-#        )
-#        self.parser.add_argument(
-#            "--val-data-list-path",
-#            type=str,
-#            default="dataset/data_list/val_greenhouse_a.lst",
-#            help="Target validation dataset",
-#        )
-#
-#
-#        # Label type
-#        self.parser.add_argument(
-#            "--is-hard",
-#            type=strtobool,
-#            default=False,
-#            help="If True, generate hard pseudo-labels.",
-#        )
-#
-#        # Loss
-#        self.parser.add_argument(
-#            "--kld-loss-weight",
-#            type=float,
-#            default=0.2,
-#            help="Weight on the KLD loss between main and aux",
-#        )
-#        self.parser.add_argument(
-#            "--entropy-loss-weight",
-#            type=float,
-#            default=0.2,
-#            help="Weight on the entropy loss",
-#        )
-#
-#        self.parser.add_argument(
-#            "--use-kld-class-loss",
-#            type=strtobool,
-#            default=False,
-#            help="True to use KLD loss to train classifier",
-#        )
-#        self.parser.add_argument(
-#            "--use-label-ent-weight",
-#            type=strtobool,
-#            default=True,
-#            help="True to use inverse label entropy as loss weights",
-#        )
-#        self.parser.add_argument(
-#            "--label-weight-temperature",
-#            type=float,
-#            default=1.0,
-#            help="True to use inverse label entropy as loss weights",
-#        )
-#        self.parser.add_argument(
-#            "--label-weight-threshold",
-#            type=float,
-#            default=0.5,
-#            help="Threshold of label weight value. Below this value is set to 0",
-#        )
-#
-#        # Pseudo-label update
-#        self.parser.add_argument(
-#            "--label-update-epoch",
-#            required=True,
-#            nargs="*",
-#            type=int,
-#            help="Epoch at which the pseudo-labels are updated",
-#        )
-#        self.parser.add_argument(
-#            "--conf-thresh",
-#            required=True,
-#            nargs="*",
-#            type=float,
-#            help="Threshold of confidence to be selected as a pseudo-label",
-#        )
-#        self.parser.add_argument(
-#            "--sp-label-min-portion",
-#            type=float,
-#            default=0.7,
-#            help="Threshold of portion of labels of a certain class that dominates a superpixel to be propagated within the entire superpixel",
-#        )
-#        self.parser.add_argument(
-#            "--pseudo-label-dir",
-#            type=str,
-#            default="",
-#            help="Path to the directory where the pre-trained class weight file is",
-#        )
-#        self.parser.add_argument(
-#            "--use-prototype-denoising",
-#            type=strtobool,
-#            default=False,
-#            help="Whether to use prototype-based denoising",
-#        )
-#
-#
+        self.parser.add_argument(
+            "--target",
+            type=str,
+            default="greenhouse",
+            help="Target dataset",
+        )
+        self.parser.add_argument(
+            "--train-data-list-path",
+            type=str,
+            default="dataset/data_list/trav_train_greenhouse_b.lst",
+            help="Target training dataset",
+        )
+        self.parser.add_argument(
+            "--val-data-list-path",
+            type=str,
+            default="dataset/data_list/trav_val_greenhouse_b.lst",
+            help="Target validation dataset",
+        )
+        self.parser.add_argument(
+            "--test-data-list-path",
+            type=str,
+            default="dataset/data_list/test_val_greenhouse_a.lst",
+            help="Target test dataset",
+        )
+
+
+class MSDACLTrainOptions(TrainBaseOptions):
+    def __init__(self):
+        # super().__init__()
+        super(MSDACLTrainOptions, self).__init__()
+
+        # Dataset
+        self.parser.add_argument(
+            "--target",
+            type=str,
+            default="greenhouse",
+            help="Target dataset",
+        )
+        self.parser.add_argument(
+            "--train-data-list-path",
+            type=str,
+            default="dataset/data_list/train_greenhouse_a.lst",
+            help="Target training dataset",
+        )
+        self.parser.add_argument(
+            "--val-data-list-path",
+            type=str,
+            default="dataset/data_list/val_greenhouse_a.lst",
+            help="Target validation dataset",
+        )
+        self.parser.add_argument(
+            "--test-data-list-path",
+            type=str,
+            default="dataset/data_list/test_greenhouse_a.lst",
+            help="Target test dataset",
+        )
+
+        self.parser.add_argument(
+            "--pseudo-label-dir",
+            type=str,
+            default="",
+            help="Path to the directory where the pre-trained class weight file is",
+        )
+        # Source
+        self.parser.add_argument(
+            "--source-dataset-names",
+            type=str,
+            help="Source datasets to use. Either 'camvid', 'cityscapes', and 'forest', and must be separated by ',', i.e., 'camvid,forest'.",
+        )
+        self.parser.add_argument(
+            "--source-weight-names",
+            type=str,
+            help="Paths to weight files separated by ','",
+        )
+        self.parser.add_argument(
+            "--source-model-names",
+            help="Paths to weight files separated by ','",
+        )

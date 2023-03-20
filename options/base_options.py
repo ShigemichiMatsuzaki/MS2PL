@@ -36,6 +36,7 @@ class BaseOptions(object):
                 "deeplabv3_resnet50",
                 "deeplabv3_resnet101",
                 "espnetv2",
+                "esptnet",
                 "unet",
             ],
             default="deeplabv3_resnet50",
@@ -80,6 +81,19 @@ class BaseOptions(object):
             "--is-old-label",
             type=strtobool,
             default=False,
+        )
+
+        self.parser.add_argument(
+            '--use-cosine',
+            default=False,
+            type=strtobool,
+            help='True to use cosine-based loss (ArcFace). Valid only when "model"=="espnetv2"'
+        )
+        self.parser.add_argument(
+            "--resume-from",
+            type=str,
+            default="",
+            help="Weights to resume the training from",
         )
 
         self.initialized = True

@@ -71,7 +71,7 @@ class CityscapesSegmentation(BaseDataset):
         height=512,
         width=1024,
         transform=None,
-        label_conversion=False,
+        label_conversion_to="",
         max_iter=None,
         coarse=False,
     ):
@@ -83,7 +83,7 @@ class CityscapesSegmentation(BaseDataset):
             height=height,
             width=width,
             transform=transform,
-            label_conversion=label_conversion,
+            label_conversion_to=label_conversion_to,
             max_iter=max_iter,
         )
 
@@ -96,7 +96,8 @@ class CityscapesSegmentation(BaseDataset):
         data_train_label_dir = os.path.join(label_dir, self.mode)
         self.images += sorted(glob.glob(os.path.join(data_train_image_dir, "*/*.png")))
         self.labels += sorted(
-            glob.glob(os.path.join(data_train_label_dir, "*/*labelTrainIds.png"))
+            glob.glob(os.path.join(
+                data_train_label_dir, "*/*labelTrainIds.png"))
         )
 
         if self.mode == "train" and self.annot_type == "gtCoarse":
@@ -106,41 +107,27 @@ class CityscapesSegmentation(BaseDataset):
                 glob.glob(os.path.join(data_train_image_dir, "*/*.png"))
             )
             self.labels += sorted(
-                glob.glob(os.path.join(data_train_label_dir, "*/*labelTrainIds.png"))
+                glob.glob(os.path.join(
+                    data_train_label_dir, "*/*labelTrainIds.png"))
             )
 
-        self.label_conversion_map = id_cityscapes_to_greenhouse
+        self.num_classes = 19
+        if self.label_conversion_to == "greenhouse":
+            from .tools.label_conversions import id_cityscapes_to_greenhouse as label_conversion
+            self.num_classes = 3
+        elif self.label_conversion_to == "sakaki" or self.label_conversion_to == "imo":
+            from .tools.label_conversions import id_cityscapes_to_sakaki as label_conversion
+            self.num_classes = 5
+        else:
+            label_conversion = None
+
+        self.label_conversion_map = label_conversion
+
         self.size = (height, width)
 
         if self.max_iter is not None and self.max_iter > len(self.images):
             self.images *= self.max_iter // len(self.images)
             self.labels *= self.max_iter // len(self.labels)
-
-
-    def initialize(self):
-        self.annot_type = "gtFine"
-        image_dir = os.path.join(self.root, "leftImg8bit")
-        # label_dir = os.path.join(self.root, self.annot_type)
-        label_dir = os.path.join(self.root, self.annot_type)
-        data_train_image_dir = os.path.join(image_dir, self.mode)
-        data_train_label_dir = os.path.join(label_dir, self.mode)
-        self.images += sorted(glob.glob(os.path.join(data_train_image_dir, "*/*.png")))
-        self.labels += sorted(
-            glob.glob(os.path.join(data_train_label_dir, "*/*labelTrainIds.png"))
-        )
-
-        if self.mode == "train" and self.annot_type == "gtCoarse":
-            data_train_image_dir = os.path.join(image_dir, "train_extra")
-            data_train_label_dir = os.path.join(label_dir, "train_extra")
-            self.images += sorted(
-                glob.glob(os.path.join(data_train_image_dir, "*/*.png"))
-            )
-            self.labels += sorted(
-                glob.glob(os.path.join(data_train_label_dir, "*/*labelTrainIds.png"))
-            )
-
-        self.label_conversion_map = id_cityscapes_to_greenhouse
-        self.size = (256, 480)
 
     def label_preprocess(self, label):
         """Convert color label to ids
@@ -155,18 +142,19 @@ class CityscapesSegmentation(BaseDataset):
         label_img : `PIL.Image`or `numpy.ndarray`
             1-channel label image
         """
-        if self.label_conversion:
+        if self.label_conversion_to:
             if isinstance(label, np.ndarray):
                 label_np = label
             else:
                 label_np = np.array(label, np.uint8)
 
-            label_np[label_np==self.ignore_idx] = 19
+            label_np[label_np == self.ignore_idx] = 19
 
             if isinstance(label, np.ndarray):
                 label_img = label_np
             else:
                 label_img = Image.fromarray(label_np)
+        else:
+            label_img = label
 
         return label_img
-
