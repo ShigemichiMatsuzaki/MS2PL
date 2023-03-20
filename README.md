@@ -1,4 +1,4 @@
-# Multi-Source Soft Pseudo-Label Learning
+# Multi-Source Soft Pseudo-Label Learning  with Domain Similarity-based Weighting for Semantic Segmentation
 
 ## Overview
 Domain adaptive training for semantic segmentation network using multiple source datasets.
