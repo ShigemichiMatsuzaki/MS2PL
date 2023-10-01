@@ -52,6 +52,8 @@ To change parameters, modify `scripts/train_greenhouse_soft_pseudo.sh` / `script
 
 ## Publication
 
+[Paper](https://arxiv.org/abs/2303.00979)
+
 ```
 @inproceedings{
   author  = {Matsuzaki, Shigemichi and Masuzawa, Hiroaki and Miura, Jun},
